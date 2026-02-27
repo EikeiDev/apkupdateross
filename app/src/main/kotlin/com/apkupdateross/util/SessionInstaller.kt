@@ -1,0 +1,208 @@
+package com.apkupdateross.util
+
+import android.app.PendingIntent
+import android.app.PendingIntent.FLAG_MUTABLE
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES
+import androidx.core.content.ContextCompat.startActivity
+import com.apkupdateross.BuildConfig
+import com.apkupdateross.data.ui.AppInstallProgress
+import com.apkupdateross.ui.activity.MainActivity
+import com.topjohnwu.superuser.Shell
+import rikka.shizuku.Shizuku
+import rikka.shizuku.ShizukuBinderWrapper
+import rikka.shizuku.SystemServiceHelper
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipFile
+
+
+class SessionInstaller(
+    private val context: Context,
+    private val installLog: InstallLog
+) {
+
+    companion object {
+        const val INSTALL_ACTION = "installAction"
+    }
+
+    private val installMutex = AtomicBoolean(false)
+
+    suspend fun install(id: Int, packageName: String, stream: InputStream) =
+        install(id, packageName, listOf(stream))
+
+    private suspend fun install(id: Int, packageName: String, streams: List<InputStream>) {
+        val packageInstaller: PackageInstaller = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        params.setAppPackageName(packageName)
+
+        if (Build.VERSION.SDK_INT > 24) {
+            params.setOriginatingUid(android.os.Process.myUid())
+        }
+
+        if (Build.VERSION.SDK_INT >= 31) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            params.setPackageSource(PackageInstaller.PACKAGE_SOURCE_STORE)
+        }
+
+        val sessionId = packageInstaller.createSession(params)
+        var bytes = 0L
+        packageInstaller.openSession(sessionId).use { session ->
+            streams.forEach {
+                session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
+                    bytes += it.copyToAndNotify(output, id, installLog, bytes)
+                    it.close()
+                    session.fsync(output)
+                }
+            }
+
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = "$INSTALL_ACTION.$id"
+            }
+
+            installMutex.lock()
+            val pending = PendingIntent.getActivity(context, 0, intent, FLAG_MUTABLE)
+            session.commit(pending.intentSender)
+            session.close()
+        }
+    }
+
+    fun rootInstall(file: File): Boolean {
+        val res = Shell.cmd("pm install -r ${file.absolutePath}").exec().isSuccess
+        file.delete()
+        return res
+    }
+
+    fun finish() = installMutex.unlock()
+
+    fun checkPermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if(!context.packageManager.canRequestPackageInstalls()) {
+                val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
+                val intent = Intent(ACTION_MANAGE_UNKNOWN_APP_SOURCES, uri)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(context, intent, null)
+                return false
+            }
+        }
+        return true
+    }
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    suspend fun installXapk(id: Int, packageName: String, stream: InputStream) {
+        // Copy file to disk.
+        // TODO: Find a way to do this without saving file
+        val file = File(context.cacheDir, randomUUID())
+        stream.copyTo(file.outputStream())
+
+        // Get entries
+        val zip = ZipFile(file)
+        val entries = zip.entries().toList()
+
+        // Install all the apks
+        // TODO: Try to install only needed apks
+        // TODO: Add root install support
+        val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
+        install(id, packageName, apks)
+
+        // Cleanup
+        zip.close()
+        file.delete()
+    }
+
+    suspend fun playInstall(id: Int, packageName: String, streams: List<InputStream>) =
+        install(id, packageName, streams)
+
+    fun isShizukuAvailable(): Boolean = runCatching {
+        Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    }.getOrDefault(false)
+
+    suspend fun shizukuInstall(id: Int, packageName: String, stream: InputStream) =
+        shizukuInstall(id, packageName, listOf(stream))
+
+    private fun createShizukuPackageInstaller(): PackageInstaller {
+        val ipiClass = Class.forName("android.content.pm.IPackageInstaller")
+        val ipi = Class.forName("android.content.pm.IPackageInstaller\$Stub")
+            .getDeclaredMethod("asInterface", android.os.IBinder::class.java)
+            .invoke(null, ShizukuBinderWrapper(SystemServiceHelper.getSystemService("package_installer")))
+
+        // Try API 34+ constructor first (IPackageInstaller, String, int, int)
+        return runCatching {
+            PackageInstaller::class.java
+                .getDeclaredConstructor(ipiClass, String::class.java, Int::class.java, Int::class.java)
+                .also { it.isAccessible = true }
+                .newInstance(ipi, BuildConfig.APPLICATION_ID, 0, 0) as PackageInstaller
+        }.getOrElse {
+            // Fallback for older API (IPackageInstaller, String, int)
+            PackageInstaller::class.java
+                .getDeclaredConstructor(ipiClass, String::class.java, Int::class.java)
+                .also { it.isAccessible = true }
+                .newInstance(ipi, BuildConfig.APPLICATION_ID, 0) as PackageInstaller
+        }
+    }
+
+    suspend fun shizukuInstall(id: Int, packageName: String, streams: List<InputStream>) {
+        val packageInstaller = createShizukuPackageInstaller()
+
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        params.setAppPackageName(packageName)
+        if (Build.VERSION.SDK_INT >= 31) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+
+        val sessionId = packageInstaller.createSession(params)
+        var bytes = 0L
+        packageInstaller.openSession(sessionId).use { session ->
+            streams.forEach {
+                session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
+                    bytes += it.copyToAndNotify(output, id, installLog, bytes)
+                    it.close()
+                    session.fsync(output)
+                }
+            }
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = "$INSTALL_ACTION.$id"
+            }
+            installMutex.lock()
+            val pending = PendingIntent.getActivity(context, 0, intent, FLAG_MUTABLE)
+            session.commit(pending.intentSender)
+            session.close()
+        }
+    }
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream) {
+        val file = File(context.cacheDir, randomUUID())
+        stream.copyTo(file.outputStream())
+        val zip = ZipFile(file)
+        val entries = zip.entries().toList()
+        val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
+        shizukuInstall(id, packageName, apks)
+        zip.close()
+        file.delete()
+    }
+
+}
+
+fun InputStream.copyToAndNotify(out: OutputStream, id: Int, installLog: InstallLog, total: Long, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long {
+    var bytesCopied: Long = 0
+    val buffer = ByteArray(bufferSize)
+    var bytes = read(buffer)
+    while (bytes >= 0) {
+        out.write(buffer, 0, bytes)
+        bytesCopied += bytes
+        installLog.emitProgress(AppInstallProgress(id, progress = total + bytesCopied))
+        bytes = read(buffer)
+    }
+    return bytesCopied
+}

@@ -29,7 +29,7 @@ This project is a heavily modified and modernized fork of the original [APKUpdat
 Head over to the **Releases** section of this repository to download the latest Stable build (`com.apkupdateross-release.apk`).
 
 ## 🌍 Translations
-This project maintains translations across Albanian, Arabic, Burmese, Dutch, English, German, Hebrew, Hungarian, Indonesian, Italian, Korean, Malay, Portuguese, Romanian, Russian, Simplified Chinese, Spanish, Traditional Chinese, and Turkish. *Note: New features may only be fully localized in English and Russian initially.*
+This project maintains translations across English and Russian.
 
 ## 📜 License
 Copyright &copy; 2026

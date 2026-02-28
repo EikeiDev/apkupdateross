@@ -15,8 +15,6 @@ import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.ui.activity.MainActivity
 import com.topjohnwu.superuser.Shell
 import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuBinderWrapper
-import rikka.shizuku.SystemServiceHelper
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -83,6 +81,32 @@ class SessionInstaller(
         return res
     }
 
+    fun rootInstallXapk(file: File): Boolean {
+        val zip = ZipFile(file)
+        val apks = zip.entries().toList().filter { it.name.contains(".apk") }
+        val result = if (apks.size == 1) {
+            val tempApk = File(file.parentFile, "${randomUUID()}.apk")
+            zip.getInputStream(apks[0]).use { it.copyTo(tempApk.outputStream()) }
+            val res = Shell.cmd("pm install -r ${tempApk.absolutePath}").exec().isSuccess
+            tempApk.delete()
+            res
+        } else {
+            val createResult = Shell.cmd("pm install-create -r").exec()
+            val sessionId = Regex("\\[(\\d+)]").find(createResult.out.joinToString(""))?.groupValues?.get(1)
+                ?: run { zip.close(); file.delete(); return false }
+            apks.forEachIndexed { index, entry ->
+                val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
+                zip.getInputStream(entry).use { it.copyTo(tempApk.outputStream()) }
+                Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
+                tempApk.delete()
+            }
+            Shell.cmd("pm install-commit $sessionId").exec().isSuccess
+        }
+        zip.close()
+        file.delete()
+        return result
+    }
+
     fun finish() = installMutex.unlock()
 
     fun checkPermission(): Boolean {
@@ -111,7 +135,6 @@ class SessionInstaller(
 
         // Install all the apks
         // TODO: Try to install only needed apks
-        // TODO: Add root install support
         val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
         install(id, packageName, apks)
 
@@ -130,54 +153,52 @@ class SessionInstaller(
     suspend fun shizukuInstall(id: Int, packageName: String, stream: InputStream) =
         shizukuInstall(id, packageName, listOf(stream))
 
-    private fun createShizukuPackageInstaller(): PackageInstaller {
-        val ipiClass = Class.forName("android.content.pm.IPackageInstaller")
-        val ipi = Class.forName("android.content.pm.IPackageInstaller\$Stub")
-            .getDeclaredMethod("asInterface", android.os.IBinder::class.java)
-            .invoke(null, ShizukuBinderWrapper(SystemServiceHelper.getSystemService("package_installer")))
+    suspend fun shizukuInstall(id: Int, packageName: String, streams: List<InputStream>) {
+        // Write streams to temp files, then install via Shizuku shell
+        val tempFiles = streams.mapIndexed { index, stream ->
+            val file = File(context.cacheDir, "${randomUUID()}_$index.apk")
+            var bytes = 0L
+            file.outputStream().use { output ->
+                bytes = stream.copyToAndNotify(output, id, installLog, bytes)
+                stream.close()
+            }
+            file
+        }
 
-        // Try API 34+ constructor first (IPackageInstaller, String, int, int)
-        return runCatching {
-            PackageInstaller::class.java
-                .getDeclaredConstructor(ipiClass, String::class.java, Int::class.java, Int::class.java)
-                .also { it.isAccessible = true }
-                .newInstance(ipi, BuildConfig.APPLICATION_ID, 0, 0) as PackageInstaller
-        }.getOrElse {
-            // Fallback for older API (IPackageInstaller, String, int)
-            PackageInstaller::class.java
-                .getDeclaredConstructor(ipiClass, String::class.java, Int::class.java)
-                .also { it.isAccessible = true }
-                .newInstance(ipi, BuildConfig.APPLICATION_ID, 0) as PackageInstaller
+        try {
+            val result = if (tempFiles.size == 1) {
+                shizukuExec("pm install -r ${tempFiles[0].absolutePath}")
+            } else {
+                val sessionResult = shizukuExec("pm install-create -r")
+                val sessionId = Regex("\\[(\\d+)]").find(sessionResult.out)?.groupValues?.get(1)
+                    ?: throw Exception("Failed to create install session: ${sessionResult.out}")
+                tempFiles.forEachIndexed { index, file ->
+                    shizukuExec("pm install-write -S ${file.length()} $sessionId $index ${file.absolutePath}")
+                }
+                shizukuExec("pm install-commit $sessionId")
+            }
+
+            if (!result.isSuccess) {
+                throw Exception("Shizuku install failed: ${result.err}")
+            }
+        } finally {
+            tempFiles.forEach { it.delete() }
         }
     }
 
-    suspend fun shizukuInstall(id: Int, packageName: String, streams: List<InputStream>) {
-        val packageInstaller = createShizukuPackageInstaller()
+    private data class ShizukuResult(val isSuccess: Boolean, val out: String, val err: String)
 
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        params.setAppPackageName(packageName)
-        if (Build.VERSION.SDK_INT >= 31) {
-            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-        }
+    private fun shizukuExec(command: String): ShizukuResult {
+        val process = Class.forName("rikka.shizuku.Shizuku")
+            .getDeclaredMethod("newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java)
+            .also { it.isAccessible = true }
+            .invoke(null, arrayOf("sh", "-c", command), null, null) as Process
 
-        val sessionId = packageInstaller.createSession(params)
-        var bytes = 0L
-        packageInstaller.openSession(sessionId).use { session ->
-            streams.forEach {
-                session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
-                    bytes += it.copyToAndNotify(output, id, installLog, bytes)
-                    it.close()
-                    session.fsync(output)
-                }
-            }
-            val intent = Intent(context, MainActivity::class.java).apply {
-                action = "$INSTALL_ACTION.$id"
-            }
-            installMutex.lock()
-            val pending = PendingIntent.getActivity(context, 0, intent, FLAG_MUTABLE)
-            session.commit(pending.intentSender)
-            session.close()
-        }
+        process.outputStream.close()
+        val out = process.inputStream.bufferedReader().readText()
+        val err = process.errorStream.bufferedReader().readText()
+        val exitCode = process.waitFor()
+        return ShizukuResult(exitCode == 0, out, err)
     }
 
     @Suppress("BlockingMethodInNonBlockingContext")

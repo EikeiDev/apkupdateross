@@ -1,4 +1,5 @@
 .gradle
+.claude
 /local.properties
 .DS_Store
 /build
@@ -7,3 +8,6 @@
 .cxx
 /.idea/
 /app/build/
+release.jks
+*.log
+*.txt

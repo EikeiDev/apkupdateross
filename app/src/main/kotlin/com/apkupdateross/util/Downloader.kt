@@ -14,9 +14,16 @@ class Downloader(
     private val dir: File
 ) {
 
+    data class DownloadResult(val stream: InputStream, val contentLength: Long)
+
     fun download(url: String): File {
         val file = File(dir, randomUUID())
-        client.newCall(downloadRequest(url)).execute().use {
+        val c = when {
+            url.contains("apkpure") -> apkPureClient
+            url.contains("aurora") -> auroraClient
+            else -> client
+        }
+        c.newCall(downloadRequest(url)).execute().use {
             if (it.isSuccessful) {
                 it.body?.byteStream()?.copyTo(file.outputStream())
             }
@@ -24,7 +31,9 @@ class Downloader(
         return file
     }
 
-    fun downloadStream(url: String): InputStream? = runCatching {
+    fun downloadStream(url: String): InputStream? = downloadWithSize(url)?.stream
+
+    fun downloadWithSize(url: String): DownloadResult? = runCatching {
         val c = when {
             url.contains("apkpure") -> apkPureClient
             url.contains("aurora") -> auroraClient
@@ -33,7 +42,7 @@ class Downloader(
         val response = c.newCall(downloadRequest(url)).execute()
         if (response.isSuccessful) {
             response.body?.let {
-                return it.byteStream()
+                return DownloadResult(it.byteStream(), it.contentLength())
             }
         } else {
             response.close()

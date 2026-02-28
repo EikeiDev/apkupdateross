@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.ApkMirrorSource
+import com.apkupdateross.data.ui.PlaySource
 import com.apkupdateross.data.ui.ApkPureSource
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
@@ -209,7 +210,7 @@ fun SearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}, onCancel: () ->
 @Composable
 fun WhatsNew(whatsNew: String, source: Source) {
     if (whatsNew.isNotEmpty()) {
-        val text = if (source == ApkMirrorSource || source == ApkPureSource) {
+        val text = if (source == ApkMirrorSource || source == ApkPureSource || source == PlaySource) {
             HtmlCompat.fromHtml(whatsNew.trim(), HtmlCompat.FROM_HTML_MODE_COMPACT).toAnnotatedString()
         } else {
             AnnotatedString(whatsNew)

@@ -58,7 +58,7 @@ val mainModule = module {
 
 	single { GsonBuilder().create() }
 
-	single { Cache(androidContext().cacheDir, 1024 * 1024 * 1024) }
+	single { Cache(androidContext().cacheDir, 50L * 1024 * 1024) }
 
 	single {
 		HttpLoggingInterceptor().apply {

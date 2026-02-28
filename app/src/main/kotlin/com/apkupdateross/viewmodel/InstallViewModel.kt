@@ -67,6 +67,15 @@ abstract class InstallViewModel(
                 } else {
                     cancelInstall(id)
                 }
+                downloader.cleanup()
+            }
+            is Link.Xapk -> {
+                if (installer.rootInstallXapk(downloader.download(link.link))) {
+                    finishInstall(id)
+                } else {
+                    cancelInstall(id)
+                }
+                downloader.cleanup()
             }
             else -> snackBar.snackBar(
                 viewModelScope,
@@ -76,6 +85,7 @@ abstract class InstallViewModel(
     }.getOrElse {
         Log.e("InstallViewModel", "Error in downloadAndRootInstall.", it)
         cancelInstall(id)
+        downloader.cleanup()
     }
 
     protected suspend fun downloadAndShizukuInstall(id: Int, packageName: String, link: Link) = runCatching {
@@ -90,16 +100,27 @@ abstract class InstallViewModel(
                 val files = link.getInstallFiles()
                 installLog.emitProgress(AppInstallProgress(id, 0L, files.sumOf { it.size }))
                 installer.shizukuInstall(id, packageName, files.map { downloader.downloadStream(it.url)!! })
+                finishInstall(id)
             }
             is Link.Url -> {
-                installLog.emitProgress(AppInstallProgress(id, 0L, link.size))
-                installer.shizukuInstall(id, packageName, downloader.downloadStream(link.link)!!)
+                val result = downloader.downloadWithSize(link.link)!!
+                val total = if (link.size > 0) link.size else result.contentLength
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                installer.shizukuInstall(id, packageName, result.stream)
+                finishInstall(id)
             }
-            is Link.Xapk -> installer.shizukuInstallXapk(id, packageName, downloader.downloadStream(link.link)!!)
+            is Link.Xapk -> {
+                val result = downloader.downloadWithSize(link.link)!!
+                installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
+                installer.shizukuInstallXapk(id, packageName, result.stream)
+                finishInstall(id)
+            }
         }
+        downloader.cleanup()
     }.getOrElse {
         Log.e("InstallViewModel", "Error in downloadAndShizukuInstall.", it)
         cancelInstall(id)
+        downloader.cleanup()
     }
 
     protected suspend fun downloadAndInstall(id: Int, packageName: String, link: Link) = runCatching {
@@ -111,10 +132,16 @@ abstract class InstallViewModel(
                 installer.playInstall(id, packageName, files.map { downloader.downloadStream(it.url)!! })
             }
             is Link.Url -> {
-                installLog.emitProgress(AppInstallProgress(id, 0L, link.size))
-                installer.install(id, packageName, downloader.downloadStream(link.link)!!)
+                val result = downloader.downloadWithSize(link.link)!!
+                val total = if (link.size > 0) link.size else result.contentLength
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                installer.install(id, packageName, result.stream)
             }
-            is Link.Xapk -> installer.installXapk(id, packageName, downloader.downloadStream(link.link)!!)
+            is Link.Xapk -> {
+                val result = downloader.downloadWithSize(link.link)!!
+                installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
+                installer.installXapk(id, packageName, result.stream)
+            }
         }
     }.getOrElse {
         Log.e("InstallViewModel", "Error in downloadAndInstall.", it)

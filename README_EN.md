@@ -18,8 +18,7 @@ This project is a heavily modified and modernized fork of the original [APKUpdat
 * **Update Sources**: Find updates from **APKMirror**, **Aptoide**, **F-Droid**, **IzzyOnDroid**, **APKPure**, **GitLab**, **GitHub**, **Google Play**, and **RuStore**.
 * **Search Sources**: Find new apps to install across the supported platforms.
 * Schedule **background update checks** and receive notifications when updates are found.
-* Supports **Android 5** (**21**) to **Android 14** (**34**).
-* Supports **Android TV**.
+* Supports **Android 7.0** (**24**) to **Android 16** (**36**).
 * **Material Design 3** with Dark, Light, and System theme support.
 * **Direct install** of updates for sources that support it.
 * **Root install** of updates.
@@ -29,7 +28,7 @@ This project is a heavily modified and modernized fork of the original [APKUpdat
 Head over to the **Releases** section of this repository to download the latest Stable build (`com.apkupdateross-release.apk`).
 
 ## 🌍 Translations
-This project maintains translations across Albanian, Arabic, Burmese, Dutch, English, German, Hebrew, Hungarian, Indonesian, Italian, Korean, Malay, Portuguese, Romanian, Russian, Simplified Chinese, Spanish, Traditional Chinese, and Turkish. *Note: New features may only be fully localized in English and Russian initially.*
+This project maintains translations across English and Russian.
 
 ## 📜 License
 Copyright &copy; 2026

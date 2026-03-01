@@ -77,6 +77,6 @@ fun RuStoreAppDetails.toAppUpdate(
     oldVersionCode = installedApp?.versionCode ?: 0,
     source = RuStoreSource,
     iconUri = if (iconUrl.isNotEmpty()) Uri.parse(iconUrl) else Uri.EMPTY,
-    link = if (downloadUrl.isNotEmpty()) Link.Url(downloadUrl, fileSize) else Link.Empty,
+    link = if (downloadUrl.isNotEmpty()) Link.Url(downloadUrl) else Link.Empty,
     whatsNew = whatsNew
 )

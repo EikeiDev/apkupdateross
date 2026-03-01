@@ -1,6 +1,7 @@
 package com.apkupdateross.di
 
 import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.FdroidSource
@@ -69,6 +70,9 @@ val mainModule = module {
 	single {
 		OkHttpClient.Builder()
 			.cache(get())
+			.connectTimeout(30, TimeUnit.SECONDS)
+			.readTimeout(30, TimeUnit.SECONDS)
+			.writeTimeout(30, TimeUnit.SECONDS)
 			.addUserAgentInterceptor("APKUpdater-v" + BuildConfig.VERSION_NAME)
 			//.addInterceptor(get<HttpLoggingInterceptor>())
 			.build()

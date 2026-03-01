@@ -1,10 +1,12 @@
 package com.apkupdateross.util
 
 import android.util.Log
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 
 
 class Downloader(
@@ -16,14 +18,24 @@ class Downloader(
 
     data class DownloadResult(val stream: InputStream, val contentLength: Long)
 
-    fun download(url: String): File {
+    private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
+
+    private fun registerCall(id: Int, call: Call): Call {
+        calls.compute(id) { _, list ->
+            (list ?: mutableListOf()).apply { add(call) }
+        }
+        return call
+    }
+
+    fun download(id: Int, url: String): File {
         val file = File(dir, randomUUID())
         val c = when {
             url.contains("apkpure") -> apkPureClient
             url.contains("aurora") -> auroraClient
             else -> client
         }
-        c.newCall(downloadRequest(url)).execute().use {
+        val call = registerCall(id, c.newCall(downloadRequest(url)))
+        call.execute().use {
             if (it.isSuccessful) {
                 it.body?.byteStream()?.copyTo(file.outputStream())
             }
@@ -31,15 +43,16 @@ class Downloader(
         return file
     }
 
-    fun downloadStream(url: String): InputStream? = downloadWithSize(url)?.stream
+    fun downloadStream(id: Int, url: String): InputStream? = downloadWithSize(id, url)?.stream
 
-    fun downloadWithSize(url: String): DownloadResult? = runCatching {
+    fun downloadWithSize(id: Int, url: String): DownloadResult? = runCatching {
         val c = when {
             url.contains("apkpure") -> apkPureClient
             url.contains("aurora") -> auroraClient
             else -> client
         }
-        val response = c.newCall(downloadRequest(url)).execute()
+        val call = registerCall(id, c.newCall(downloadRequest(url)))
+        val response = call.execute()
         if (response.isSuccessful) {
             response.body?.let {
                 return DownloadResult(it.byteStream(), it.contentLength())
@@ -58,6 +71,16 @@ class Downloader(
 
     fun cleanup() = runCatching {
         dir.listFiles()?.forEach { it.delete() }
+    }
+
+    fun cancel(id: Int) = runCatching {
+        calls.remove(id)?.forEach { call ->
+            runCatching { call.cancel() }
+        }
+    }
+
+    fun clear(id: Int) {
+        calls.remove(id)
     }
 
 }

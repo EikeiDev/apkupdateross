@@ -62,7 +62,7 @@ abstract class InstallViewModel(
     protected fun downloadAndRootInstall(id: Int, link: Link) = runCatching {
         when (link) {
             is Link.Url -> {
-                if (installer.rootInstall(downloader.download(link.link))) {
+                if (installer.rootInstall(downloader.download(id, link.link))) {
                     finishInstall(id)
                 } else {
                     cancelInstall(id)
@@ -70,7 +70,7 @@ abstract class InstallViewModel(
                 downloader.cleanup()
             }
             is Link.Xapk -> {
-                if (installer.rootInstallXapk(downloader.download(link.link))) {
+                if (installer.rootInstallXapk(downloader.download(id, link.link))) {
                     finishInstall(id)
                 } else {
                     cancelInstall(id)
@@ -99,18 +99,18 @@ abstract class InstallViewModel(
             is Link.Play -> {
                 val files = link.getInstallFiles()
                 installLog.emitProgress(AppInstallProgress(id, 0L, files.sumOf { it.size }))
-                installer.shizukuInstall(id, packageName, files.map { downloader.downloadStream(it.url)!! })
+                installer.shizukuInstall(id, packageName, files.map { downloader.downloadStream(id, it.url)!! })
                 finishInstall(id)
             }
             is Link.Url -> {
-                val result = downloader.downloadWithSize(link.link)!!
+                val result = downloader.downloadWithSize(id, link.link)!!
                 val total = if (link.size > 0) link.size else result.contentLength
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
                 installer.shizukuInstall(id, packageName, result.stream)
                 finishInstall(id)
             }
             is Link.Xapk -> {
-                val result = downloader.downloadWithSize(link.link)!!
+                val result = downloader.downloadWithSize(id, link.link)!!
                 installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
                 installer.shizukuInstallXapk(id, packageName, result.stream)
                 finishInstall(id)
@@ -129,16 +129,16 @@ abstract class InstallViewModel(
             is Link.Play -> {
                 val files = link.getInstallFiles()
                 installLog.emitProgress(AppInstallProgress(id, 0L, files.sumOf { it.size }))
-                installer.playInstall(id, packageName, files.map { downloader.downloadStream(it.url)!! })
+                installer.playInstall(id, packageName, files.map { downloader.downloadStream(id, it.url)!! })
             }
             is Link.Url -> {
-                val result = downloader.downloadWithSize(link.link)!!
+                val result = downloader.downloadWithSize(id, link.link)!!
                 val total = if (link.size > 0) link.size else result.contentLength
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
                 installer.install(id, packageName, result.stream)
             }
             is Link.Xapk -> {
-                val result = downloader.downloadWithSize(link.link)!!
+                val result = downloader.downloadWithSize(id, link.link)!!
                 installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
                 installer.installXapk(id, packageName, result.stream)
             }
@@ -158,6 +158,14 @@ abstract class InstallViewModel(
     }
 
     fun cancel(update: AppUpdate) = cancelInstall(update.id)
+
+    protected fun cancelDownload(id: Int) {
+        downloader.cancel(id)
+    }
+
+    protected fun clearDownload(id: Int) {
+        downloader.clear(id)
+    }
 
     protected abstract fun downloadAndInstall(update: AppUpdate): Job
     protected abstract fun downloadAndRootInstall(update: AppUpdate): Job

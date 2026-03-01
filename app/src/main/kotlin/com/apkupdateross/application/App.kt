@@ -4,6 +4,7 @@ import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.apkupdateross.di.mainModule
+import com.apkupdateross.util.Downloader
 import okhttp3.OkHttpClient
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -21,6 +22,9 @@ class App : Application(), ImageLoaderFactory, KoinComponent {
 			androidContext(this@App)
 			modules(mainModule)
 		}
+
+		// Ensure leftover downloaded APKs are cleared on app start
+		get<Downloader>().cleanup()
 	}
 
 	override fun newImageLoader() = ImageLoader

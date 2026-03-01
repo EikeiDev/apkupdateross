@@ -18,6 +18,7 @@ import com.apkupdateross.util.launchWithMutex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
@@ -48,9 +49,8 @@ class UpdatesViewModel(
 	fun refresh(load: Boolean = true) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
 		if (load) state.value = UpdatesUiState.Loading
 		badger.changeUpdatesBadge("")
-		updatesRepository.updates().collect {
-			setSuccess(it)
-		}
+		val updates = updatesRepository.updates().first()
+		setSuccess(updates)
 	}
 
 	fun ignoreVersion(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
@@ -62,11 +62,13 @@ class UpdatesViewModel(
 
 	override fun cancelInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
 		state.value = UpdatesUiState.Success(state.value.mutableUpdates().setIsInstalling(id, false))
+		cancelDownload(id)
 		installer.finish()
 	}
 
 	override fun finishInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
 		setSuccess(state.value.mutableUpdates().removeId(id))
+		clearDownload(id)
 		installer.finish()
 	}
 

@@ -10,6 +10,7 @@ import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.UpdatesNotification
 import com.apkupdateross.util.millisUntilHour
+import kotlinx.coroutines.flow.first
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit
@@ -53,10 +54,9 @@ class UpdatesWorker(
     private val notification: UpdatesNotification by inject()
 
     override suspend fun doWork(): Result {
-        updatesRepository.updates().collect {
-            if (it.isNotEmpty()) {
-                notification.showUpdateNotification(it.size)
-            }
+        val updates = updatesRepository.updates().first()
+        if (updates.isNotEmpty()) {
+            notification.showUpdateNotification(updates.size)
         }
         return Result.success()
     }

@@ -1,4 +1,4 @@
-﻿package com.apkupdateross.ui.component
+package com.apkupdateross.ui.component
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -153,16 +154,29 @@ fun UpdateItem(
                 SourceIcon(app.source, Modifier.size(34.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     if (app.isInstalling && app.total > 0L && app.progress > 0L) {
-                        val percent = (app.progress * 100 / app.total).coerceIn(0, 100)
-                        androidx.compose.material3.Surface(
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                        val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
+                        val percent = (fraction * 100).toInt()
+                        val downloadedMb = (app.progress.toFloat() / (1024f * 1024f)).to2f()
+                        val totalMb = (app.total.toFloat() / (1024f * 1024f)).to2f()
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(end = 8.dp)
                         ) {
-                            SmallText(
-                                "$percent%",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                            LinearProgressIndicator(
+                                progress = fraction,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
                             )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                SmallText("$percent%")
+                                SmallText("$downloadedMb / $totalMb MB")
+                            }
                         }
                     }
                 }
@@ -186,16 +200,29 @@ fun SearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}, onCancel: () ->
             SourceIcon(app.source, Modifier.size(34.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 if (app.isInstalling && app.total > 0L && app.progress > 0L) {
-                    val percent = (app.progress * 100 / app.total).coerceIn(0, 100)
-                    androidx.compose.material3.Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                    val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
+                    val percent = (fraction * 100).toInt()
+                    val downloadedMb = (app.progress.toFloat() / (1024f * 1024f)).to2f()
+                    val totalMb = (app.total.toFloat() / (1024f * 1024f)).to2f()
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        SmallText(
-                            "$percent%",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                        LinearProgressIndicator(
+                            progress = fraction,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
                         )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            SmallText("$percent%")
+                            SmallText("$downloadedMb / $totalMb MB")
+                        }
                     }
                 }
             }

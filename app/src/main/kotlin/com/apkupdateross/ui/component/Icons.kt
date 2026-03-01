@@ -2,27 +2,19 @@ package com.apkupdateross.ui.component
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.Source
-import com.apkupdateross.util.clickableNoRipple
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,41 +69,6 @@ fun SourceIcon(source: Source, modifier: Modifier = Modifier) = Icon(
     source.name,
     modifier
 )
-
-@Composable
-fun IgnoreIcon(ignored: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) = Icon(
-    painter = painterResource(
-        id = if(ignored) R.drawable.ic_visible_off else R.drawable.ic_visible
-    ),
-    contentDescription = stringResource(if (ignored) R.string.unignore_cd else R.string.ignore_cd),
-    modifier = Modifier.clickableNoRipple(onClick).then(modifier)
-)
-
-@Composable
-fun InstallIcon(onClick: () -> Unit, modifier: Modifier = Modifier) = Icon(
-    painter = painterResource(R.drawable.ic_install),
-    contentDescription = stringResource(R.string.install_cd),
-    modifier = Modifier.clickableNoRipple(onClick).then(modifier)
-)
-
-@Composable
-fun BoxScope.InstallProgressIcon(
-    isInstalling: Boolean,
-    onClick: () -> Unit
-) {
-    if(isInstalling) {
-        CircularProgressIndicator(
-            Modifier.align(Alignment.TopEnd).size(30.dp).padding(4.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-    else {
-        InstallIcon(
-            { onClick() },
-            Modifier.align(Alignment.TopEnd).padding(4.dp)
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

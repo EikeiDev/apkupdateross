@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 class InstallLog {
 
-    private val status = MutableSharedFlow<AppInstallStatus>(100)
-    private val progress = MutableSharedFlow<AppInstallProgress>(100)
+    private val status = MutableSharedFlow<AppInstallStatus>(extraBufferCapacity = 10)
+    private val progress = MutableSharedFlow<AppInstallProgress>(extraBufferCapacity = 64)
     private var currentInstallLog: Int = 0
 
     fun status() = status.asSharedFlow()

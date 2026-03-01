@@ -32,8 +32,6 @@ class MainViewModel(
 
 	val isRefreshing = MutableStateFlow(false)
 
-	private var currentInstallId = 0
-
 	fun refresh(
 		appsViewModel: AppsViewModel,
 		updatesViewModel: UpdatesViewModel
@@ -73,8 +71,6 @@ class MainViewModel(
 	) = viewModelScope.launch(Dispatchers.IO) {
 		when (intent.extras?.getInt(PackageInstaller.EXTRA_STATUS)) {
 			PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-				currentInstallId = intent.getAppId() ?: 0
-				// Launch intent to confirm install
 				intent.getIntentExtra()?.let {
 					it.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
 					launcher.launch(it)

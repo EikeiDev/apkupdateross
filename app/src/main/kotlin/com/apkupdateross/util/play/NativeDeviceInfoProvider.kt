@@ -145,7 +145,7 @@ class NativeDeviceInfoProvider(context: Context) : ContextWrapper(context) {
     }
 }
 
-fun isHuawei(): Boolean {
+private fun isHuawei(): Boolean {
     return Build.MANUFACTURER.lowercase(Locale.getDefault()).contains("huawei")
             || Build.HARDWARE.lowercase(Locale.getDefault()).contains("kirin")
             || Build.HARDWARE.lowercase(Locale.getDefault()).contains("hi3")

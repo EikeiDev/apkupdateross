@@ -40,7 +40,6 @@ class ApkMirrorRepository(
         else -> "arm"
     }
 
-    private val isAndroidTV = true
     private val api = Build.VERSION.SDK_INT
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
@@ -117,17 +116,8 @@ class ApkMirrorRepository(
     }
 
     private fun filterAndroidTv(apk: AppExistsResponseApk): Boolean {
-        if (!isAndroidTV) {
-            // Filter out standalone AndroidTV apps if we are not an AndroidTV device
-            if(apk.capabilities?.contains("leanback_standalone").orFalse()) {
-                return false
-            }
-        } else {
-            // Filter out apps that don't have leanback if we are an AndroidTV device
-            return (apk.capabilities?.contains("leanback_standalone").orFalse()
-                    || apk.capabilities?.contains("leanback").orFalse())
-        }
-        return true
+        return (apk.capabilities?.contains("leanback_standalone").orFalse()
+                || apk.capabilities?.contains("leanback").orFalse())
     }
 
     private fun filterWearOS(apk: AppExistsResponseApk): Boolean {

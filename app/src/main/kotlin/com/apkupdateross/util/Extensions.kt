@@ -75,19 +75,19 @@ fun Context.getAppName(packageName: String): String = runCatching {
 inline fun <reified T> List<Flow<T>>.combine(crossinline block: suspend (Array<T>) -> Unit) =
 	combine(this) { block(it) }
 
-fun ByteArray.toSha1(): String = MessageDigest
+private fun ByteArray.toSha1(): String = MessageDigest
 	.getInstance("SHA-1")
 	.digest(this)
 	.joinToString(separator = "", transform = { "%02x".format(it) })
 
 fun String.toSha1Aptoide(): String = chunked(2).joinToString(separator = ":") { it.uppercase() }
 
-fun ByteArray.toSha256(): String = MessageDigest
+private fun ByteArray.toSha256(): String = MessageDigest
 	.getInstance("SHA-256")
 	.digest(this)
 	.joinToString(separator = "", transform = { "%02x".format(it) })
 
-fun PackageInfo.getSignature(): ByteArray = runCatching {
+private fun PackageInfo.getSignature(): ByteArray = runCatching {
 	if (Build.VERSION.SDK_INT >= 28) {
 		signingInfo.apkContentsSigners[0].toByteArray()
 	} else {
@@ -152,7 +152,6 @@ fun OkHttpClient.Builder.addUserAgentInterceptor(agent: String) = addNetworkInte
 
 fun filterVersionTag(version: String) = version
 	.replace(Regex("^\\D*"), "")
-	//.replace(Regex("\\D+\$"), "") // In case we want to remove non-numeric at end too
 
 fun Float.to2f() = String
 	.format("%.2f", this)

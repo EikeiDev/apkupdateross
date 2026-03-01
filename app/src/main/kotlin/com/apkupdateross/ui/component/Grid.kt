@@ -15,8 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyGridScope
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
-import com.apkupdateross.prefs.Prefs
-import org.koin.androidx.compose.get
 
 @Composable
 fun LoadingGrid() {
@@ -24,7 +22,7 @@ fun LoadingGrid() {
 }
 
 @Composable
-fun ShimmeringGrid() = InstalledGrid(false) {
+private fun ShimmeringGrid() = InstalledGrid(false) {
     items(16) {
         Box(Modifier.height(155.dp).shimmering(true))
     }

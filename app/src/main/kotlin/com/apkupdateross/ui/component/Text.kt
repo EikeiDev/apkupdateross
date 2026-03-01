@@ -4,7 +4,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
@@ -12,9 +11,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,39 +25,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.prefs.Prefs
 import androidx.compose.ui.graphics.Color
 import org.koin.androidx.compose.get
 
-
-@Composable
-fun TextBubble(code: Long, modifier: Modifier = Modifier) = TextBubble(
-    if (code == 0L) "?" else code.toString(),
-    modifier
-)
-
-@Composable
-fun TextBubble(text: String, modifier: Modifier = Modifier) = Text(
-    modifier = modifier
-        .padding(8.dp)
-        .background(
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f),
-            shape = RoundedCornerShape(12.dp)
-        )
-        .padding(horizontal = 8.dp, vertical = 4.dp),
-    text = text,
-    style = MaterialTheme.typography.labelMedium,
-    color = MaterialTheme.colorScheme.onSecondaryContainer,
-    fontWeight = FontWeight.Bold,
-    maxLines = 1,
-    overflow = TextOverflow.Ellipsis
-)
 
 @Composable
 fun SmallText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) = Text(
@@ -103,17 +74,6 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) = Text(
     maxLines = 1,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
-)
-
-@Composable
-fun HugeText(text: String, modifier: Modifier = Modifier, maxLines: Int = 1) = Text(
-    text = text,
-    style = TextStyle(fontSize = TextUnit(36f, TextUnitType.Sp)),
-    fontWeight = FontWeight.ExtraBold,
-    maxLines = maxLines,
-    overflow = TextOverflow.Ellipsis,
-    modifier = modifier,
-    textAlign = TextAlign.Center
 )
 
 @Composable

@@ -1,8 +1,13 @@
 package com.apkupdateross.ui.screen
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,18 +54,29 @@ import com.apkupdateross.ui.component.LoadingImageApp
 import com.apkupdateross.ui.component.SegmentedButtonSetting
 import com.apkupdateross.ui.component.SliderSetting
 import com.apkupdateross.ui.component.SourceIcon
+import com.apkupdateross.ui.component.SettingsIcon
 import com.apkupdateross.ui.component.SwitchSetting
 import com.apkupdateross.ui.theme.statusBarColor
 import com.apkupdateross.viewmodel.SettingsViewModel
+import com.apkupdateross.viewmodel.UpdateMetrics
+import java.text.DateFormat
+import java.util.Date
 import org.koin.androidx.compose.koinViewModel
 import java.util.Calendar
 
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
-	if (viewModel.state.collectAsStateWithLifecycle().value == SettingsUiState.Settings) {
+	val uiState = viewModel.state.collectAsStateWithLifecycle().value
+	val ruStoreCacheCount = viewModel.ruStore404Count.collectAsStateWithLifecycle().value
+	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
+	if (uiState == SettingsUiState.Settings) {
+		DisposableEffect(Unit) {
+			viewModel.startMetricsAutoRefresh()
+			onDispose { viewModel.stopMetricsAutoRefresh() }
+		}
 		SettingsTopBar(viewModel)
-		Settings(viewModel)
+		Settings(viewModel, ruStoreCacheCount, updateMetrics)
 	} else {
 		AboutTopBar(viewModel)
 		About()
@@ -117,7 +135,7 @@ fun About() = Box(
 }
 
 @Composable
-fun Settings(viewModel: SettingsViewModel) = LazyColumn {
+fun Settings(viewModel: SettingsViewModel, ruStore404Count: Int, updateMetrics: UpdateMetrics) = LazyColumn {
 	item {
 		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 16.dp))
 		SwitchSetting(
@@ -186,7 +204,7 @@ fun Settings(viewModel: SettingsViewModel) = LazyColumn {
 		SwitchSetting(
 			{ viewModel.getUsePlay() },
 			{ viewModel.setUsePlay(it) },
-			stringResource(R.string.source_play) + " (Alpha)",
+			stringResource(R.string.source_play),
 			R.drawable.ic_play
 		)
 		SwitchSetting(
@@ -251,7 +269,6 @@ fun Settings(viewModel: SettingsViewModel) = LazyColumn {
 			{ viewModel.setAlarmHour(it.toInt()) },
 			stringResource(R.string.settings_hour),
 			0f..23f,
-			22,
 			R.drawable.ic_hour
 		)
 		SegmentedButtonSetting(
@@ -271,15 +288,105 @@ fun Settings(viewModel: SettingsViewModel) = LazyColumn {
 		ButtonSetting(
 			stringResource(R.string.copy_app_list),
 			{ viewModel.copyAppList() },
-			R.drawable.ic_root,
-			R.drawable.ic_copy
+			R.drawable.ic_root
 		)
 		ButtonSetting(
 			stringResource(R.string.copy_app_logs),
 			{ viewModel.copyAppLogs() },
-			R.drawable.ic_root,
-			R.drawable.ic_copy
+			R.drawable.ic_root
 		)
+		val clearTextBase = stringResource(R.string.clear_rustore_cache)
+		val clearText = if (ruStore404Count > 0) "$clearTextBase ($ruStore404Count)" else clearTextBase
+		ButtonSetting(
+			clearText,
+			{ viewModel.clearRuStoreCache() },
+			R.drawable.ic_rustore
+		)
+	}
+	item {
+		LargeTitle(stringResource(R.string.settings_notifications), Modifier.padding(start = 16.dp, top = 16.dp))
+		NotificationStatusCard(viewModel)
+	}
+	item {
+		LargeTitle(stringResource(R.string.settings_metrics), Modifier.padding(start = 16.dp, top = 16.dp))
+		MetricRow(
+			text = stringResource(R.string.metric_last_check_duration),
+			value = updateMetrics.durationMs?.let { formatDuration(it) } ?: stringResource(R.string.metric_no_data),
+			icon = R.drawable.ic_hour
+		)
+		MetricRow(
+			text = stringResource(R.string.metric_last_check_time),
+			value = updateMetrics.timestamp?.let { formatTimestamp(it) } ?: stringResource(R.string.metric_no_data),
+			icon = R.drawable.ic_info
+		)
+		MetricRow(
+			text = stringResource(R.string.metric_last_check_sources),
+			value = updateMetrics.sources?.toString() ?: stringResource(R.string.metric_no_data),
+			icon = R.drawable.ic_safe
+		)
+	}
+}
+
+private fun formatDuration(durationMs: Long): String {
+	val seconds = durationMs / 1000.0
+	return String.format("%.1f s", seconds)
+}
+
+private fun formatTimestamp(timestamp: Long): String =
+	DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestamp))
+
+@Composable
+private fun MetricRow(text: String, value: String, @DrawableRes icon: Int) = ElevatedCard(
+	modifier = Modifier
+		.fillMaxWidth()
+		.padding(horizontal = 16.dp, vertical = 4.dp)
+) {
+	Row(
+		Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp, vertical = 12.dp),
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		SettingsIcon(icon, text, Modifier.padding(end = 16.dp))
+		Column(Modifier.weight(1f)) {
+			Text(text, style = MaterialTheme.typography.bodyLarge)
+			Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+		}
+	}
+}
+
+@Composable
+private fun NotificationStatusCard(viewModel: SettingsViewModel) {
+	val notificationStatus = remember { mutableStateOf(viewModel.areNotificationsEnabled()) }
+	val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+		notificationStatus.value = viewModel.areNotificationsEnabled()
+	}
+	ElevatedCard(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp, vertical = 8.dp)
+	) {
+		Column(Modifier.padding(16.dp)) {
+			Row(verticalAlignment = Alignment.CenterVertically) {
+				SettingsIcon(
+					icon = if (notificationStatus.value) R.drawable.ic_alarm else R.drawable.ic_disabled,
+					contentDescription = stringResource(R.string.settings_notifications),
+					modifier = Modifier.padding(end = 16.dp)
+				)
+				Text(
+					text = if (notificationStatus.value) stringResource(R.string.notifications_status_on) else stringResource(R.string.notifications_status_off),
+					style = MaterialTheme.typography.bodyLarge
+				)
+			}
+			if (!notificationStatus.value) {
+				Spacer(Modifier.height(12.dp))
+				FilledTonalButton(onClick = {
+					viewModel.requestNotificationPermission(launcher)
+				}) {
+					Text(stringResource(R.string.notifications_enable_action))
+				}
+			}
+		}
 	}
 }
 

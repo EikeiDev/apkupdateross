@@ -1,5 +1,6 @@
 package com.apkupdateross.repository
 
+import android.os.SystemClock
 import android.util.Log
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.prefs.Prefs
@@ -46,6 +47,9 @@ class UpdatesRepository(
                 if (prefs.usePlay.get()) sources.add(playRepository.updates(filtered))
                 if (prefs.useRuStore.get()) sources.add(ruStoreRepository.updates(filtered))
 
+                val startElapsed = SystemClock.elapsedRealtime()
+                val activeSources = sources.size
+
                 if (sources.isNotEmpty()) {
                     val accumulated = mutableListOf<AppUpdate>()
                     sources.asFlow().flattenMerge(concurrency = sources.size).collect { newUpdates ->
@@ -58,6 +62,11 @@ class UpdatesRepository(
                 } else {
                     emit(emptyList())
                 }
+
+                val duration = SystemClock.elapsedRealtime() - startElapsed
+                prefs.lastUpdateCheckDurationMs.put(duration)
+                prefs.lastUpdateCheckTimestamp.put(System.currentTimeMillis())
+                prefs.lastUpdateSourcesCount.put(activeSources)
             }.onFailure {
                 Log.e("UpdatesRepository", "Error getting apps", it)
             }

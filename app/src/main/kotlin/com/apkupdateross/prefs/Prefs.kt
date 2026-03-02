@@ -32,6 +32,7 @@ class Prefs(
 	val useApkPure = boolean("useApkPure", defValue = true, backed = true)
 	val usePlay = boolean("usePlay", defValue = true, backed = true)
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
+	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)
@@ -41,4 +42,7 @@ class Prefs(
 	val lastTab = string("lastTab", defValue = Screen.Updates.route, backed = true)
 	val playAuthData = json("playAuthData", AuthData("", ""), true)
 	val lastPlayCheck = long("lastPlayCheck", 0L, true)
+	val lastUpdateCheckDurationMs = long("lastUpdateCheckDurationMs", 0L, true)
+	val lastUpdateCheckTimestamp = long("lastUpdateCheckTimestamp", 0L, true)
+	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
 }

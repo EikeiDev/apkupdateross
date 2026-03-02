@@ -21,9 +21,13 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import rikka.shizuku.Shizuku
 
 
@@ -40,12 +44,18 @@ class SettingsViewModel(
 ) : ViewModel() {
 
 	val state = MutableStateFlow<SettingsUiState>(SettingsUiState.Settings)
+	private val _ruStore404Count = MutableStateFlow(prefs.ruStore404Packages.get().size)
+	val ruStore404Count = _ruStore404Count.asStateFlow()
+    private val _updateMetrics = MutableStateFlow(UpdateMetrics())
+	val updateMetrics = _updateMetrics.asStateFlow()
+    private var metricsJob: Job? = null
 
 	// installModeAvailable[0]=Normal always true, [1]=Root, [2]=Shizuku
 	val installModeAvailable = MutableStateFlow(listOf(true, false, false))
 
 	init {
 		refreshInstallModeAvailability()
+		refreshUpdateMetrics()
 	}
 
 	fun refreshInstallModeAvailability() {
@@ -160,6 +170,12 @@ class SettingsViewModel(
 		}
 	}
 
+	fun areNotificationsEnabled(): Boolean = notification.areNotificationsEnabled()
+
+	fun requestNotificationPermission(launcher: ManagedActivityResultLauncher<String, Boolean>) {
+		notification.checkNotificationPermission(launcher)
+	}
+
 	fun setAlarmHour(hour: Int) {
 		prefs.alarmHour.put(hour)
 		if (getEnableAlarm()) UpdatesWorker.launch(workManager) else UpdatesWorker.cancel(workManager)
@@ -187,4 +203,43 @@ class SettingsViewModel(
 		clipboard.copy(data.decodeToString(), "App Logs")
 	}
 
+	fun clearRuStoreCache() = viewModelScope.launch(Dispatchers.IO) {
+		prefs.ruStore404Packages.put(emptyList())
+		refreshRuStore404Count()
+		snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.clear_rustore_cache_success)))
+	}
+
+	private fun refreshRuStore404Count() {
+		_ruStore404Count.value = prefs.ruStore404Packages.get().size
+	}
+
+	fun refreshUpdateMetrics() {
+		_updateMetrics.value = UpdateMetrics(
+			prefs.lastUpdateCheckDurationMs.get().takeIf { it > 0 },
+			prefs.lastUpdateCheckTimestamp.get().takeIf { it > 0 },
+			prefs.lastUpdateSourcesCount.get().takeIf { it > 0 }
+		)
+	}
+
+    fun startMetricsAutoRefresh() {
+        if (metricsJob?.isActive == true) return
+        metricsJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                refreshUpdateMetrics()
+                delay(5_000)
+            }
+        }
+    }
+
+    fun stopMetricsAutoRefresh() {
+        metricsJob?.cancel()
+        metricsJob = null
+    }
+
 }
+
+data class UpdateMetrics(
+	val durationMs: Long? = null,
+	val timestamp: Long? = null,
+	val sources: Int? = null
+)

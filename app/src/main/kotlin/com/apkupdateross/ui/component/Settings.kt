@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterEnd
 import androidx.compose.ui.Alignment.Companion.CenterStart
 import androidx.compose.ui.Alignment.Companion.CenterVertically
@@ -56,7 +57,6 @@ fun SliderSetting(
     setValue: (Float) -> Unit,
     text: String,
     valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
     @DrawableRes icon: Int
 ) = Row(
     Modifier
@@ -73,12 +73,14 @@ fun SliderSetting(
         Slider(
             value = position,
             valueRange = valueRange,
-            steps = steps,
             onValueChange = {
                 position = it
                 setValue(it)
             },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .fillMaxWidth()
+                .height(32.dp)
         )
     }
 }
@@ -95,7 +97,7 @@ fun SegmentedButtonSetting(
 ) = Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)) {
     var position by remember { mutableIntStateOf(getValue()) }
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
-    Column(Modifier.weight(1f)) {
+    Column(Modifier.weight(1f).align(CenterVertically)) {
         Text(text, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
         SingleChoiceSegmentedButtonRow(Modifier.padding(top = 8.dp).fillMaxWidth()) {
             options.forEachIndexed { index, label ->
@@ -143,8 +145,7 @@ fun SwitchSetting(
 fun ButtonSetting(
     text: String,
     onClick: () -> Unit,
-    @DrawableRes icon: Int,
-    @DrawableRes iconButton: Int
+    @DrawableRes icon: Int
 ) = Row(
     Modifier
         .fillMaxWidth()
@@ -154,7 +155,4 @@ fun ButtonSetting(
 ) {
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
     Text(text, Modifier.align(CenterVertically).weight(1f), style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
-    IconButton(onClick = onClick, modifier = Modifier.align(CenterVertically)) {
-        Icon(painterResource(iconButton), stringResource(R.string.copy_to_clipboard))
-    }
 }

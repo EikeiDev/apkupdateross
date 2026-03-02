@@ -54,6 +54,22 @@
 
     <string name="copy_to_clipboard">Копировать в буфер обмена</string>
     <string name="copy_app_list">Скопировать список приложений</string>
+    <string name="copy_app_logs">Скопировать логи приложения</string>
+    <string name="clear_rustore_cache">Сбросить кеш RuStore</string>
+    <string name="clear_rustore_cache_success">Кеш RuStore очищен</string>
+    <string name="settings_notifications">Уведомления</string>
+    <string name="settings_metrics">Производительность</string>
+    <string name="metric_last_check_duration">Длительность последней проверки</string>
+    <string name="metric_last_check_time">Время последней проверки</string>
+    <string name="metric_last_check_sources">Источник(и)</string>
+    <string name="metric_no_data">Пока нет данных</string>
+    <string name="refresh_metrics">Обновить метрики</string>
+    <string name="notifications_status_on">Уведомления включены</string>
+    <string name="notifications_status_off">Уведомления отключены</string>
+    <string name="notifications_enable_action">Включить уведомления</string>
+    <string name="notifications_open_settings">Открыть настройки уведомлений</string>
+    <string name="notification_no_updates_title">Все актуально</string>
+    <string name="notification_no_updates_message">В этот раз обновления не найдены.</string>
 
     // Notifications
     <string name="notification_channel_name">Обновления</string>

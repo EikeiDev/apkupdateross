@@ -1,6 +1,7 @@
 package com.apkupdateross.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -10,9 +11,12 @@ import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.UpdatesNotification
 import com.apkupdateross.util.millisUntilHour
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.firstOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import retrofit2.HttpException
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -54,11 +58,22 @@ class UpdatesWorker(
     private val notification: UpdatesNotification by inject()
 
     override suspend fun doWork(): Result {
-        val updates = updatesRepository.updates().first()
-        if (updates.isNotEmpty()) {
-            notification.showUpdateNotification(updates.size)
+        return try {
+            val updates = updatesRepository.updates().firstOrNull() ?: emptyList()
+            if (updates.isNotEmpty()) {
+                notification.showUpdateNotification(updates.size)
+            }
+            Result.success()
+        } catch (e: Exception) {
+            Log.e("UpdatesWorker", "Error checking updates", e)
+            if (isRetryable(e)) Result.retry() else Result.failure()
         }
-        return Result.success()
     }
 
+    private fun isRetryable(throwable: Throwable): Boolean {
+        val root = throwable.cause ?: throwable
+        return root is IOException ||
+            root is TimeoutCancellationException ||
+            (root is HttpException && root.code() >= 500)
+    }
 }

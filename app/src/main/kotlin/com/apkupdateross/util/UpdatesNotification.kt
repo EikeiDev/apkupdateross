@@ -56,7 +56,7 @@ class UpdatesNotification(private val context: Context) {
         }
     }
 
-    private fun areNotificationsEnabled() = NotificationManagerCompat
+    fun areNotificationsEnabled() = NotificationManagerCompat
         .from(context)
         .areNotificationsEnabled()
 

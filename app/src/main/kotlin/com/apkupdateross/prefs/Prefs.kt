@@ -45,4 +45,5 @@ class Prefs(
 	val lastUpdateCheckDurationMs = long("lastUpdateCheckDurationMs", 0L, true)
 	val lastUpdateCheckTimestamp = long("lastUpdateCheckTimestamp", 0L, true)
 	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
+	val lastSelfUpdateVersionCode = long("lastSelfUpdateVersionCode", 0L, true)
 }

@@ -70,6 +70,12 @@
     <string name="notifications_open_settings">Открыть настройки уведомлений</string>
     <string name="notification_no_updates_title">Все актуально</string>
     <string name="notification_no_updates_message">В этот раз обновления не найдены.</string>
+    <string name="self_update_title">Доступно обновление APKUpdater</string>
+    <string name="self_update_message">Доступна версия %1$s (%2$d). Установить сейчас?</string>
+    <string name="self_update_whats_new">Что нового</string>
+    <string name="self_update_button_later">Позже</string>
+    <string name="self_update_button_update">Обновить</string>
+    <string name="updates_empty">Все приложения в актуальном состоянии</string>
 
     // Notifications
     <string name="notification_channel_name">Обновления</string>

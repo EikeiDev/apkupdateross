@@ -75,6 +75,12 @@
     <string name="notifications_open_settings">Open notification settings</string>
     <string name="notification_no_updates_title">All caught up</string>
     <string name="notification_no_updates_message">No updates were found this time.</string>
+    <string name="self_update_title">APKUpdater update available</string>
+    <string name="self_update_message">Version %1$s (%2$d) is available. Install now?</string>
+    <string name="self_update_whats_new">What\'s new</string>
+    <string name="self_update_button_later">Later</string>
+    <string name="self_update_button_update">Update now</string>
+    <string name="updates_empty">All apps are up to date</string>
 
     // Notifications
     <string name="notification_channel_name">Updates</string>

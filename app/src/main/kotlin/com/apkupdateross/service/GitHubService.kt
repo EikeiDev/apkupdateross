@@ -8,8 +8,8 @@ interface GitHubService {
 
     @GET("/repos/{user}/{repo}/releases")
     suspend fun getReleases(
-        @Path("user") user: String = "rumboalla",
-        @Path("repo") repo: String = "apkupdater"
+        @Path("user") user: String = "EikeiDev",
+        @Path("repo") repo: String = "apkupdateross"
     ): List<GitHubRelease>
 
 }

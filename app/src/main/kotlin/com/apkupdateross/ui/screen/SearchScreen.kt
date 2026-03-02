@@ -33,7 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen

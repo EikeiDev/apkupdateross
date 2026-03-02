@@ -9,6 +9,9 @@ import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.service.RuStoreService
 import io.github.g00fy2.versioncompare.Version
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 
@@ -19,22 +22,25 @@ class RuStoreRepository(
 ) {
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
-        val updates = mutableListOf<AppUpdate>()
-        apps.forEach { app ->
-            runCatching {
-                val response = service.getAppDetails(app.packageName)
-                if (response.code == "OK" && response.body != null) {
-                    val details = response.body
-                    if (Version(details.versionName) > Version(app.version)) {
-                        val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
-                        updates.add(details.toAppUpdate(app, downloadUrl))
-                    }
+        val updates = coroutineScope {
+            apps.map { app ->
+                async {
+                    runCatching {
+                        val response = service.getAppDetails(app.packageName)
+                        if (response.code == "OK" && response.body != null) {
+                            val details = response.body
+                            if (Version(details.versionName) > Version(app.version)) {
+                                val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
+                                details.toAppUpdate(app, downloadUrl)
+                            } else null
+                        } else null
+                    }.onFailure {
+                        Log.e("RuStoreRepository", "Error checking update for ${app.packageName}", it)
+                    }.getOrNull()
                 }
-            }.onFailure {
-                Log.e("RuStoreRepository", "Error checking update for ${app.packageName}", it)
-            }
+            }.awaitAll().filterNotNull()
         }
-        emit(updates as List<AppUpdate>)
+        emit(updates)
     }.catch {
         emit(emptyList())
         Log.e("RuStoreRepository", "Error looking for updates.", it)
@@ -43,20 +49,23 @@ class RuStoreRepository(
     suspend fun search(text: String) = flow {
         val response = service.searchApps(text)
         if (response.code == "OK" && response.body != null) {
-            val updates = mutableListOf<AppUpdate>()
-            response.body.content.forEach { searchApp ->
-                runCatching {
-                    val detailsResponse = service.getAppDetails(searchApp.packageName)
-                    if (detailsResponse.code == "OK" && detailsResponse.body != null) {
-                        val details = detailsResponse.body
-                        val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
-                        updates.add(details.toAppUpdate(null, downloadUrl))
+            val updates = coroutineScope {
+                response.body.content.map { searchApp ->
+                    async {
+                        runCatching {
+                            val detailsResponse = service.getAppDetails(searchApp.packageName)
+                            if (detailsResponse.code == "OK" && detailsResponse.body != null) {
+                                val details = detailsResponse.body
+                                val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
+                                details.toAppUpdate(null, downloadUrl)
+                            } else null
+                        }.onFailure {
+                            Log.e("RuStoreRepository", "Error fetching details for ${searchApp.packageName}", it)
+                        }.getOrNull()
                     }
-                }.onFailure {
-                    Log.e("RuStoreRepository", "Error fetching details for ${searchApp.packageName}", it)
-                }
+                }.awaitAll().filterNotNull()
             }
-            emit(Result.success(updates as List<AppUpdate>))
+            emit(Result.success(updates))
         } else {
             emit(Result.success(emptyList()))
         }

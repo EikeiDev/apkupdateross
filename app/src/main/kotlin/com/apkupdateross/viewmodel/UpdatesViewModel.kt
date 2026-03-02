@@ -18,7 +18,7 @@ import com.apkupdateross.util.launchWithMutex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
@@ -36,6 +36,7 @@ class UpdatesViewModel(
 
 	private val mutex = Mutex()
 	private val state = MutableStateFlow<UpdatesUiState>(UpdatesUiState.Loading)
+	private val _isRefreshing = MutableStateFlow(false)
 
 	init {
 		subscribeToInstallStatus(state.value.updates())
@@ -45,12 +46,19 @@ class UpdatesViewModel(
 	}
 
 	fun state(): StateFlow<UpdatesUiState> = state
+	fun isRefreshing(): StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
 	fun refresh(load: Boolean = true) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
 		if (load) state.value = UpdatesUiState.Loading
+		_isRefreshing.value = true
 		badger.changeUpdatesBadge("")
-		val updates = updatesRepository.updates().first()
-		setSuccess(updates)
+		try {
+			updatesRepository.updates(force = load).collect { updates ->
+				setSuccess(updates)
+			}
+		} finally {
+			_isRefreshing.value = false
+		}
 	}
 
 	fun ignoreVersion(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {

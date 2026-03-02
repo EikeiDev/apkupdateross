@@ -70,9 +70,10 @@ val mainModule = module {
 	single {
 		OkHttpClient.Builder()
 			.cache(get())
-			.connectTimeout(30, TimeUnit.SECONDS)
-			.readTimeout(30, TimeUnit.SECONDS)
-			.writeTimeout(30, TimeUnit.SECONDS)
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(20, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.callTimeout(25, TimeUnit.SECONDS)
 			.addUserAgentInterceptor("APKUpdater-v" + BuildConfig.VERSION_NAME)
 			//.addInterceptor(get<HttpLoggingInterceptor>())
 			.build()
@@ -117,6 +118,10 @@ val mainModule = module {
 	single {
 		val client = OkHttpClient.Builder()
 			.cache(get())
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(20, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.callTimeout(25, TimeUnit.SECONDS)
 			.addUserAgentInterceptor(AptoideRepository.UserAgent)
 			.build()
 
@@ -138,9 +143,9 @@ val mainModule = module {
 	}
 
 	single {
-		val client = OkHttpClient.Builder().followRedirects(true).cache(get()).build()
-		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
-		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
+		val client = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).build()
+		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
+		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
 		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
 		Downloader(client, apkPureClient, auroraClient, dir)
 	}
@@ -149,7 +154,7 @@ val mainModule = module {
 
 	single { AppsRepository(get(), get()) }
 
-	single { GitHubRepository(get(), get()) }
+	single { GitHubRepository(get(), get(), get()) }
 
 	single { GitLabRepository(get(), get()) }
 

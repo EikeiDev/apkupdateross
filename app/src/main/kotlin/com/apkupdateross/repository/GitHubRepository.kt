@@ -12,8 +12,10 @@ import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GitHubSource
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.getApp
+import com.apkupdateross.data.snack.TextSnack
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitHubService
+import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
 import io.github.g00fy2.versioncompare.Version
@@ -21,15 +23,20 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import retrofit2.HttpException
 import java.util.Scanner
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 class GitHubRepository(
     private val service: GitHubService,
-    private val prefs: Prefs
+    private val prefs: Prefs,
+    private val snackBar: SnackBar
 ) {
+    private val rateLimitShown = AtomicBoolean(false)
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
+        rateLimitShown.set(false)
         val checks = mutableListOf(selfCheck())
 
         GitHubApps.forEachIndexed { i, app ->
@@ -72,27 +79,39 @@ class GitHubRepository(
 
     private fun selfCheck() = flow {
         val releases = service.getReleases().filter { filterPreRelease(it) }
-        val versions = getVersions(releases[0].name)
+        val release = releases.firstOrNull()
+        val assetUrl = release?.let { findApkAsset(it.assets) }?.takeIf { it.isNotEmpty() }
 
-        if (versions.second > BuildConfig.VERSION_CODE.toLong()) {
-            emit(listOf(AppUpdate(
-                name = "APKUpdater",
-                packageName = BuildConfig.APPLICATION_ID,
-                version = versions.first,
-                oldVersion = BuildConfig.VERSION_NAME,
-                versionCode = versions.second,
-                oldVersionCode = BuildConfig.VERSION_CODE.toLong(),
-                source = GitHubSource,
-                link = Link.Url(releases[0].assets[0].browser_download_url),
-                whatsNew = releases[0].body
-            )))
+        if (release != null && assetUrl != null) {
+            val versions = getVersions(release.name)
+            if (versions.second > BuildConfig.VERSION_CODE.toLong()) {
+                emit(listOf(AppUpdate(
+                    name = "APKUpdater",
+                    packageName = BuildConfig.APPLICATION_ID,
+                    version = versions.first,
+                    oldVersion = BuildConfig.VERSION_NAME,
+                    versionCode = versions.second,
+                    oldVersionCode = BuildConfig.VERSION_CODE.toLong(),
+                    source = GitHubSource,
+                    link = Link.Url(assetUrl),
+                    whatsNew = release.body
+                )))
+            } else {
+                // We need to emit empty so it can be combined later
+                emit(listOf())
+            }
         } else {
-            // We need to emit empty so it can be combined later
             emit(listOf())
         }
-    }.catch {
+    }.catch { e ->
+        if (e is HttpException && e.code() == 403 &&
+            e.response()?.headers()?.get("X-RateLimit-Remaining") == "0" &&
+            !rateLimitShown.getAndSet(true)
+        ) {
+            snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+        }
         emit(emptyList())
-        Log.e("GitHubRepository", "Error checking self-update.", it)
+        Log.e("GitHubRepository", "Error checking self-update.", e)
     }
 
     private fun checkApp(
@@ -128,9 +147,15 @@ class GitHubRepository(
         } else {
             emit(emptyList())
         }
-    }.catch {
+    }.catch { e ->
+        if (e is HttpException && e.code() == 403 &&
+            e.response()?.headers()?.get("X-RateLimit-Remaining") == "0" &&
+            !rateLimitShown.getAndSet(true)
+        ) {
+            snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+        }
         emit(emptyList())
-        Log.e("GitHubRepository", "Error fetching releases for $packageName.", it)
+        Log.e("GitHubRepository", "Error fetching releases for $packageName.", e)
     }
 
     private fun getVersions(name: String) = runCatching {

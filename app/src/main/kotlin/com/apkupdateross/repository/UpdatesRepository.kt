@@ -3,10 +3,12 @@ package com.apkupdateross.repository
 import android.util.Log
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.prefs.Prefs
-import com.apkupdateross.util.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flow
 
 
@@ -24,7 +26,12 @@ class UpdatesRepository(
     private val prefs: Prefs
 ) {
 
-    fun updates() = flow<List<AppUpdate>> {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun updates(force: Boolean = false) = flow<List<AppUpdate>> {
+        if (force) {
+            fdroidRepository.clearCache()
+            izzyRepository.clearCache()
+        }
         appsRepository.getApps().collect { result ->
             result.onSuccess { apps ->
                 val filtered = apps.filter { !it.ignored }
@@ -40,9 +47,14 @@ class UpdatesRepository(
                 if (prefs.useRuStore.get()) sources.add(ruStoreRepository.updates(filtered))
 
                 if (sources.isNotEmpty()) {
-                    sources
-                        .combine { updates -> emit(updates.flatMap { it }) }
-                        .collect()
+                    val accumulated = mutableListOf<AppUpdate>()
+                    sources.asFlow().flattenMerge(concurrency = sources.size).collect { newUpdates ->
+                        if (newUpdates.isNotEmpty()) {
+                            accumulated.addAll(newUpdates)
+                            emit(accumulated.toList())
+                        }
+                    }
+                    emit(accumulated.toList())
                 } else {
                     emit(emptyList())
                 }

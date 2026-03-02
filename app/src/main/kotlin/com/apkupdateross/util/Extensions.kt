@@ -15,6 +15,8 @@ import android.text.style.UnderlineSpan
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -43,8 +45,9 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 // A clickable modifier that will disable the default ripple
+@Composable
 fun Modifier.clickableNoRipple(onClick: () -> Unit) = this.
-	clickable(MutableInteractionSource(), null, onClick = onClick)
+	clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
 
 // Launches a coroutine and executes it inside the mutex
 fun CoroutineScope.launchWithMutex(
@@ -59,7 +62,7 @@ fun CoroutineScope.launchWithMutex(
 
 fun Boolean?.orFalse() = this ?: false
 
-fun PackageInfo.name(context: Context) = applicationInfo.loadLabel(context.packageManager).toString()
+fun PackageInfo.name(context: Context) = applicationInfo?.loadLabel(context.packageManager)?.toString().orEmpty()
 
 fun Context.getAppIcon(packageName: String) = runCatching {
 	packageManager.getApplicationIcon(packageName)
@@ -89,10 +92,10 @@ private fun ByteArray.toSha256(): String = MessageDigest
 
 private fun PackageInfo.getSignature(): ByteArray = runCatching {
 	if (Build.VERSION.SDK_INT >= 28) {
-		signingInfo.apkContentsSigners[0].toByteArray()
+		signingInfo?.apkContentsSigners?.get(0)?.toByteArray() ?: ByteArray(0)
 	} else {
 		@Suppress("DEPRECATION")
-		signatures[0].toByteArray()
+		signatures?.get(0)?.toByteArray() ?: ByteArray(0)
 	}
 }.getOrDefault(ByteArray(0))
 

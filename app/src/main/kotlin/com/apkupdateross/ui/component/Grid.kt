@@ -12,9 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.grid.TvGridCells
-import androidx.tv.foundation.lazy.grid.TvLazyGridScope
-import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 
 @Composable
 fun LoadingGrid() {
@@ -39,8 +39,8 @@ fun EmptyGrid(
 }
 
 @Composable
-fun InstalledGrid(scroll: Boolean = true, content: TvLazyGridScope.() -> Unit) = TvLazyVerticalGrid(
-    columns = TvGridCells.Fixed(getNumColumns()),
+fun InstalledGrid(scroll: Boolean = true, content: LazyGridScope.() -> Unit) = LazyVerticalGrid(
+    columns = GridCells.Fixed(getNumColumns()),
     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
     horizontalArrangement = Arrangement.spacedBy(16.dp),

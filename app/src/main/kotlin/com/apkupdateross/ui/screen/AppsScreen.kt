@@ -1,16 +1,19 @@
 package com.apkupdateross.ui.screen
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppsUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen
@@ -25,33 +28,39 @@ import com.apkupdateross.viewmodel.AppsViewModel
 import org.koin.androidx.compose.koinViewModel
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppsScreen(
 	viewModel: AppsViewModel = koinViewModel()
 ) {
-	viewModel.state().collectAsStateWithLifecycle().value.onLoading {
-		AppsScreenLoading(viewModel, it)
-	}.onError {
-		AppsScreenError()
-	}.onSuccess {
-		AppsScreenSuccess(viewModel, it)
-	}
-}
+	val state = viewModel.state().collectAsStateWithLifecycle().value
 
-@Composable
-fun AppsScreenSuccess(viewModel: AppsViewModel, state: AppsUiState.Success) = Column {
-	AppsTopBar(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
-	InstalledGrid {
-		items(state.apps) {
-			InstalledItem(it) { app -> viewModel.ignore(app) }
+	val (excludeSystem, excludeAppStore, excludeDisabled) = when (state) {
+		is AppsUiState.Loading -> Triple(state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
+		is AppsUiState.Success -> Triple(state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
+		else -> Triple(false, false, false)
+	}
+
+	Column {
+		AppsTopBar(viewModel, excludeSystem, excludeAppStore, excludeDisabled)
+		PullToRefreshBox(
+			isRefreshing = state is AppsUiState.Loading,
+			onRefresh = { viewModel.refresh() },
+			modifier = Modifier.fillMaxSize()
+		) {
+			state.onLoading {
+				LoadingGrid()
+			}.onError {
+				DefaultErrorScreen()
+			}.onSuccess {
+				InstalledGrid {
+					items(it.apps) { app ->
+						InstalledItem(app) { viewModel.ignore(app.packageName) }
+					}
+				}
+			}
 		}
 	}
-}
-
-@Composable
-fun AppsScreenLoading(viewModel: AppsViewModel, state: AppsUiState.Loading) = Column {
-	AppsTopBar(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
-	LoadingGrid()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,5 +86,3 @@ fun AppsTopBar(
 	}
 )
 
-@Composable
-fun AppsScreenError() = DefaultErrorScreen()

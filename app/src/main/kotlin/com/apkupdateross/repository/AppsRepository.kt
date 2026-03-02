@@ -21,9 +21,9 @@ class AppsRepository(
 		val apps = context.packageManager
 			.getInstalledPackages(PackageManager.MATCH_ALL + getSignatureFlag())
 			.asSequence()
-			.filter { !excludeSystem() || it.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
-			.filter { !excludeSystem() || it.applicationInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0 }
-			.filter { !excludeDisabled() || it.applicationInfo.enabled }
+			.filter { !excludeSystem() || it.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) == 0 }
+			.filter { !excludeSystem() || it.applicationInfo?.flags?.and(ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0 }
+			.filter { !excludeDisabled() || it.applicationInfo?.enabled != false }
 			.filter { !excludeStore() || !isAppStore(getInstallerPackageName(it.packageName)) }
 			.filter { it.packageName != com.apkupdateross.BuildConfig.APPLICATION_ID }
 			.map { it.toAppInstalled(context, ignoredApps()) }

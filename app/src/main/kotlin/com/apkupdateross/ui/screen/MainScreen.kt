@@ -8,9 +8,9 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomAppBar
@@ -21,14 +21,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.pullrefresh.PullRefreshIndicator
-import androidx.compose.material3.pullrefresh.pullRefresh
-import androidx.compose.material3.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,7 +54,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import org.koin.androidx.compose.get
+import org.koin.compose.koinInject
 import org.koin.androidx.compose.koinViewModel
 import kotlin.coroutines.CoroutineContext
 
@@ -74,17 +70,13 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	// Navigation
 	val navController = rememberNavController()
 
-	// Pull to refresh
-	val isRefreshing = mainViewModel.isRefreshing.collectAsStateWithLifecycle()
-	val pullToRefresh = rememberPullRefreshState(isRefreshing.value, {
-		mainViewModel.refresh(appsViewModel, updatesViewModel)
-	})
-	LaunchedEffect(pullToRefresh) {
-		mainViewModel.refresh(appsViewModel, updatesViewModel)
+	// Load apps immediately on start for badge numbers
+	LaunchedEffect(Unit) {
+		appsViewModel.refresh()
 	}
 
 	// Used to launch the install intent and get dismissal result
-	val installLog = get<InstallLog>()
+	val installLog = koinInject<InstallLog>()
 	val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		if (it.resultCode == RESULT_CANCELED) {
 			installLog.cancelCurrentInstall()
@@ -98,7 +90,7 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	intentListener(mainViewModel, updatesViewModel, navController, launcher)
 
 	// Theme
-	val theme = get<Themer>().flow().collectAsStateWithLifecycle().value
+	val theme = koinInject<Themer>().flow().collectAsStateWithLifecycle().value
 
 	// SnackBar
 	val snackBarHostState = handleSnackBar()
@@ -106,17 +98,10 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	AppTheme(theme) {
 		Scaffold(
 			snackbarHost = { SnackbarHost(snackBarHostState) },
-			bottomBar = { BottomBar(mainViewModel, navController) }
+			bottomBar = { BottomBar(mainViewModel, navController) },
+			contentWindowInsets = WindowInsets(0)
 		) { padding ->
-			Box(modifier = Modifier.pullRefresh(pullToRefresh)) {
-				NavHost(navController, padding, mainViewModel, appsViewModel, updatesViewModel, searchViewModel, settingsViewModel)
-				PullRefreshIndicator(
-					refreshing = isRefreshing.value,
-					state = pullToRefresh,
-					modifier = Modifier.align(Alignment.TopCenter),
-					contentColor = MaterialTheme.colorScheme.primary
-				)
-			}
+			NavHost(navController, padding, mainViewModel, appsViewModel, updatesViewModel, searchViewModel, settingsViewModel)
 		}
 	}
 }
@@ -124,7 +109,7 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 @Composable
 fun handleSnackBar(): SnackbarHostState {
 	val snackBarHostState = remember { SnackbarHostState() }
-	get<SnackBar>().flow().CollectAsEffect(Dispatchers.IO) {
+	koinInject<SnackBar>().flow().CollectAsEffect(Dispatchers.IO) {
 		snackBarHostState.showSnackbar(it)
 	}
 	return snackBarHostState
@@ -172,7 +157,7 @@ fun checkNotificationIntent(
 
 @Composable
 fun BottomBar(mainViewModel: MainViewModel, navController: NavController) = androidx.compose.material3.NavigationBar {
-	val badges = get<Badger>().flow().collectAsStateWithLifecycle().value
+	val badges = koinInject<Badger>().flow().collectAsStateWithLifecycle().value
 	mainViewModel.screens.forEach { screen ->
 		val state = navController.currentBackStackEntryAsState().value
 		val selected = state?.destination?.route  == screen.route

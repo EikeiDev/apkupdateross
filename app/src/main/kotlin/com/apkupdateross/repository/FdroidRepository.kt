@@ -15,6 +15,8 @@ import com.apkupdateross.service.FdroidService
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.InputStream
 import java.util.jar.JarInputStream
 
@@ -28,15 +30,34 @@ class FdroidRepository(
     private val arch = Build.SUPPORTED_ABIS.toSet()
     private val api = Build.VERSION.SDK_INT
 
-    suspend fun updates(apps: List<AppInstalled>) = flow {
+    private val cacheMutex = Mutex()
+    private var cachedData: FdroidData? = null
+    private var cacheTimestamp: Long = 0L
+    private val cacheTtlMs = 15 * 60 * 1000L
+
+    fun clearCache() = cacheMutex.tryLock().also { locked ->
+        if (locked) try { cachedData = null; cacheTimestamp = 0L } finally { cacheMutex.unlock() }
+    }
+
+    private suspend fun getOrFetchData(): FdroidData = cacheMutex.withLock {
+        val now = System.currentTimeMillis()
+        val cached = cachedData
+        if (cached != null && now - cacheTimestamp < cacheTtlMs) return@withLock cached
         val response = service.getJar("${url}index-v1.jar")
         val data = jarToJson(response.byteStream())
+        cachedData = data
+        cacheTimestamp = now
+        data
+    }
+
+    suspend fun updates(apps: List<AppInstalled>) = flow {
+        val data = getOrFetchData()
         val appNames = apps.map { it.packageName }
         val updates = data.apps
             .asSequence()
             .filter { appNames.contains(it.packageName) }
-            .filter { filterSignature(apps.getApp(it.packageName)!!, it) }
-            .map { FdroidUpdate(data.packages[it.packageName]!![0], it) }
+            .filter { apps.getApp(it.packageName)?.let { app -> filterSignature(app, it) } ?: false }
+            .mapNotNull { app -> data.packages[app.packageName]?.firstOrNull()?.let { FdroidUpdate(it, app) } }
             .filter { it.apk.versionCode > apps.getVersionCode(it.app.packageName) }
             .parseUpdates(apps)
         emit(updates)
@@ -46,11 +67,10 @@ class FdroidRepository(
     }
 
     suspend fun search(text: String) = flow {
-        val response = service.getJar("${url}index-v1.jar")
-        val data = jarToJson(response.byteStream())
+        val data = getOrFetchData()
         val updates = data.apps
             .asSequence()
-            .map { FdroidUpdate(data.packages[it.packageName]!![0], it) }
+            .mapNotNull { app -> data.packages[app.packageName]?.firstOrNull()?.let { FdroidUpdate(it, app) } }
             .filter { it.app.name.contains(text, true) || it.app.packageName.contains(text, true) || it.apk.apkName.contains(text, true) }
             .parseUpdates(null)
         emit(Result.success(updates))

@@ -1,20 +1,26 @@
 package com.apkupdateross.ui.screen
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.UpdatesUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.EmptyGrid
 import com.apkupdateross.ui.component.InstalledGrid
@@ -24,15 +30,35 @@ import com.apkupdateross.ui.component.UpdateItem
 import com.apkupdateross.ui.theme.statusBarColor
 import com.apkupdateross.viewmodel.UpdatesViewModel
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
-	viewModel.state().collectAsStateWithLifecycle().value.onLoading {
-		UpdatesScreenLoading(viewModel)
-	}.onError {
-		UpdatesScreenError()
-	}.onSuccess {
-		UpdatesScreenSuccess(viewModel, it.updates)
+	val state = viewModel.state().collectAsStateWithLifecycle().value
+	val isRefreshing = viewModel.isRefreshing().collectAsStateWithLifecycle().value
+
+	LaunchedEffect(Unit) {
+		if (viewModel.state().value is UpdatesUiState.Loading) viewModel.refresh()
+	}
+
+	Column {
+		UpdatesTopBar(viewModel)
+		PullToRefreshBox(
+			isRefreshing = isRefreshing,
+			onRefresh = { viewModel.refresh() },
+			modifier = Modifier.fillMaxSize()
+		) {
+			state.onLoading {
+				LoadingGrid()
+			}.onError {
+				DefaultErrorScreen()
+			}.onSuccess {
+				val handler = LocalUriHandler.current
+				when {
+					it.updates.isEmpty() -> EmptyGrid()
+					else -> Grid(viewModel, it.updates, handler)
+				}
+			}
+		}
 	}
 }
 
@@ -49,30 +75,6 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) = TopAppBar(
 		}
 	}
 )
-
-@Composable
-fun UpdatesScreenLoading(viewModel: UpdatesViewModel) = Column {
-	UpdatesTopBar(viewModel)
-	LoadingGrid()
-}
-
-@Composable
-fun UpdatesScreenError() = DefaultErrorScreen()
-
-@Composable
-fun UpdatesScreenSuccess(
-	viewModel: UpdatesViewModel,
-	updates: List<AppUpdate>
-) = Column {
-	val handler = LocalUriHandler.current
-
-	UpdatesTopBar(viewModel)
-
-	when {
-		updates.isEmpty() -> EmptyGrid()
-		else -> Grid(viewModel, updates, handler)
-	}
-}
 
 @Composable
 fun Grid(

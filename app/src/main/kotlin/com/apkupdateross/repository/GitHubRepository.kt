@@ -87,11 +87,7 @@ class GitHubRepository(
             val versionCode = release.versionCodeFromTag()
             val remoteVersion = Version(versionName)
             val localVersion = Version(BuildConfig.VERSION_NAME)
-            val isNewer = when {
-                remoteVersion > localVersion -> true
-                versionCode > BuildConfig.VERSION_CODE -> true
-                else -> false
-            }
+            val isNewer = remoteVersion > localVersion
             if (isNewer) {
                 emit(listOf(AppUpdate(
                     name = "APKUpdater",

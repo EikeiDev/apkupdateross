@@ -80,7 +80,7 @@ class SessionInstaller(
     }
 
     fun rootInstall(file: File): Boolean {
-        val res = Shell.cmd("pm install -r ${file.absolutePath}").exec().isSuccess
+        val res = Shell.cmd("pm install -r -d ${file.absolutePath}").exec().isSuccess
         file.delete()
         return res
     }
@@ -91,11 +91,11 @@ class SessionInstaller(
         val result = if (apks.size == 1) {
             val tempApk = File(file.parentFile, "${randomUUID()}.apk")
             zip.getInputStream(apks[0]).use { it.copyTo(tempApk.outputStream()) }
-            val res = Shell.cmd("pm install -r ${tempApk.absolutePath}").exec().isSuccess
+            val res = Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
             tempApk.delete()
             res
         } else {
-            val createResult = Shell.cmd("pm install-create -r").exec()
+            val createResult = Shell.cmd("pm install-create -r -d").exec()
             val sessionId = Regex("\\[(\\d+)]").find(createResult.out.joinToString(""))?.groupValues?.get(1)
                 ?: run { zip.close(); file.delete(); return false }
             apks.forEachIndexed { index, entry ->
@@ -161,17 +161,18 @@ class SessionInstaller(
                 stream.close()
             }
             try {
-                val result = shizukuExec("pm install -r -S $bytes", tempFile)
+                val result = shizukuExec("pm install -r -d -S $bytes", tempFile)
                 if (!result.isSuccess) {
-                    Log.e("SessionInstaller", "Shizuku install failed: ${result.err}")
-                    throw Exception("Shizuku install failed: ${result.err}")
+                    val message = result.message()
+                    Log.e("SessionInstaller", "Shizuku install failed: $message")
+                    throw Exception("Shizuku install failed: $message")
                 }
                 Log.i("SessionInstaller", "Shizuku install successful")
             } finally {
                 tempFile.delete()
             }
         } else {
-            val createResult = shizukuExec("pm install-create -r")
+            val createResult = shizukuExec("pm install-create -r -d")
             val sessionId = Regex("\\[(\\d+)]").find(createResult.out)?.groupValues?.get(1)
                 ?: throw Exception("Failed to create install session: ${createResult.out}")
 
@@ -186,18 +187,33 @@ class SessionInstaller(
                 }
                 try {
                     val result = shizukuExec("pm install-write -S $bytes $sessionId $index", tempFile)
-                    if (!result.isSuccess) throw Exception("Shizuku install-write failed: ${result.err}")
+                    if (!result.isSuccess) {
+                        val message = result.message()
+                        throw Exception("Shizuku install-write failed: $message")
+                    }
                 } finally {
                     tempFile.delete()
                 }
             }
 
             val commitResult = shizukuExec("pm install-commit $sessionId")
-            if (!commitResult.isSuccess) throw Exception("Shizuku install-commit failed: ${commitResult.err}")
+            if (!commitResult.isSuccess) {
+                val message = commitResult.message()
+                throw Exception("Shizuku install-commit failed: $message")
+            }
         }
     }
 
-    private data class ShizukuResult(val isSuccess: Boolean, val out: String, val err: String)
+    private data class ShizukuResult(val isSuccess: Boolean, val out: String, val err: String, val exitCode: Int) {
+        fun message(): String {
+            val text = when {
+                err.isNotBlank() -> err
+                out.isNotBlank() -> out
+                else -> "exitCode=$exitCode"
+            }
+            return text.trim()
+        }
+    }
 
     private fun shizukuExec(command: String, inputFile: File? = null): ShizukuResult {
         return try {
@@ -220,12 +236,12 @@ class SessionInstaller(
             val outText = process.inputStream.bufferedReader().use { it.readText() }
             val errText = process.errorStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
-            
-            ShizukuResult(exitCode == 0, outText, errText)
+
+            ShizukuResult(exitCode == 0, outText, errText, exitCode)
         } catch (e: Exception) {
             Log.e("SessionInstaller", "Shizuku execution failed: $command", e)
             val errorMsg = e.message ?: "Unknown error"
-            ShizukuResult(false, "", errorMsg)
+            ShizukuResult(false, "", errorMsg, -1)
         }
     }
 

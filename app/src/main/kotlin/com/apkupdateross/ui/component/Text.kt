@@ -71,7 +71,7 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) = Text(
     text = text,
     style = MaterialTheme.typography.titleLarge,
     fontWeight = FontWeight.Bold,
-    maxLines = 1,
+    maxLines = 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
 )

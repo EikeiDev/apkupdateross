@@ -25,21 +25,21 @@
     <string name="play_text_animations">Play Text Animations</string>
     <string name="settings_sources">Sources</string>
     <string name="settings_ui">UI</string>
-    <string name="settings_alarm">Alarm</string>
+    <string name="settings_alarm">Auto-update schedule</string>
     <string name="settings_options">Options</string>
     <string name="settings_utils">Utils</string>
-    <string name="settings_hour">Alarm Hour</string>
-    <string name="settings_alarm_daily">Daily</string>
-    <string name="settings_alarm_3day">3-Day</string>
-    <string name="settings_alarm_weekly">Weekly</string>
+    <string name="settings_hour">Check time</string>
+    <string name="settings_alarm_daily">1 day</string>
+    <string name="settings_alarm_3day">3 days</string>
+    <string name="settings_alarm_weekly">7 days</string>
     <string name="ignore_alpha">Ignore Alpha</string>
     <string name="ignore_beta">Ignore Beta</string>
     <string name="ignore_preRelease">Ignore Pre-release</string>
     <string name="use_safe_stores">Use Safe Stores (Aptoide)</string>
     <string name="install_mode">Install Mode</string>
-    <string name="install_mode_normal" translatable="false">Session Installer</string>
-    <string name="install_mode_root" translatable="false">Root Installer</string>
-    <string name="install_mode_shizuku" translatable="false">Shizuku Installer</string>
+    <string name="install_mode_normal">Session</string>
+    <string name="install_mode_root">Root</string>
+    <string name="install_mode_shizuku">Shizuku</string>
     <string name="shizuku_not_running">Shizuku is not running.</string>
     <string name="source_apkmirror" translatable="false">ApkMirror</string>
     <string name="source_fdroid" translatable="false">F-Droid Main</string>
@@ -51,7 +51,7 @@
     <string name="source_play" translatable="false">Google Play</string>
     <string name="source_rustore" translatable="false">RuStore</string>
     <string name="about">About</string>
-    <string name="frequency">Frequency</string>
+    <string name="frequency">Repeat</string>
     <string name="theme">Theme</string>
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>

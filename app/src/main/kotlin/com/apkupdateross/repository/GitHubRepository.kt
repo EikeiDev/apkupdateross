@@ -4,6 +4,9 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import com.apkupdateross.BuildConfig
+import com.apkupdateross.data.git.CustomGitRepo
+import com.apkupdateross.data.git.GitProvider
+import com.apkupdateross.data.github.GitHubApp
 import com.apkupdateross.data.github.GitHubApps
 import com.apkupdateross.data.github.GitHubRelease
 import com.apkupdateross.data.github.GitHubReleaseAsset
@@ -39,7 +42,7 @@ class GitHubRepository(
         rateLimitShown.set(false)
         val checks = mutableListOf(selfCheck())
 
-        GitHubApps.forEachIndexed { i, app ->
+        loadGitHubApps().forEachIndexed { i, app ->
             if (i != 0) {
                 apps.find { it.packageName == app.packageName }?.let {
                     checks.add(checkApp(apps, app.user, app.repo, app.packageName, it.version, app.extra))
@@ -58,7 +61,7 @@ class GitHubRepository(
     suspend fun search(text: String) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
 
-        GitHubApps.forEach { app ->
+        loadGitHubApps().forEach { app ->
             if (app.repo.contains(text, true) || app.user.contains(text, true) || app.packageName.contains(text, true)) {
                 checks.add(checkApp(null, app.user, app.repo, app.packageName, "?", null))
             }
@@ -242,4 +245,26 @@ class GitHubRepository(
         else -> asset.browser_download_url.matches(extra)
     }
 
+    private fun loadGitHubApps(): List<GitHubApp> {
+        val custom = prefs.customGitRepos.get()
+            .filter { it.platform == GitProvider.GITHUB }
+            .mapNotNull { it.toGitHubAppOrNull() }
+        return GitHubApps + custom
+    }
+
+    private fun CustomGitRepo.toGitHubAppOrNull(): GitHubApp? {
+        val data = trimmed()
+        if (data.user.isEmpty() || data.repo.isEmpty() || data.packageName.isEmpty()) return null
+        val regex = data.extraRegex?.let {
+            runCatching { Regex(it) }.onFailure { err ->
+                Log.w("GitHubRepository", "Invalid regex for ${data.repo}: $it", err)
+            }.getOrNull()
+        }
+        return GitHubApp(
+            packageName = data.packageName,
+            user = data.user,
+            repo = data.repo,
+            extra = regex
+        )
+    }
 }

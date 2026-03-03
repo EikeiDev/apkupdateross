@@ -3,6 +3,8 @@ package com.apkupdateross.viewmodel
 import android.content.pm.PackageManager
 import androidx.activity.compose.ManagedActivityResultLauncher
 import com.apkupdateross.R
+import com.apkupdateross.data.git.CustomGitRepo
+import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.snack.TextSnack
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -48,6 +50,8 @@ class SettingsViewModel(
 	val ruStore404Count = _ruStore404Count.asStateFlow()
     private val _updateMetrics = MutableStateFlow(UpdateMetrics())
 	val updateMetrics = _updateMetrics.asStateFlow()
+    private val _customGitRepos = MutableStateFlow(prefs.customGitRepos.get())
+    val customGitRepos = _customGitRepos.asStateFlow()
     private var metricsJob: Job? = null
 
 	// installModeAvailable[0]=Normal always true, [1]=Root, [2]=Shizuku
@@ -106,12 +110,40 @@ class SettingsViewModel(
 	fun getInstallMode() = prefs.installMode.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
-	fun getTheme() = prefs.theme.get()
+    fun getTheme() = prefs.theme.get()
 
-	fun setTheme(theme: Int) {
-		prefs.theme.put(theme)
-		themer.setTheme(isDarkTheme(theme))
-	}
+    fun setTheme(theme: Int) {
+        prefs.theme.put(theme)
+        themer.setTheme(isDarkTheme(theme))
+    }
+
+    fun addOrUpdateCustomRepo(repo: CustomGitRepo) {
+        val trimmed = repo.trimmed()
+        if (trimmed.user.isEmpty() || trimmed.repo.isEmpty() || trimmed.packageName.isEmpty()) {
+            snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.settings_custom_repo_error_required)))
+            return
+        }
+        val current = prefs.customGitRepos.get().toMutableList()
+        val index = current.indexOfFirst { it.id == trimmed.id }
+        if (index >= 0) {
+            current[index] = trimmed
+        } else {
+            current.add(trimmed)
+        }
+        prefs.customGitRepos.put(current)
+        _customGitRepos.value = current
+    }
+
+    fun removeCustomRepo(id: String) {
+        val current = prefs.customGitRepos.get().toMutableList()
+        val updated = current.filterNot { it.id == id }
+        if (updated.size != current.size) {
+            prefs.customGitRepos.put(updated)
+            _customGitRepos.value = updated
+        }
+    }
+
+    fun createEmptyCustomRepo(provider: GitProvider): CustomGitRepo = CustomGitRepo(platform = provider)
 
 	fun setInstallMode(mode: Int) {
 		when (mode) {

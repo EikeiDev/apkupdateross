@@ -2,6 +2,9 @@ package com.apkupdateross.repository
 
 import android.net.Uri
 import android.util.Log
+import com.apkupdateross.data.git.CustomGitRepo
+import com.apkupdateross.data.git.GitProvider
+import com.apkupdateross.data.gitlab.GitLabApp
 import com.apkupdateross.data.gitlab.GitLabApps
 import com.apkupdateross.data.gitlab.GitLabRelease
 import com.apkupdateross.data.ui.AppInstalled
@@ -27,7 +30,7 @@ class GitLabRepository(
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
-        GitLabApps.forEach { app ->
+        loadGitLabApps().forEach { app ->
             apps.find { it.packageName == app.packageName }?.let {
                 checks.add(checkApp(apps, app.user, app.repo, app.packageName, it.version, null))
             }
@@ -76,7 +79,7 @@ class GitLabRepository(
     suspend fun search(text: String) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
 
-        GitLabApps.forEach { app ->
+        loadGitLabApps().forEach { app ->
             if (app.repo.contains(text, true) || app.user.contains(text, true) || app.packageName.contains(text, true)) {
                 checks.add(checkApp(null, app.user, app.repo, app.packageName, "?", null))
             }
@@ -107,6 +110,23 @@ class GitLabRepository(
         if (link != null) return link.url
 
         return ""
+    }
+
+    private fun loadGitLabApps(): List<GitLabApp> {
+        val custom = prefs.customGitRepos.get()
+            .filter { it.platform == GitProvider.GITLAB }
+            .mapNotNull { it.toGitLabAppOrNull() }
+        return GitLabApps + custom
+    }
+
+    private fun CustomGitRepo.toGitLabAppOrNull(): GitLabApp? {
+        val data = trimmed()
+        if (data.user.isEmpty() || data.repo.isEmpty() || data.packageName.isEmpty()) return null
+        return GitLabApp(
+            packageName = data.packageName,
+            user = data.user,
+            repo = data.repo
+        )
     }
 
 }

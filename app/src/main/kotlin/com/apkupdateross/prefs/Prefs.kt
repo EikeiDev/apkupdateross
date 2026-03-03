@@ -1,5 +1,6 @@
 package com.apkupdateross.prefs
 
+import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.ui.Screen
 import com.aurora.gplayapi.data.models.AuthData
 import com.kryptoprefs.context.KryptoContext
@@ -46,4 +47,5 @@ class Prefs(
 	val lastUpdateCheckTimestamp = long("lastUpdateCheckTimestamp", 0L, true)
 	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
 	val lastSelfUpdateVersionCode = long("lastSelfUpdateVersionCode", 0L, true)
+	val customGitRepos = json("customGitRepos", emptyList<CustomGitRepo>(), true)
 }

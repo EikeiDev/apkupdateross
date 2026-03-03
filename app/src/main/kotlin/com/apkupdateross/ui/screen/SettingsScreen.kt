@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,15 +18,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,8 +42,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
@@ -47,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
+import com.apkupdateross.data.git.CustomGitRepo
+import com.apkupdateross.data.git.GitProvider
+import com.apkupdateross.data.git.parseRepoUrl
 import com.apkupdateross.data.ui.SettingsUiState
 import com.apkupdateross.ui.component.ButtonSetting
 import com.apkupdateross.ui.component.LargeTitle
@@ -70,16 +84,36 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	val uiState = viewModel.state.collectAsStateWithLifecycle().value
 	val ruStoreCacheCount = viewModel.ruStore404Count.collectAsStateWithLifecycle().value
 	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
+	val customRepos = viewModel.customGitRepos.collectAsStateWithLifecycle().value
+	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
 	if (uiState == SettingsUiState.Settings) {
 		DisposableEffect(Unit) {
 			viewModel.startMetricsAutoRefresh()
 			onDispose { viewModel.stopMetricsAutoRefresh() }
 		}
 		SettingsTopBar(viewModel)
-		Settings(viewModel, ruStoreCacheCount, updateMetrics)
+		Settings(
+			viewModel,
+			ruStoreCacheCount,
+			updateMetrics,
+			customRepos,
+			onAddRepo = { dialogRepo = viewModel.createEmptyCustomRepo(GitProvider.GITHUB) },
+			onEditRepo = { dialogRepo = it },
+			onDeleteRepo = { viewModel.removeCustomRepo(it.id) }
+		)
 	} else {
 		AboutTopBar(viewModel)
 		About()
+	}
+	dialogRepo?.let { repo ->
+		CustomRepoDialog(
+			repo = repo,
+			onDismiss = { dialogRepo = null },
+			onSave = {
+				viewModel.addOrUpdateCustomRepo(it)
+				dialogRepo = null
+			}
+		)
 	}
 }
 
@@ -135,7 +169,15 @@ fun About() = Box(
 }
 
 @Composable
-fun Settings(viewModel: SettingsViewModel, ruStore404Count: Int, updateMetrics: UpdateMetrics) = LazyColumn {
+fun Settings(
+	viewModel: SettingsViewModel,
+	ruStore404Count: Int,
+	updateMetrics: UpdateMetrics,
+	customRepos: List<CustomGitRepo>,
+	onAddRepo: () -> Unit,
+	onEditRepo: (CustomGitRepo) -> Unit,
+	onDeleteRepo: (CustomGitRepo) -> Unit
+) = LazyColumn {
 	item {
 		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 16.dp))
 		SwitchSetting(
@@ -212,6 +254,15 @@ fun Settings(viewModel: SettingsViewModel, ruStore404Count: Int, updateMetrics: 
 			{ viewModel.setUseRuStore(it) },
 			stringResource(R.string.source_rustore),
 			R.drawable.ic_rustore
+		)
+	}
+
+	item {
+		CustomGitReposSection(
+			repos = customRepos,
+			onAdd = onAddRepo,
+			onEdit = onEditRepo,
+			onDelete = onDeleteRepo
 		)
 	}
 
@@ -325,6 +376,186 @@ fun Settings(viewModel: SettingsViewModel, ruStore404Count: Int, updateMetrics: 
 			icon = R.drawable.ic_safe
 		)
 	}
+}
+
+@Composable
+private fun CustomGitReposSection(
+	repos: List<CustomGitRepo>,
+	onAdd: () -> Unit,
+	onEdit: (CustomGitRepo) -> Unit,
+	onDelete: (CustomGitRepo) -> Unit
+) {
+	Row(
+		Modifier
+			.fillMaxWidth()
+			.padding(start = 16.dp, end = 8.dp, top = 16.dp),
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		LargeTitle(stringResource(R.string.settings_custom_repos), Modifier.weight(1f))
+		IconButton(onClick = onAdd) {
+			Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.settings_custom_repos_add))
+		}
+	}
+	if (repos.isEmpty()) {
+		Text(
+			text = stringResource(R.string.settings_custom_repo_empty),
+			modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+	} else {
+		repos.forEach { repo ->
+			CustomRepoCard(
+				repo = repo,
+				onEdit = { onEdit(repo) },
+				onDelete = { onDelete(repo) }
+			)
+		}
+	}
+}
+
+@Composable
+private fun CustomRepoCard(
+	repo: CustomGitRepo,
+	onEdit: () -> Unit,
+	onDelete: () -> Unit
+) {
+	ElevatedCard(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp, vertical = 8.dp)
+	) {
+		Row(
+			Modifier
+				.fillMaxWidth()
+				.padding(16.dp),
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			SettingsIcon(providerIcon(repo.platform), repo.platform.name)
+			Spacer(Modifier.width(16.dp))
+			Column(Modifier.weight(1f)) {
+				Text("${repo.user}/${repo.repo}", style = MaterialTheme.typography.titleMedium)
+				Text(repo.packageName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+				repo.extraRegex?.takeIf { it.isNotBlank() }?.let {
+					Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+				}
+			}
+			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null) }
+			IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null) }
+		}
+	}
+}
+
+@Composable
+private fun CustomRepoDialog(
+	repo: CustomGitRepo,
+	onDismiss: () -> Unit,
+	onSave: (CustomGitRepo) -> Unit
+) {
+	var platform by remember(repo.id) { mutableStateOf(repo.platform) }
+	var user by remember(repo.id) { mutableStateOf(repo.user) }
+	var project by remember(repo.id) { mutableStateOf(repo.repo) }
+	var packageName by remember(repo.id) { mutableStateOf(repo.packageName) }
+	var regex by remember(repo.id) { mutableStateOf(repo.extraRegex.orEmpty()) }
+	var showError by remember { mutableStateOf(false) }
+	fun handleUrlInput(value: String): Boolean {
+		return parseRepoUrl(value)?.let { parsed ->
+			platform = parsed.provider
+			user = parsed.user
+			project = parsed.repo
+			true
+		} ?: false
+	}
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			TextButton(onClick = {
+				if (user.isBlank() || project.isBlank() || packageName.isBlank()) {
+					showError = true
+					return@TextButton
+				}
+				onSave(
+					repo.copy(
+						platform = platform,
+						user = user,
+						repo = project,
+						packageName = packageName,
+						extraRegex = regex.ifBlank { null }
+					)
+				)
+			}) {
+				Text(stringResource(R.string.settings_custom_repo_save))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_custom_repo_cancel)) }
+		},
+		title = { Text(stringResource(R.string.settings_custom_repos_add)) },
+		text = {
+			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+				Text(text = stringResource(R.string.settings_custom_repo_provider), style = MaterialTheme.typography.labelLarge)
+				Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+					FilterChip(
+						selected = platform == GitProvider.GITHUB,
+						onClick = { platform = GitProvider.GITHUB },
+						label = { Text(stringResource(R.string.source_github)) }
+					)
+					FilterChip(
+						selected = platform == GitProvider.GITLAB,
+						onClick = { platform = GitProvider.GITLAB },
+						label = { Text(stringResource(R.string.source_gitlab)) }
+					)
+				}
+				OutlinedTextField(
+					value = user,
+					onValueChange = {
+						if (!handleUrlInput(it)) {
+							user = it
+						}
+						showError = false
+					},
+					label = { Text(stringResource(R.string.settings_custom_repo_user)) },
+					singleLine = true
+				)
+				OutlinedTextField(
+					value = project,
+					onValueChange = {
+						if (!handleUrlInput(it)) {
+							project = it
+						}
+						showError = false
+					},
+					label = { Text(stringResource(R.string.settings_custom_repo_repo)) },
+					singleLine = true
+				)
+				OutlinedTextField(
+					value = packageName,
+					onValueChange = { packageName = it; showError = false },
+					label = { Text(stringResource(R.string.settings_custom_repo_package)) },
+					singleLine = true
+				)
+				OutlinedTextField(
+					value = regex,
+					onValueChange = { regex = it },
+					label = { Text(stringResource(R.string.settings_custom_repo_regex)) },
+					singleLine = true
+				)
+				if (showError) {
+					Text(
+						text = stringResource(R.string.settings_custom_repo_error_required),
+						color = MaterialTheme.colorScheme.error,
+						style = MaterialTheme.typography.bodySmall
+					)
+				}
+			}
+		}
+	)
+}
+
+@DrawableRes
+private fun providerIcon(provider: GitProvider) = when (provider) {
+	GitProvider.GITHUB -> R.drawable.ic_github
+	GitProvider.GITLAB -> R.drawable.ic_gitlab
 }
 
 private fun formatDuration(durationMs: Long): String {

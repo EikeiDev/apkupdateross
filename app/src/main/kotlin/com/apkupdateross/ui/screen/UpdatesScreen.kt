@@ -69,6 +69,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 				DefaultErrorScreen()
 			}.onSuccess {
 				when {
+					it.updates.isEmpty() && isRefreshing -> LoadingGrid()
 					it.updates.isEmpty() -> EmptyGrid(text = stringResource(R.string.updates_empty))
 					else -> Grid(viewModel, it.updates, uriHandler)
 				}

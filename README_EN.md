@@ -6,29 +6,39 @@
 
 This project is a heavily modified and modernized fork of the original [APKUpdater](https://github.com/rumboalla/apkupdater) created by [rumboalla](https://github.com/rumboalla). Huge thanks to the original author for the brilliant foundation!
 
-## 🌟 What's New in this Version
+## 🌟 What's New
 
-* **RuStore Integration**: Native support for finding, fetching release notes, and pulling updates directly from the official Russian RuStore.
-* **Material Design 3 Overhaul**: A complete UI redesign featuring modern typography, elevated cards, smoother animations, redesigned badges, and polished layout components.
-* **Modernized Navigation**: Refreshed bottom navigation terminology and iconography to improve the user experience.
-* **Optimized Resources**: Removed unused strings, unused assets, and streamlined translations for a lighter application footprint.
-* **Renamed Package**: Migrated base package from `com.apkupdater` to `com.apkupdateross` so it can be installed seamlessly alongside the original app.
+* **RuStore integration** – fetch APKs and release notes directly from the official Russian store.
+* **Custom Git repositories** – add GitHub/GitLab projects, specify package names, regex filters and treat them like first-class sources.
+* **Material Design 3 UI** – refreshed navigation, typography, cards, smooth animations and dynamic color support.
+* **Safe package rename** – ships as `com.apkupdateross`, so it happily co-exists with the original APKUpdater.
 
 ## ✨ Core Features
-* **Update Sources**: Find updates from **APKMirror**, **Aptoide**, **F-Droid**, **IzzyOnDroid**, **APKPure**, **GitLab**, **GitHub**, **Google Play**, and **RuStore**.
-* **Search Sources**: Find new apps to install across the supported platforms.
-* Schedule **background update checks** and receive notifications when updates are found.
-* Supports **Android 7.0** (**24**) to **Android 16** (**36**).
-* **Material Design 3** with Dark, Light, and System theme support.
-* **Direct install** of updates for sources that support it.
-* **Root install** of updates.
-* No ads. No tracking.
+* **Update sources**: **APKMirror**, **Aptoide**, **F-Droid**, **IzzyOnDroid**, **APKPure**, **GitLab**, **GitHub**, **Google Play**, **RuStore**, plus your custom Git repos.
+* **App search** across supported stores.
+* **Background scheduling** with configurable intervals (1 / 3 / 7 days) and notification reminders.
+* **Install modes**: Session (standard), Root, and Shizuku.
+* **Android TV UI** and support for Android 7.0 (24) through Android 14 (34).
+* **Themes**: light, dark, system and Material You dynamic colors.
+* **Direct / root installs** without ads or tracking.
 
 ## 📥 Download
 Head over to the **Releases** section of this repository to download the latest Stable build (`com.apkupdateross-release.apk`).
 
+## 💻 Build from Source
+
+```bash
+./gradlew assembleRelease
+```
+
+Use `./gradlew assembleDebug` for debug builds.
+
+## ☕ Support Development
+
+If you enjoy APKUpdater OSS, you can support the project via CloudTips: [cloudtips.ru/p/4d69001b](https://pay.cloudtips.ru/p/4d69001b)
+
 ## 🌍 Translations
-This project maintains translations across English and Russian.
+Currently the app ships with **English** and **Russian** locales. New features land in these languages first.
 
 ## 📜 License
 Copyright &copy; 2026

@@ -83,21 +83,28 @@ class GitHubRepository(
         val assetUrl = release?.let { findApkAsset(it.assets) }?.takeIf { it.isNotEmpty() }
 
         if (release != null && assetUrl != null) {
-            val versions = getVersions(release.name)
-            if (versions.second > BuildConfig.VERSION_CODE.toLong()) {
+            val versionName = release.versionNameOrTag()
+            val versionCode = release.versionCodeFromTag()
+            val remoteVersion = Version(versionName)
+            val localVersion = Version(BuildConfig.VERSION_NAME)
+            val isNewer = when {
+                remoteVersion > localVersion -> true
+                versionCode > BuildConfig.VERSION_CODE -> true
+                else -> false
+            }
+            if (isNewer) {
                 emit(listOf(AppUpdate(
                     name = "APKUpdater",
                     packageName = BuildConfig.APPLICATION_ID,
-                    version = versions.first,
+                    version = versionName,
                     oldVersion = BuildConfig.VERSION_NAME,
-                    versionCode = versions.second,
+                    versionCode = versionCode,
                     oldVersionCode = BuildConfig.VERSION_CODE.toLong(),
                     source = GitHubSource,
                     link = Link.Url(assetUrl),
                     whatsNew = release.body
                 )))
             } else {
-                // We need to emit empty so it can be combined later
                 emit(listOf())
             }
         } else {
@@ -158,12 +165,20 @@ class GitHubRepository(
         Log.e("GitHubRepository", "Error fetching releases for $packageName.", e)
     }
 
-    private fun getVersions(name: String) = runCatching {
-        val scanner = Scanner(name)
-        val version = scanner.next()
-        val versionCode = scanner.next().trim('(', ')').toLong()
-        Pair(version, versionCode)
-    }.getOrDefault(Pair(name, 0L))
+    private fun GitHubRelease.versionNameOrTag(): String {
+        val raw = tag_name.takeIf { it.isNotBlank() } ?: name
+        return raw.removePrefix("v").trim()
+    }
+
+    private fun GitHubRelease.versionCodeFromTag(): Long {
+        val clean = versionNameOrTag()
+        val parts = clean.split('.', '-', '_')
+        val major = parts.getOrNull(0)?.toLongOrNull() ?: 0L
+        val minor = parts.getOrNull(1)?.toLongOrNull() ?: 0L
+        val patch = parts.getOrNull(2)?.toLongOrNull() ?: 0L
+        val extra = parts.getOrNull(3)?.toLongOrNull() ?: 0L
+        return major * 1000000L + minor * 10000L + patch * 100L + extra
+    }
 
     private fun filterPreRelease(release: GitHubRelease) = when {
         prefs.ignorePreRelease.get() && release.prerelease -> false

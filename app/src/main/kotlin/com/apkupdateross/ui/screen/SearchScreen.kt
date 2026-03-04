@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -29,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -73,13 +77,19 @@ fun SearchScreenSuccess(
     viewModel: SearchViewModel
 ) = Column {
     val uriHandler = LocalUriHandler.current
+    val updates = state.updates
 
     InstalledGrid {
-        items(state.updates) { update ->
+        items(updates) { update ->
             SearchItem(update, {
                 viewModel.install(update, uriHandler)
             }, { viewModel.cancel(update) })
         }
+    }
+
+    if (updates.isEmpty()) {
+        Spacer(modifier = Modifier.height(16.dp))
+        SearchNoResultsBanner()
     }
 }
 
@@ -95,14 +105,21 @@ fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
 fun SearchText(viewModel: SearchViewModel) = Box {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    var value by remember { mutableStateOf("") }
+    var value by rememberSaveable { mutableStateOf("") }
+    fun submitSearch() {
+        val query = value.trim()
+        if (query.length >= 3) {
+            viewModel.search(query)
+            keyboardController?.hide()
+        }
+    }
     OutlinedTextField(
         value = value,
         onValueChange = { value = it },
         modifier = Modifier.fillMaxWidth().padding(0.dp).focusRequester(focusRequester),
         label = { Text(stringResource(R.string.tab_search)) },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+        keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Color.Transparent,
             unfocusedBorderColor = Color.Transparent
@@ -114,12 +131,16 @@ fun SearchText(viewModel: SearchViewModel) = Box {
         focusRequester.requestFocus()
     }
     LaunchedEffect(value) {
-        if (value.length >= 3) {
-            delay(1000)
-            viewModel.search(value)
+        val query = value.trim()
+        if (query.length >= MIN_SEARCH_LENGTH) {
+            delay(SEARCH_DEBOUNCE_MS)
+            viewModel.search(query)
         }
     }
 }
+
+private const val SEARCH_DEBOUNCE_MS = 500L
+private const val MIN_SEARCH_LENGTH = 3
 
 @Composable
 private fun SearchFilterAction(viewModel: SearchViewModel) {
@@ -215,4 +236,21 @@ private fun SearchFilterDialog(
             }
         }
     )
+}
+
+@Composable
+private fun SearchNoResultsBanner() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Text(
+            text = stringResource(R.string.search_no_results),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }

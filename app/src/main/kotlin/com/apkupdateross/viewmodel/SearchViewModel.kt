@@ -23,21 +23,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
-
 class SearchViewModel(
     private val searchRepository: SearchRepository,
     private val installer: SessionInstaller,
     private val badger: Badger,
     downloader: Downloader,
-    prefs: Prefs,
+    private val prefs: Prefs,
     snackBar: SnackBar,
     stringer: Stringer,
     installLog: InstallLog
 ) : InstallViewModel(downloader, installer, prefs, snackBar, stringer, installLog) {
 
     private val mutex = Mutex()
+
     private val state = MutableStateFlow<SearchUiState>(SearchUiState.Success(emptyList()))
-    private val _filters = MutableStateFlow(SearchSourceFilter.defaultSelection)
+    private val _filters = MutableStateFlow(loadSavedFilters())
     private var job: Job? = null
     private var lastQuery: String = ""
 
@@ -48,18 +48,33 @@ class SearchViewModel(
         }
     }
 
+    private fun loadSavedFilters(): Set<SearchSourceFilter> {
+        val saved = prefs.searchFilters.get()
+        val mapped = saved.mapNotNull { runCatching { SearchSourceFilter.valueOf(it) }.getOrNull() }.toSet()
+        return mapped.ifEmpty { SearchSourceFilter.defaultSelection }
+    }
+
+    private fun saveFilters(filters: Set<SearchSourceFilter>) {
+        prefs.searchFilters.put(filters.map { it.name })
+    }
+
     fun state(): StateFlow<SearchUiState> = state
     fun filters(): StateFlow<Set<SearchSourceFilter>> = _filters
 
     fun search(text: String) {
-        lastQuery = text
+        val query = text.trim()
+        lastQuery = query
+        if (query.length < 3) {
+            return
+        }
         job?.cancel()
-        job = searchJob(text, _filters.value)
+        job = searchJob(query, _filters.value)
     }
 
     fun setFilters(filters: Set<SearchSourceFilter>) {
         if (_filters.value == filters) return
         _filters.value = filters
+        saveFilters(filters)
         if (lastQuery.length >= 3) {
             search(lastQuery)
         }

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.jsoup.Jsoup
 
+private const val USER_AGENT = "APKUpdater-v3.0.3"
 
 class ApkMirrorRepository(
     private val service: ApkMirrorService,
@@ -52,7 +53,12 @@ class ApkMirrorRepository(
     suspend fun search(text: String) = flow {
         val baseUrl = "https://www.apkmirror.com"
         val searchQuery = "/?post_type=app_release&searchtype=app&s="
-        val doc = Jsoup.connect("$baseUrl$searchQuery$text").get()
+        val doc = Jsoup
+            .connect("$baseUrl$searchQuery$text")
+            .userAgent(USER_AGENT)
+            .referrer(baseUrl)
+            .timeout(15000)
+            .get()
         val row = doc.select("div.appRow")
         val a = row.select("a.byDeveloper")
         val h5 = row.select("h5.appRowTitle").take(a.size)

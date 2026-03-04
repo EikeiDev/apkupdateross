@@ -11,7 +11,7 @@ import retrofit2.http.POST
 interface ApkMirrorService {
 
     @Headers(
-        "User-Agent: APKUpdater-v" + BuildConfig.VERSION_NAME,
+        "User-Agent: APKUpdater-v3.0.3",
         "Authorization: Basic YXBpLWFwa3VwZGF0ZXI6cm01cmNmcnVVakt5MDRzTXB5TVBKWFc4",
         "Content-Type: application/json"
     )

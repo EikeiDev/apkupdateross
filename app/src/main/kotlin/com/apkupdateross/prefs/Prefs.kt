@@ -2,6 +2,7 @@ package com.apkupdateross.prefs
 
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.ui.Screen
+import com.apkupdateross.data.ui.SearchSourceFilter
 import com.aurora.gplayapi.data.models.AuthData
 import com.kryptoprefs.context.KryptoContext
 import com.kryptoprefs.gson.json
@@ -34,6 +35,7 @@ class Prefs(
 	val usePlay = boolean("usePlay", defValue = true, backed = true)
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
 	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
+	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)

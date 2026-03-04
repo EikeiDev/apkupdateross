@@ -73,6 +73,7 @@
     <string name="settings_custom_repo_save">Сохранить</string>
     <string name="settings_custom_repo_empty">Пока нет пользовательских репозиториев.</string>
     <string name="settings_custom_repo_error_required">Заполните пользователя, репозиторий и имя пакета.</string>
+    <string name="search_no_results">По вашему запросу ничего не найдено.</string>
     <string name="search_filter_dialog_title">Фильтр источников</string>
     <string name="search_filter_hint">Выберите хотя бы один источник или используйте кнопку «Все источники», чтобы переключить их.</string>
     <string name="search_filter_toggle_all">Все источники</string>

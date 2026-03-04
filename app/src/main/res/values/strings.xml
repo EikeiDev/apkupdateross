@@ -75,6 +75,7 @@
     <string name="settings_custom_repo_save">Save</string>
     <string name="settings_custom_repo_empty">No custom repositories yet.</string>
     <string name="settings_custom_repo_error_required">Fill user, repository, and package name.</string>
+    <string name="search_no_results">По вашему запросу ничего не найдено.</string>
     <string name="search_filter_dialog_title">Filter sources</string>
     <string name="search_filter_button">Choose source</string>
     <string name="search_filter_apply">Apply</string>

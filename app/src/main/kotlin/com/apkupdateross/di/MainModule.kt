@@ -175,13 +175,13 @@ val mainModule = module {
 
 	single { PlayRepository(get(), get(), get(), get()) }
 
-	single(named("main")) { FdroidRepository(get(), "https://fdroid.tetaneutral.net/fdroid/repo/", FdroidSource, get()) }
+	single(named("main")) { FdroidRepository(get(), "https://ftp.agdsn.de/fdroid/repo/", FdroidSource, get()) }
 
 	single(named("izzy")) { FdroidRepository(get(), "https://apt.izzysoft.de/fdroid/repo/", IzzySource, get()) }
 
 	single { UpdatesRepository(get(), get(), get(), get(named("main")), get(named("izzy")), get(), get(), get(), get(), get(), get()) }
 
-	single { SearchRepository(get(), get(named("main")), get(named("izzy")), get(), get(), get(), get(), get(), get(), get()) }
+	single { SearchRepository(get(), get(named("main")), get(named("izzy")), get(), get(), get(), get(), get(), get()) }
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 

@@ -2,6 +2,7 @@ package com.apkupdateross.repository
 
 import android.util.Log
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.combine
 import kotlinx.coroutines.flow.Flow
@@ -22,17 +23,8 @@ class SearchRepository(
     private val prefs: Prefs
 ) {
 
-    fun search(text: String) = flow {
-        val sources = mutableListOf<Flow<Result<List<AppUpdate>>>>()
-        if (prefs.useApkMirror.get()) sources.add(apkMirrorRepository.search(text))
-        if (prefs.useFdroid.get()) sources.add(fdroidRepository.search(text))
-        if (prefs.useIzzy.get()) sources.add(izzyRepository.search(text))
-        if (prefs.useAptoide.get()) sources.add(aptoideRepository.search(text))
-        if (prefs.useGitHub.get()) sources.add(gitHubRepository.search(text))
-        if (prefs.useApkPure.get()) sources.add(apkPureRepository.search(text))
-        if (prefs.useGitLab.get()) sources.add(gitLabRepository.search(text))
-        if (prefs.usePlay.get()) sources.add(playRepository.search(text))
-        if (prefs.useRuStore.get()) sources.add(ruStoreRepository.search(text))
+    fun search(text: String, filter: SearchSourceFilter) = flow {
+        val sources = buildSources(text, filter)
 
         if (sources.isNotEmpty()) {
             sources.combine { updates ->
@@ -53,6 +45,39 @@ class SearchRepository(
     }.catch {
         emit(Result.failure(it))
         Log.e("SearchRepository", "Error searching.", it)
+    }
+
+    private suspend fun buildSources(text: String, filter: SearchSourceFilter): List<Flow<Result<List<AppUpdate>>>> {
+        val sources = mutableListOf<Flow<Result<List<AppUpdate>>>>()
+
+        suspend fun MutableList<Flow<Result<List<AppUpdate>>>>.addIf(enabled: Boolean, block: suspend () -> Flow<Result<List<AppUpdate>>>) {
+            if (enabled) add(block())
+        }
+
+        when (filter) {
+            SearchSourceFilter.ALL -> {
+                sources.addIf(prefs.useApkMirror.get()) { apkMirrorRepository.search(text) }
+                sources.addIf(prefs.useFdroid.get()) { fdroidRepository.search(text) }
+                sources.addIf(prefs.useIzzy.get()) { izzyRepository.search(text) }
+                sources.addIf(prefs.useAptoide.get()) { aptoideRepository.search(text) }
+                sources.addIf(prefs.useGitHub.get()) { gitHubRepository.search(text) }
+                sources.addIf(prefs.useApkPure.get()) { apkPureRepository.search(text) }
+                sources.addIf(prefs.useGitLab.get()) { gitLabRepository.search(text) }
+                sources.addIf(prefs.usePlay.get()) { playRepository.search(text) }
+                sources.addIf(prefs.useRuStore.get()) { ruStoreRepository.search(text) }
+            }
+            SearchSourceFilter.APKMIRROR -> sources.addIf(prefs.useApkMirror.get()) { apkMirrorRepository.search(text) }
+            SearchSourceFilter.FDROID_MAIN -> sources.addIf(prefs.useFdroid.get()) { fdroidRepository.search(text) }
+            SearchSourceFilter.FDROID_IZZY -> sources.addIf(prefs.useIzzy.get()) { izzyRepository.search(text) }
+            SearchSourceFilter.APTOIDE -> sources.addIf(prefs.useAptoide.get()) { aptoideRepository.search(text) }
+            SearchSourceFilter.APKPURE -> sources.addIf(prefs.useApkPure.get()) { apkPureRepository.search(text) }
+            SearchSourceFilter.GITHUB -> sources.addIf(prefs.useGitHub.get()) { gitHubRepository.search(text) }
+            SearchSourceFilter.GITLAB -> sources.addIf(prefs.useGitLab.get()) { gitLabRepository.search(text) }
+            SearchSourceFilter.PLAY -> sources.addIf(prefs.usePlay.get()) { playRepository.search(text) }
+            SearchSourceFilter.RUSTORE -> sources.addIf(prefs.useRuStore.get()) { ruStoreRepository.search(text) }
+        }
+
+        return sources
     }
 
 }

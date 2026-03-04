@@ -2,6 +2,7 @@ package com.apkupdateross.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.data.ui.removeId
 import com.apkupdateross.data.ui.setIsInstalling
@@ -36,7 +37,9 @@ class SearchViewModel(
 
     private val mutex = Mutex()
     private val state = MutableStateFlow<SearchUiState>(SearchUiState.Success(emptyList()))
+    private val _filter = MutableStateFlow(SearchSourceFilter.ALL)
     private var job: Job? = null
+    private var lastQuery: String = ""
 
     init {
         subscribeToInstallStatus(state.value.updates())
@@ -46,16 +49,26 @@ class SearchViewModel(
     }
 
     fun state(): StateFlow<SearchUiState> = state
+    fun filter(): StateFlow<SearchSourceFilter> = _filter
 
     fun search(text: String) {
+        lastQuery = text
         job?.cancel()
-        job = searchJob(text)
+        job = searchJob(text, _filter.value)
     }
 
-    private fun searchJob(text: String) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
+    fun setFilter(filter: SearchSourceFilter) {
+        if (_filter.value == filter) return
+        _filter.value = filter
+        if (lastQuery.length >= 3) {
+            search(lastQuery)
+        }
+    }
+
+    private fun searchJob(text: String, filter: SearchSourceFilter) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
         state.value = SearchUiState.Loading
         badger.changeSearchBadge("")
-        searchRepository.search(text).collect {
+        searchRepository.search(text, filter).collect {
             it.onSuccess { apps ->
                 state.value = SearchUiState.Success(apps)
                 badger.changeSearchBadge(apps.size.toString())

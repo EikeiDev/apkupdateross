@@ -1,19 +1,27 @@
 package com.apkupdateross.ui.screen
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -35,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
+import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.InstalledGrid
@@ -81,7 +90,7 @@ fun SearchScreenSuccess(
 fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
 	title = { SearchText(viewModel) },
 	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
-	actions = {}
+	actions = { SearchFilterAction(viewModel) }
 )
 
 @Composable
@@ -112,4 +121,66 @@ fun SearchText(viewModel: SearchViewModel) = Box {
 			viewModel.search(value)
 		}
 	}
+}
+
+@Composable
+private fun SearchFilterAction(viewModel: SearchViewModel) {
+	val currentFilter by viewModel.filter().collectAsStateWithLifecycle()
+	var showDialog by remember { mutableStateOf(false) }
+
+	IconButton(onClick = { showDialog = true }) {
+		Icon(
+			imageVector = Icons.Filled.Add,
+			contentDescription = stringResource(R.string.search_filter_button)
+		)
+	}
+
+	if (showDialog) {
+		SearchFilterDialog(
+			selected = currentFilter,
+			onDismiss = { showDialog = false },
+			onSelect = {
+				showDialog = false
+				viewModel.setFilter(it)
+			}
+		)
+	}
+}
+
+@Composable
+private fun SearchFilterDialog(
+	selected: SearchSourceFilter,
+	onDismiss: () -> Unit,
+	onSelect: (SearchSourceFilter) -> Unit
+) {
+	var current by remember(selected) { mutableStateOf(selected) }
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			TextButton(onClick = { onSelect(current) }) {
+				Text(stringResource(R.string.search_filter_apply))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.search_filter_cancel))
+			}
+		},
+		title = { Text(stringResource(R.string.search_filter_dialog_title)) },
+		text = {
+			Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+				SearchSourceFilter.entries.forEach { filter ->
+					Row(
+						modifier = Modifier
+							.fillMaxWidth()
+							.clickable { current = filter },
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						RadioButton(selected = current == filter, onClick = { current = filter })
+						Text(text = stringResource(filter.labelRes))
+					}
+				}
+			}
+		}
+	)
 }

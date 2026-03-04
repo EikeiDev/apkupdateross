@@ -1,6 +1,6 @@
 # APKUpdater OSS
 
-*[🇷🇺 Читать на русском](README.md)*
+*[Читать на русском](README.md)*
 
 **APKUpdater OSS** is an open-source tool that simplifies the process of finding updates for your installed apps. It provides functionality similar to an app store but aggregates updates across multiple independent sources.
 
@@ -18,7 +18,7 @@ This project is a heavily modified and modernized fork of the original [APKUpdat
 * **App search** across supported stores.
 * **Background scheduling** with configurable intervals (1 / 3 / 7 days) and notification reminders.
 * **Install modes**: Session (standard), Root, and Shizuku.
-* **Android TV UI** and support for Android 7.0 (24) through Android 14 (34).
+* **Modern UI** and support for Android 7.0 (24) through Android 16 (36).
 * **Themes**: light, dark, system and Material You dynamic colors.
 * **Direct / root installs** without ads or tracking.
 

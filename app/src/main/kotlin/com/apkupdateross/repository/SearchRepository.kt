@@ -23,8 +23,8 @@ class SearchRepository(
     private val prefs: Prefs
 ) {
 
-    fun search(text: String, filter: SearchSourceFilter) = flow {
-        val sources = buildSources(text, filter)
+    fun search(text: String, filters: Set<SearchSourceFilter>) = flow {
+        val sources = buildSources(text, filters)
 
         if (sources.isNotEmpty()) {
             sources.combine { updates ->
@@ -47,34 +47,41 @@ class SearchRepository(
         Log.e("SearchRepository", "Error searching.", it)
     }
 
-    private suspend fun buildSources(text: String, filter: SearchSourceFilter): List<Flow<Result<List<AppUpdate>>>> {
+    private suspend fun buildSources(text: String, filters: Set<SearchSourceFilter>): List<Flow<Result<List<AppUpdate>>>> {
         val sources = mutableListOf<Flow<Result<List<AppUpdate>>>>()
 
         suspend fun MutableList<Flow<Result<List<AppUpdate>>>>.addIf(enabled: Boolean, block: suspend () -> Flow<Result<List<AppUpdate>>>) {
             if (enabled) add(block())
         }
 
-        when (filter) {
-            SearchSourceFilter.ALL -> {
-                sources.addIf(prefs.useApkMirror.get()) { apkMirrorRepository.search(text) }
-                sources.addIf(prefs.useFdroid.get()) { fdroidRepository.search(text) }
-                sources.addIf(prefs.useIzzy.get()) { izzyRepository.search(text) }
-                sources.addIf(prefs.useAptoide.get()) { aptoideRepository.search(text) }
-                sources.addIf(prefs.useGitHub.get()) { gitHubRepository.search(text) }
-                sources.addIf(prefs.useApkPure.get()) { apkPureRepository.search(text) }
-                sources.addIf(prefs.useGitLab.get()) { gitLabRepository.search(text) }
-                sources.addIf(prefs.usePlay.get()) { playRepository.search(text) }
-                sources.addIf(prefs.useRuStore.get()) { ruStoreRepository.search(text) }
-            }
-            SearchSourceFilter.APKMIRROR -> sources.addIf(prefs.useApkMirror.get()) { apkMirrorRepository.search(text) }
-            SearchSourceFilter.FDROID_MAIN -> sources.addIf(prefs.useFdroid.get()) { fdroidRepository.search(text) }
-            SearchSourceFilter.FDROID_IZZY -> sources.addIf(prefs.useIzzy.get()) { izzyRepository.search(text) }
-            SearchSourceFilter.APTOIDE -> sources.addIf(prefs.useAptoide.get()) { aptoideRepository.search(text) }
-            SearchSourceFilter.APKPURE -> sources.addIf(prefs.useApkPure.get()) { apkPureRepository.search(text) }
-            SearchSourceFilter.GITHUB -> sources.addIf(prefs.useGitHub.get()) { gitHubRepository.search(text) }
-            SearchSourceFilter.GITLAB -> sources.addIf(prefs.useGitLab.get()) { gitLabRepository.search(text) }
-            SearchSourceFilter.PLAY -> sources.addIf(prefs.usePlay.get()) { playRepository.search(text) }
-            SearchSourceFilter.RUSTORE -> sources.addIf(prefs.useRuStore.get()) { ruStoreRepository.search(text) }
+        fun Set<SearchSourceFilter>.shouldInclude(filter: SearchSourceFilter) = contains(filter)
+
+        if (filters.shouldInclude(SearchSourceFilter.APKMIRROR)) {
+            sources.addIf(prefs.useApkMirror.get()) { apkMirrorRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.FDROID_MAIN)) {
+            sources.addIf(prefs.useFdroid.get()) { fdroidRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.FDROID_IZZY)) {
+            sources.addIf(prefs.useIzzy.get()) { izzyRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.APTOIDE)) {
+            sources.addIf(prefs.useAptoide.get()) { aptoideRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.APKPURE)) {
+            sources.addIf(prefs.useApkPure.get()) { apkPureRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.GITHUB)) {
+            sources.addIf(prefs.useGitHub.get()) { gitHubRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.GITLAB)) {
+            sources.addIf(prefs.useGitLab.get()) { gitLabRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.PLAY)) {
+            sources.addIf(prefs.usePlay.get()) { playRepository.search(text) }
+        }
+        if (filters.shouldInclude(SearchSourceFilter.RUSTORE)) {
+            sources.addIf(prefs.useRuStore.get()) { ruStoreRepository.search(text) }
         }
 
         return sources

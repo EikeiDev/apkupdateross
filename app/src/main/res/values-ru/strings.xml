@@ -74,10 +74,10 @@
     <string name="settings_custom_repo_empty">Пока нет пользовательских репозиториев.</string>
     <string name="settings_custom_repo_error_required">Заполните пользователя, репозиторий и имя пакета.</string>
     <string name="search_filter_dialog_title">Фильтр источников</string>
-    <string name="search_filter_button">Выбрать источник</string>
+    <string name="search_filter_hint">Выберите хотя бы один источник или используйте кнопку «Все источники», чтобы переключить их.</string>
+    <string name="search_filter_toggle_all">Все источники</string>
     <string name="search_filter_apply">Применить</string>
     <string name="search_filter_cancel">Отмена</string>
-    <string name="search_filter_all">Все источники</string>
     <string name="search_filter_apkmirror">APKMirror</string>
     <string name="search_filter_fdroid_main">F-Droid (основной)</string>
     <string name="search_filter_fdroid_izzy">F-Droid (Izzy)</string>

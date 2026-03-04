@@ -79,7 +79,8 @@
     <string name="search_filter_button">Choose source</string>
     <string name="search_filter_apply">Apply</string>
     <string name="search_filter_cancel">Cancel</string>
-    <string name="search_filter_all">All sources</string>
+    <string name="search_filter_hint">Select at least one source or use the All sources button to toggle everything.</string>
+    <string name="search_filter_toggle_all">All sources</string>
     <string name="search_filter_apkmirror">APKMirror</string>
     <string name="search_filter_fdroid_main">F-Droid (Main)</string>
     <string name="search_filter_fdroid_izzy">F-Droid (Izzy)</string>

@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import com.apkupdateross.R
 
 enum class SearchSourceFilter(@StringRes val labelRes: Int) {
-    ALL(R.string.search_filter_all),
     APKMIRROR(R.string.search_filter_apkmirror),
     FDROID_MAIN(R.string.search_filter_fdroid_main),
     FDROID_IZZY(R.string.search_filter_fdroid_izzy),
@@ -14,4 +13,10 @@ enum class SearchSourceFilter(@StringRes val labelRes: Int) {
     GITLAB(R.string.search_filter_gitlab),
     PLAY(R.string.search_filter_play),
     RUSTORE(R.string.search_filter_rustore)
+    ;
+
+    companion object {
+        val defaultSelection: Set<SearchSourceFilter>
+            get() = entries.toSet()
+    }
 }

@@ -175,7 +175,7 @@ val mainModule = module {
 
 	single { PlayRepository(get(), get(), get(), get()) }
 
-	single(named("main")) { FdroidRepository(get(), "https://f-droid.org/repo/", FdroidSource, get()) }
+	single(named("main")) { FdroidRepository(get(), "https://fdroid.tetaneutral.net/fdroid/repo/", FdroidSource, get()) }
 
 	single(named("izzy")) { FdroidRepository(get(), "https://apt.izzysoft.de/fdroid/repo/", IzzySource, get()) }
 

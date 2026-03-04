@@ -11,15 +11,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,8 +39,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.grid.items
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
@@ -54,133 +53,166 @@ import com.apkupdateross.viewmodel.SearchViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
-
 @Composable
 fun SearchScreen(
-	viewModel: SearchViewModel = koinViewModel()
+    viewModel: SearchViewModel = koinViewModel()
 ) = Column {
-	SearchTopBar(viewModel)
-	viewModel.state().collectAsStateWithLifecycle().value.onError {
-		DefaultErrorScreen()
-	}.onSuccess {
-		SearchScreenSuccess(it, viewModel)
-	}.onLoading {
-		LoadingGrid()
-	}
+    SearchTopBar(viewModel)
+    viewModel.state().collectAsStateWithLifecycle().value.onError {
+        DefaultErrorScreen()
+    }.onSuccess {
+        SearchScreenSuccess(it, viewModel)
+    }.onLoading {
+        LoadingGrid()
+    }
 }
 
 @Composable
 fun SearchScreenSuccess(
-	state: SearchUiState.Success,
-	viewModel: SearchViewModel
+    state: SearchUiState.Success,
+    viewModel: SearchViewModel
 ) = Column {
-	val uriHandler = LocalUriHandler.current
+    val uriHandler = LocalUriHandler.current
 
-	InstalledGrid {
-		items(state.updates) { update ->
-			SearchItem(update, {
-				viewModel.install(update, uriHandler)
-			}, { viewModel.cancel(update) })
-		}
-	}
+    InstalledGrid {
+        items(state.updates) { update ->
+            SearchItem(update, {
+                viewModel.install(update, uriHandler)
+            }, { viewModel.cancel(update) })
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
-	title = { SearchText(viewModel) },
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
-	actions = { SearchFilterAction(viewModel) }
+    title = { SearchText(viewModel) },
+    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+    actions = { SearchFilterAction(viewModel) }
 )
 
 @Composable
 fun SearchText(viewModel: SearchViewModel) = Box {
-	val keyboardController = LocalSoftwareKeyboardController.current
-	val focusRequester = remember { FocusRequester() }
-	var value by remember { mutableStateOf("") }
-	OutlinedTextField(
-		value = value,
-		onValueChange = { value = it },
-		modifier = Modifier.fillMaxWidth().padding(0.dp).focusRequester(focusRequester),
-		label = { Text(stringResource(R.string.tab_search)) },
-		keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-		keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-		colors = OutlinedTextFieldDefaults.colors(
-			focusedBorderColor = Color.Transparent,
-			unfocusedBorderColor = Color.Transparent
-		),
-		maxLines = 1,
-		singleLine = true
-	)
-	LaunchedEffect(Unit) {
-		focusRequester.requestFocus()
-	}
-	LaunchedEffect(value) {
-		if (value.length >= 3) {
-			delay(1000)
-			viewModel.search(value)
-		}
-	}
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    var value by remember { mutableStateOf("") }
+    OutlinedTextField(
+        value = value,
+        onValueChange = { value = it },
+        modifier = Modifier.fillMaxWidth().padding(0.dp).focusRequester(focusRequester),
+        label = { Text(stringResource(R.string.tab_search)) },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent
+        ),
+        maxLines = 1,
+        singleLine = true
+    )
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+    LaunchedEffect(value) {
+        if (value.length >= 3) {
+            delay(1000)
+            viewModel.search(value)
+        }
+    }
 }
 
 @Composable
 private fun SearchFilterAction(viewModel: SearchViewModel) {
-	val currentFilter by viewModel.filter().collectAsStateWithLifecycle()
-	var showDialog by remember { mutableStateOf(false) }
+    val currentFilters by viewModel.filters().collectAsStateWithLifecycle()
+    var showDialog by remember { mutableStateOf(false) }
 
-	IconButton(onClick = { showDialog = true }) {
-		Icon(
-			imageVector = Icons.Filled.Add,
-			contentDescription = stringResource(R.string.search_filter_button)
-		)
-	}
+    IconButton(onClick = { showDialog = true }) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = stringResource(R.string.search_filter_button)
+        )
+    }
 
-	if (showDialog) {
-		SearchFilterDialog(
-			selected = currentFilter,
-			onDismiss = { showDialog = false },
-			onSelect = {
-				showDialog = false
-				viewModel.setFilter(it)
-			}
-		)
-	}
+    if (showDialog) {
+        SearchFilterDialog(
+            selected = currentFilters,
+            onDismiss = { showDialog = false },
+            onSelect = {
+                showDialog = false
+                viewModel.setFilters(it)
+            }
+        )
+    }
 }
 
 @Composable
 private fun SearchFilterDialog(
-	selected: SearchSourceFilter,
-	onDismiss: () -> Unit,
-	onSelect: (SearchSourceFilter) -> Unit
+    selected: Set<SearchSourceFilter>,
+    onDismiss: () -> Unit,
+    onSelect: (Set<SearchSourceFilter>) -> Unit
 ) {
-	var current by remember(selected) { mutableStateOf(selected) }
-	AlertDialog(
-		onDismissRequest = onDismiss,
-		confirmButton = {
-			TextButton(onClick = { onSelect(current) }) {
-				Text(stringResource(R.string.search_filter_apply))
-			}
-		},
-		dismissButton = {
-			TextButton(onClick = onDismiss) {
-				Text(stringResource(R.string.search_filter_cancel))
-			}
-		},
-		title = { Text(stringResource(R.string.search_filter_dialog_title)) },
-		text = {
-			Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-				SearchSourceFilter.entries.forEach { filter ->
-					Row(
-						modifier = Modifier
-							.fillMaxWidth()
-							.clickable { current = filter },
-						verticalAlignment = Alignment.CenterVertically
-					) {
-						RadioButton(selected = current == filter, onClick = { current = filter })
-						Text(text = stringResource(filter.labelRes))
-					}
-				}
-			}
-		}
-	)
+    var current by remember(selected) { mutableStateOf(selected.ifEmpty { SearchSourceFilter.defaultSelection }) }
+
+    fun updateSelection(filter: SearchSourceFilter, enabled: Boolean) {
+        current = when {
+            enabled -> current + filter
+            !enabled && current.contains(filter) && current.size > 1 -> current - filter
+            else -> current
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onSelect(current) }) {
+                Text(stringResource(R.string.search_filter_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.search_filter_cancel))
+            }
+        },
+        title = { Text(stringResource(R.string.search_filter_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val allSelected = current.size == SearchSourceFilter.entries.size
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { current = if (allSelected) emptySet() else SearchSourceFilter.defaultSelection },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = allSelected,
+                        onCheckedChange = { checked ->
+                            current = if (checked) SearchSourceFilter.defaultSelection else emptySet()
+                        }
+                    )
+                    Text(text = stringResource(R.string.search_filter_toggle_all))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SearchSourceFilter.entries.forEach { filter ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { updateSelection(filter, !current.contains(filter)) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = current.contains(filter),
+                                onCheckedChange = { checked -> updateSelection(filter, checked) }
+                            )
+                            Text(text = stringResource(filter.labelRes))
+                        }
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.search_filter_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    )
 }

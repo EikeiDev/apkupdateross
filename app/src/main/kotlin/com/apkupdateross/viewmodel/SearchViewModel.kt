@@ -37,7 +37,7 @@ class SearchViewModel(
 
     private val mutex = Mutex()
     private val state = MutableStateFlow<SearchUiState>(SearchUiState.Success(emptyList()))
-    private val _filter = MutableStateFlow(SearchSourceFilter.ALL)
+    private val _filters = MutableStateFlow(SearchSourceFilter.defaultSelection)
     private var job: Job? = null
     private var lastQuery: String = ""
 
@@ -49,26 +49,26 @@ class SearchViewModel(
     }
 
     fun state(): StateFlow<SearchUiState> = state
-    fun filter(): StateFlow<SearchSourceFilter> = _filter
+    fun filters(): StateFlow<Set<SearchSourceFilter>> = _filters
 
     fun search(text: String) {
         lastQuery = text
         job?.cancel()
-        job = searchJob(text, _filter.value)
+        job = searchJob(text, _filters.value)
     }
 
-    fun setFilter(filter: SearchSourceFilter) {
-        if (_filter.value == filter) return
-        _filter.value = filter
+    fun setFilters(filters: Set<SearchSourceFilter>) {
+        if (_filters.value == filters) return
+        _filters.value = filters
         if (lastQuery.length >= 3) {
             search(lastQuery)
         }
     }
 
-    private fun searchJob(text: String, filter: SearchSourceFilter) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
+    private fun searchJob(text: String, filters: Set<SearchSourceFilter>) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
         state.value = SearchUiState.Loading
         badger.changeSearchBadge("")
-        searchRepository.search(text, filter).collect {
+        searchRepository.search(text, filters).collect {
             it.onSuccess { apps ->
                 state.value = SearchUiState.Success(apps)
                 badger.changeSearchBadge(apps.size.toString())

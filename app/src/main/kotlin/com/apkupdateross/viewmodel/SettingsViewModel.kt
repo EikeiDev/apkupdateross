@@ -1,7 +1,7 @@
 package com.apkupdateross.viewmodel
 
 import android.content.pm.PackageManager
-import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.result.ActivityResultLauncher
 import com.apkupdateross.R
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
@@ -9,6 +9,8 @@ import com.apkupdateross.data.snack.TextSnack
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
+import java.net.HttpURLConnection
+import java.net.URL
 import com.apkupdateross.data.ui.SettingsUiState
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.AppsRepository
@@ -84,8 +86,6 @@ class SettingsViewModel(
 	fun getIgnoreBeta() = prefs.ignoreBeta.get()
 	fun setIgnorePreRelease(b: Boolean) = prefs.ignorePreRelease.put(b)
 	fun getIgnorePreRelease() = prefs.ignorePreRelease.get()
-	fun getUseSafeStores() = prefs.useSafeStores.get()
-	fun setUseSafeStores(b: Boolean) = prefs.useSafeStores.put(b)
 	fun getUseApkMirror() = prefs.useApkMirror.get()
 	fun setUseApkMirror(b: Boolean) = prefs.useApkMirror.put(b)
 	fun getUseFdroid() = prefs.useFdroid.get()
@@ -107,6 +107,8 @@ class SettingsViewModel(
 	fun getAndroidTvUi() = prefs.androidTvUi.get()
 	fun setAndroidTvUi(b: Boolean) = prefs.androidTvUi.put(b)
 	fun getEnableAlarm() = prefs.enableAlarm.get()
+	fun getGithubToken() = prefs.githubToken.get()
+	fun setGithubToken(token: String) = prefs.githubToken.put(token.trim())
 	fun getInstallMode() = prefs.installMode.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
@@ -192,7 +194,7 @@ class SettingsViewModel(
 		if (getEnableAlarm()) UpdatesWorker.launch(workManager) else UpdatesWorker.cancel(workManager)
 	}
 
-	fun setEnableAlarm(b: Boolean, launcher: ManagedActivityResultLauncher<String, Boolean>) {
+	fun setEnableAlarm(b: Boolean, launcher: ActivityResultLauncher<String>) {
 		prefs.enableAlarm.put(b)
 		if (b) {
 			notification.checkNotificationPermission(launcher)
@@ -204,8 +206,35 @@ class SettingsViewModel(
 
 	fun areNotificationsEnabled(): Boolean = notification.areNotificationsEnabled()
 
-	fun requestNotificationPermission(launcher: ManagedActivityResultLauncher<String, Boolean>) {
+	fun requestNotificationPermission(launcher: ActivityResultLauncher<String>) {
 		notification.checkNotificationPermission(launcher)
+	}
+
+	fun checkGithubToken() {
+		viewModelScope.launch(Dispatchers.IO) {
+			val token = prefs.githubToken.get().trim()
+			if (token.isEmpty()) {
+				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.github_token_empty)))
+				return@launch
+			}
+			val code = runCatching {
+				val conn = (URL("https://api.github.com/rate_limit").openConnection() as HttpURLConnection).apply {
+					requestMethod = "GET"
+					connectTimeout = 8000
+					readTimeout = 8000
+					setRequestProperty("Authorization", "token $token")
+				}
+				conn.connect()
+				val response = conn.responseCode
+				conn.disconnect()
+				response
+			}.getOrElse { -1 }
+			when (code) {
+				in 200..299 -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.github_token_ok)))
+				401 -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.github_token_invalid)))
+				else -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.github_token_unknown, code)))
+			}
+		}
 	}
 
 	fun setAlarmHour(hour: Int) {

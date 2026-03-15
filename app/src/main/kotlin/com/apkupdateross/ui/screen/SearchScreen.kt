@@ -83,7 +83,10 @@ fun SearchScreenSuccess(
         items(updates) { update ->
             SearchItem(update, {
                 viewModel.install(update, uriHandler)
-            }, { viewModel.cancel(update) })
+            }, { viewModel.cancel(update) },
+                onDownload = { viewModel.downloadToStorage(it) },
+                onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
+            )
         }
     }
 

@@ -38,6 +38,8 @@ class GitHubRepository(
 ) {
     private val rateLimitShown = AtomicBoolean(false)
 
+    private fun authHeader(): String? = prefs.githubToken.get().trim().takeIf { it.isNotEmpty() }?.let { "token $it" }
+
     suspend fun updates(apps: List<AppInstalled>) = flow {
         rateLimitShown.set(false)
         val checks = mutableListOf(selfCheck())
@@ -81,7 +83,7 @@ class GitHubRepository(
     }
 
     private fun selfCheck() = flow {
-        val releases = service.getReleases().filter { filterPreRelease(it) }
+        val releases = service.getReleases(authHeader = authHeader()).filter { filterPreRelease(it) }
         val release = releases.firstOrNull()
         val assetUrl = release?.let { findApkAsset(it.assets) }?.takeIf { it.isNotEmpty() }
 
@@ -92,6 +94,7 @@ class GitHubRepository(
             val localVersion = Version(BuildConfig.VERSION_NAME)
             val isNewer = remoteVersion > localVersion
             if (isNewer) {
+                val sourceUrl = "https://github.com/${service.getReleases().firstOrNull()?.author?.login ?: "EikeiDev"}/apkupdateross"
                 emit(listOf(AppUpdate(
                     name = "APKUpdater",
                     packageName = BuildConfig.APPLICATION_ID,
@@ -101,6 +104,8 @@ class GitHubRepository(
                     oldVersionCode = BuildConfig.VERSION_CODE.toLong(),
                     source = GitHubSource,
                     link = Link.Url(assetUrl),
+                    sourceUrl = sourceUrl,
+                    releaseUrl = "$sourceUrl/releases/tag/${release.tag_name}",
                     whatsNew = release.body
                 )))
             } else {
@@ -128,7 +133,7 @@ class GitHubRepository(
         currentVersion: String,
         extra: Regex?
     ) = flow {
-        val r = service.getReleases(user, repo)
+        val r = service.getReleases(user, repo, authHeader())
         val releases = if (packageName == "com.apkupdateross.ci") {
             // TODO: Find a better way to do this
             r.filter { it.name.contains("CI-Release-3.x")}
@@ -148,7 +153,9 @@ class GitHubRepository(
                 source = GitHubSource,
                 link = findApkAssetArch(releases[0].assets, extra).let { Link.Url(it.browser_download_url, it.size) },
                 whatsNew = releases[0].body,
-                iconUri = if (apps == null) Uri.parse(releases[0].author.avatar_url) else Uri.EMPTY
+                iconUri = if (apps == null) Uri.parse(releases[0].author.avatar_url) else Uri.EMPTY,
+                sourceUrl = "https://github.com/$user/$repo",
+                releaseUrl = "https://github.com/$user/$repo/releases/tag/${releases[0].tag_name}"
             )))
         } else {
             emit(emptyList())

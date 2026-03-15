@@ -6,6 +6,8 @@ import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
 import com.google.gson.annotations.SerializedName
 
+private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
+
 data class AppExistsResponseApk(
 	@SerializedName("version_code") val versionCode: Long = 0,
 	val link: String = "",
@@ -21,15 +23,26 @@ data class AppExistsResponseApk(
 	val signaturesSha256: List<String>? = emptyList()
 )
 
-fun AppExistsResponseApk.toAppUpdate(app: AppInstalled, release: AppExistsResponseRelease) = AppUpdate(
-	app.name,
-	app.packageName,
-	release.version,
-	app.version,
-	versionCode,
-	app.versionCode,
-	ApkMirrorSource,
-	app.iconUri,
-	Link.Url("https://www.apkmirror.com$link"),
-	release.whatsNew.orEmpty()
+fun AppExistsResponseApk.toAppUpdate(
+	app: AppInstalled,
+	release: AppExistsResponseRelease,
+	appLink: String? = null
+) = AppUpdate(
+	name = app.name,
+	packageName = app.packageName,
+	version = release.version,
+	oldVersion = app.version,
+	versionCode = versionCode,
+	oldVersionCode = app.versionCode,
+	source = ApkMirrorSource,
+	iconUri = app.iconUri,
+	link = Link.Url(link.ensureApkMirrorUrl()),
+	sourceUrl = appLink.ensureApkMirrorUrl(),
+	releaseUrl = release.link.ensureApkMirrorUrl(),
+	whatsNew = release.whatsNew.orEmpty()
 )
+
+private fun String?.ensureApkMirrorUrl(): String {
+	if (this.isNullOrBlank()) return ""
+	return if (startsWith("http")) this else APKMIRROR_BASE_URL + this
+}

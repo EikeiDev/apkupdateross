@@ -35,7 +35,6 @@
     <string name="ignore_alpha">Игнорировать alpha-версии</string>
     <string name="ignore_beta">Игнорировать beta-версии</string>
     <string name="ignore_preRelease">Игнорировать предрелизные версии</string>
-    <string name="use_safe_stores">Использовать безопасные магазины (Aptoide)</string>
     <string name="install_mode">Режим установки</string>
     <string name="install_mode_normal">Обычный</string>
     <string name="install_mode_root">Root</string>
@@ -46,6 +45,12 @@
     <string name="source_izzy" translatable="false">F-Droid Izzy</string>
     <string name="source_aptoide" translatable="false">Aptoide</string>
     <string name="source_github" translatable="false">GitHub</string>
+    <string name="github_token_label">Токен GitHub (personal access token)</string>
+    <string name="github_token_check">Проверить</string>
+    <string name="github_token_empty">Сначала введите токен GitHub.</string>
+    <string name="github_token_ok">Токен GitHub выглядит валидным.</string>
+    <string name="github_token_invalid">Токен GitHub неверный.</string>
+    <string name="github_token_unknown">Проверка токена не удалась (%1$d).</string>
     <string name="source_gitlab" translatable="false">GitLab</string>
     <string name="source_apkpure" translatable="false">APKPure</string>
     <string name="about">О нас</string>

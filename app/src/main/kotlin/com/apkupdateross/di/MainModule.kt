@@ -23,10 +23,11 @@ import com.apkupdateross.service.ApkPureService
 import com.apkupdateross.service.AptoideService
 import com.apkupdateross.service.FdroidService
 import com.apkupdateross.service.GitHubService
-import com.apkupdateross.service.RuStoreService
 import com.apkupdateross.service.GitLabService
+import com.apkupdateross.service.RuStoreService
 import com.apkupdateross.util.Badger
 import com.apkupdateross.util.Clipboard
+import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.SessionInstaller
@@ -193,6 +194,8 @@ val mainModule = module {
 
 	single { SessionInstaller(get(), get()) }
 
+	single { DownloadStorage(androidContext()) }
+
 	single { SnackBar() }
 
 	single { Badger() }
@@ -209,10 +212,10 @@ val mainModule = module {
 
 	viewModel { AppsViewModel(get(), get(), get()) }
 
-	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(get()), get(), get(), get(), get(), get(), get()) }
 
-	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 }

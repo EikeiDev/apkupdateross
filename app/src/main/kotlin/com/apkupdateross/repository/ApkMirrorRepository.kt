@@ -66,6 +66,7 @@ class ApkMirrorRepository(
         a.removeAt(0)
         img.removeAt(0)
         val result = (0 until a.size).map {
+            val detailsLink = h5[it].selectFirst("a")?.attr("href")
             AppUpdate(
                 name = h5[it].attr("title"),
                 link = Link.Url("$baseUrl${h5[it].selectFirst("a")?.attr("href")}"),
@@ -75,7 +76,8 @@ class ApkMirrorRepository(
                 versionCode = 0L,
                 oldVersionCode = 0L,
                 source = ApkMirrorSource,
-                packageName = a[it].text() // Developer name in this case
+                packageName = a[it].text(),
+                sourceUrl = detailsLink?.let { d -> if (d.startsWith("http")) d else "$baseUrl$d" }.orEmpty()
             )
         }
         emit(Result.success(result))
@@ -104,7 +106,7 @@ class ApkMirrorRepository(
                 .filter { filterAndroidTv(it) }
                 .filter { filterWearOS(it) }
                 .maxByOrNull { it.versionCode }
-                ?.toAppUpdate(apps.getApp(data.pname)!!, data.release)
+                ?.toAppUpdate(apps.getApp(data.pname)!!, data.release, data.app.link)
         }
 
     private fun filterSignature(apk: AppExistsResponseApk, signature: String?) = when {

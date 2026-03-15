@@ -8,7 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.result.ActivityResultLauncher
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.apkupdateross.R
@@ -48,7 +48,7 @@ class UpdatesNotification(private val context: Context) {
         }
     }
 
-    fun checkNotificationPermission(launcher: ManagedActivityResultLauncher<String, Boolean>) {
+    fun checkNotificationPermission(launcher: ActivityResultLauncher<String>) {
         if (Build.VERSION.SDK_INT >= 33) {
             if (!areNotificationsEnabled()) {
                 launcher.launch(Manifest.permission.POST_NOTIFICATIONS)

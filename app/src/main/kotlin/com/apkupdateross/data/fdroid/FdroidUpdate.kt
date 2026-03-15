@@ -24,5 +24,7 @@ fun FdroidUpdate.toAppUpdate(current: AppInstalled?, source: Source, url: String
     else
         "${url}icons-640/${app.icon}".toUri(),
     Link.Url("$url${apk.apkName}"),
-    if (current != null) app.localized["en-US"]?.whatsNew.orEmpty() else app.localized["en-US"]?.summary.orEmpty()
+    sourceUrl = "${url}packages/${app.packageName}/",
+    releaseUrl = "${url}packages/${app.packageName}/",
+    whatsNew = if (current != null) app.localized["en-US"]?.whatsNew.orEmpty() else app.localized["en-US"]?.summary.orEmpty()
 )

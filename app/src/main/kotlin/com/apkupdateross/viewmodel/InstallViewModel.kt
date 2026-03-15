@@ -12,6 +12,7 @@ import com.apkupdateross.data.ui.AppInstallStatus
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.SessionInstaller
@@ -23,12 +24,13 @@ import kotlinx.coroutines.flow.onEach
 
 
 abstract class InstallViewModel(
-    private val downloader: Downloader,
+    protected val downloader: Downloader,
     private val installer: SessionInstaller,
     private val prefs: Prefs,
-    private val snackBar: SnackBar,
-    private val stringer: Stringer,
-    private val installLog: InstallLog
+    protected val snackBar: SnackBar,
+    protected val stringer: Stringer,
+    private val installLog: InstallLog,
+    protected val downloadStorage: DownloadStorage
 ): ViewModel() {
 
     fun install(update: AppUpdate, uriHandler: UriHandler) {

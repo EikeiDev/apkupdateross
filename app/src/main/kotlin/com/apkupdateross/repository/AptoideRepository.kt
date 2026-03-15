@@ -45,6 +45,8 @@ class AptoideRepository(
         val r = service
             .findUpdates(ListAppsUpdatesRequest(data, query, buildFilterList(), buildStoreList()))
             .list
+            .filter { it.store.id == 15L }
+            .filter { isSaneVersion(it.file.vername, it.file.vercode) }
             .filter { Version(it.file.vername) > Version(apps.getVersion(it.packageName)) }
         emit(r.map { it.toAppUpdate(apps.getApp(it.packageName)) })
     }.catch {
@@ -55,14 +57,28 @@ class AptoideRepository(
     suspend fun search(text: String) = flow {
         val request = ListSearchAppsRequest(text, "10", query, buildFilterList(), buildStoreList())
         val response = service.searchApps(request)
-        val updates = response.datalist.list.map{ it.toAppUpdate(null) }
+        val updates = response.datalist.list
+            .filter { it.store.id == 15L }
+            .filter { isSaneVersion(it.file.vername, it.file.vercode) }
+            .map{ it.toAppUpdate(null) }
         emit(Result.success(updates))
     }.catch {
         emit(Result.failure(it))
         Log.e("AptoideRepository", "Error searching.", it)
     }
 
-    private fun buildStoreList() = if (prefs.useSafeStores.get()) listOf(15L, 711454L) else emptyList()
+    private fun buildStoreList() = mutableListOf<Long>().apply {
+        // Always use safe store
+        add(15L)
+    }
+
+    private fun isSaneVersion(verName: String, verCode: String): Boolean {
+        val codeNum = verCode.toLongOrNull() ?: return false
+        if (verCode.length >= 7 && verCode.all { it == '9' }) return false
+        if (verName.contains("9999")) return false
+        if (codeNum <= 0) return false
+        return true
+    }
 
     private fun buildFilterList(): String {
         val list = mutableListOf<String>()

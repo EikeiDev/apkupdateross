@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,13 +82,17 @@ fun InstallButton(
     onInstall: (String) -> Unit,
     onCancel: () -> Unit = {}
 ) = androidx.compose.material3.FilledTonalIconButton(
-    modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 8.dp, end = 8.dp),
+    modifier = Modifier.padding(start = 6.dp),
     onClick = { if (app.isInstalling) onCancel() else onInstall(app.packageName) }
 ) {
     if (app.isInstalling) {
         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
     } else {
-        androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_install), stringResource(R.string.install_cd))
+        androidx.compose.material3.Icon(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_install),
+            contentDescription = stringResource(R.string.install_cd),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -142,17 +148,33 @@ fun UpdateItem(
     app: AppUpdate,
     onInstall: (String) -> Unit = {},
     onIgnoreVersion: (Int) -> Unit,
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    onDownload: (AppUpdate) -> Unit = {},
+    onOpenPage: (AppUpdate) -> Unit = {}
 ) = Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
     Box(Modifier.fillMaxWidth()) {
+        // Source icon top-right (button sized)
+        SourceIcon(
+            app.source,
+            Modifier
+                .size(40.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 16.dp)
+        )
+
         Column(Modifier.padding(12.dp)) {
             CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode)
             Box(Modifier.padding(end = 48.dp)) {
                 WhatsNew(app.whatsNew, app.source)
             }
             Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                SourceIcon(app.source, Modifier.size(34.dp))
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                // Ignore bottom-left
+                IgnoreVersionButton(
+                    app,
+                    onIgnoreVersion,
+                    Modifier.padding(end = 12.dp)
+                )
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (app.isInstalling && app.total > 0L && app.progress > 0L) {
                         val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
                         val percent = (fraction * 100).toInt()
@@ -180,25 +202,46 @@ fun UpdateItem(
                         }
                     }
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val canDownload = app.link !is com.apkupdateross.data.ui.Link.Play && app.link !is com.apkupdateross.data.ui.Link.Empty
+                    FilledTonalIconButton(
+                        onClick = { onOpenPage(app) },
+                        enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
+                            contentDescription = stringResource(R.string.open),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    FilledTonalIconButton(onClick = { onDownload(app) }, enabled = canDownload) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                            contentDescription = stringResource(R.string.download),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 InstallButton(app, onInstall, onCancel)
             }
         }
-        IgnoreVersionButton(
-            app,
-            onIgnoreVersion,
-            Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 20.dp)
-        )
     }
 }
 
 @Composable
-fun SearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}, onCancel: () -> Unit = {}) = Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
+fun SearchItem(
+    app: AppUpdate,
+    onInstall: (String) -> Unit = {},
+    onCancel: () -> Unit = {},
+    onDownload: (AppUpdate) -> Unit = {},
+    onOpenPage: (AppUpdate) -> Unit = {}
+) = Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
     Column(Modifier.padding(12.dp)) {
         CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, app.iconUri, true)
         WhatsNew(app.whatsNew, app.source)
         Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             SourceIcon(app.source, Modifier.size(34.dp))
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (app.isInstalling && app.total > 0L && app.progress > 0L) {
                     val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
                     val percent = (fraction * 100).toInt()
@@ -224,6 +267,26 @@ fun SearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}, onCancel: () ->
                             SmallText("$downloadedMb / $totalMb MB")
                         }
                     }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val canDownload = app.link !is com.apkupdateross.data.ui.Link.Play && app.link !is com.apkupdateross.data.ui.Link.Empty
+                FilledTonalIconButton(
+                    onClick = { onOpenPage(app) },
+                    enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
+                ) {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
+                        contentDescription = stringResource(R.string.open),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                FilledTonalIconButton(onClick = { onDownload(app) }, enabled = canDownload) {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                        contentDescription = stringResource(R.string.download),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
             InstallButton(app, onInstall, onCancel)

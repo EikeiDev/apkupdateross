@@ -5,7 +5,11 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -46,8 +51,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
@@ -86,6 +94,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
 	val customRepos = viewModel.customGitRepos.collectAsStateWithLifecycle().value
 	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
+	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 	if (uiState == SettingsUiState.Settings) {
 		DisposableEffect(Unit) {
 			viewModel.startMetricsAutoRefresh()
@@ -99,7 +108,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 			customRepos,
 			onAddRepo = { dialogRepo = viewModel.createEmptyCustomRepo(GitProvider.GITHUB) },
 			onEditRepo = { dialogRepo = it },
-			onDeleteRepo = { viewModel.removeCustomRepo(it.id) }
+			onDeleteRepo = { viewModel.removeCustomRepo(it.id) },
+			notificationPermissionLauncher = alarmPermissionLauncher
 		)
 	} else {
 		AboutTopBar(viewModel)
@@ -176,7 +186,8 @@ fun Settings(
 	customRepos: List<CustomGitRepo>,
 	onAddRepo: () -> Unit,
 	onEditRepo: (CustomGitRepo) -> Unit,
-	onDeleteRepo: (CustomGitRepo) -> Unit
+	onDeleteRepo: (CustomGitRepo) -> Unit,
+	notificationPermissionLauncher: ActivityResultLauncher<String>
 ) = LazyColumn {
 	item {
 		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 16.dp))
@@ -201,17 +212,45 @@ fun Settings(
 
 	item {
 		LargeTitle(stringResource(R.string.settings_sources), Modifier.padding(start = 16.dp, top = 16.dp))
+		var githubExpanded by remember { mutableStateOf(false) }
+		var githubToken by rememberSaveable { mutableStateOf(viewModel.getGithubToken()) }
 		SwitchSetting(
 			{ viewModel.getUseGitHub() },
 			{ viewModel.setUseGitHub(it) },
 			stringResource(R.string.source_github),
-			R.drawable.ic_github
+			R.drawable.ic_github,
+			onClick = { githubExpanded = !githubExpanded }
 		)
+		AnimatedVisibility(
+			visible = githubExpanded,
+			enter = expandVertically(),
+			exit = shrinkVertically()
+		) {
+			OutlinedTextField(
+				value = githubToken,
+				onValueChange = {
+					githubToken = it
+					viewModel.setGithubToken(it)
+				},
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(horizontal = 16.dp, vertical = 8.dp),
+				label = { Text(stringResource(R.string.github_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+				singleLine = true,
+				visualTransformation = PasswordVisualTransformation()
+			)
+		}
 		SwitchSetting(
 			{ viewModel.getUseGitLab() },
 			{ viewModel.setUseGitLab(it) },
 			stringResource(R.string.source_gitlab),
 			R.drawable.ic_gitlab
+		)
+		CustomGitReposSection(
+			repos = customRepos,
+			onAdd = onAddRepo,
+			onEdit = onEditRepo,
+			onDelete = onDeleteRepo
 		)
 		SwitchSetting(
 			{ viewModel.getUseApkMirror() },
@@ -258,15 +297,6 @@ fun Settings(
 	}
 
 	item {
-		CustomGitReposSection(
-			repos = customRepos,
-			onAdd = onAddRepo,
-			onEdit = onEditRepo,
-			onDelete = onDeleteRepo
-		)
-	}
-
-	item {
 		LargeTitle(stringResource(R.string.settings_options), Modifier.padding(start = 16.dp, top = 16.dp))
 		SegmentedButtonSetting(
 			stringResource(R.string.install_mode),
@@ -298,20 +328,13 @@ fun Settings(
 			stringResource(R.string.ignore_preRelease),
 			R.drawable.ic_pre_release
 		)
-		SwitchSetting(
-			{ viewModel.getUseSafeStores() },
-			{ viewModel.setUseSafeStores(it) },
-			stringResource(R.string.use_safe_stores),
-			R.drawable.ic_safe
-		)
 	}
 
 	item {
-		val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 16.dp))
 		SwitchSetting(
 			getValue = { viewModel.getEnableAlarm() },
-			setValue = { viewModel.setEnableAlarm(it, launcher) },
+			setValue = { viewModel.setEnableAlarm(it, notificationPermissionLauncher) },
 			text = stringResource(R.string.settings_alarm),
 			icon = R.drawable.ic_alarm
 		)

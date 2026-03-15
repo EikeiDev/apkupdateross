@@ -35,7 +35,6 @@
     <string name="ignore_alpha">Ignore Alpha</string>
     <string name="ignore_beta">Ignore Beta</string>
     <string name="ignore_preRelease">Ignore Pre-release</string>
-    <string name="use_safe_stores">Use Safe Stores (Aptoide)</string>
     <string name="install_mode">Install Mode</string>
     <string name="install_mode_normal">Session</string>
     <string name="install_mode_root">Root</string>
@@ -46,6 +45,12 @@
     <string name="source_izzy" translatable="false">F-Droid Izzy</string>
     <string name="source_aptoide" translatable="false">Aptoide</string>
     <string name="source_github" translatable="false">GitHub</string>
+    <string name="github_token_label">GitHub API token (personal access token)</string>
+    <string name="github_token_check">Check</string>
+    <string name="github_token_empty">Enter a GitHub token first.</string>
+    <string name="github_token_ok">GitHub token looks valid.</string>
+    <string name="github_token_invalid">GitHub token is invalid.</string>
+    <string name="github_token_unknown">GitHub token check failed (%1$d).</string>
     <string name="source_gitlab" translatable="false">GitLab</string>
     <string name="source_apkpure" translatable="false">APKPure</string>
     <string name="source_play" translatable="false">Google Play</string>
@@ -108,6 +113,8 @@
     <string name="self_update_button_later">Later</string>
     <string name="self_update_button_update">Update now</string>
     <string name="updates_empty">All apps are up to date</string>
+    <string name="download">Download</string>
+    <string name="open">Open</string>
 
     // Notifications
     <string name="notification_channel_name">Updates</string>

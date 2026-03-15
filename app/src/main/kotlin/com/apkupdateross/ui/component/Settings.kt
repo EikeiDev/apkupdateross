@@ -123,10 +123,10 @@ fun SwitchSetting(
     getValue: () -> Boolean,
     setValue: (Boolean) -> Unit,
     text: String,
-    @DrawableRes icon: Int = R.drawable.ic_system
+    @DrawableRes icon: Int = R.drawable.ic_system,
+    onClick: (() -> Unit)? = null
 ) = Row(Modifier.fillMaxWidth().height(72.dp).clickable {
-    val next = !getValue()
-    setValue(next)
+    onClick?.invoke()
 }.padding(horizontal = 16.dp)) {
     var value by remember { mutableStateOf(getValue()) }
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))

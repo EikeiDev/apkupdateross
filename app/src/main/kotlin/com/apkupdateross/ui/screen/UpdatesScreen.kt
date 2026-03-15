@@ -155,7 +155,9 @@ fun Grid(
 			update,
 			{ viewModel.install(update, handler) },
 			{ viewModel.ignoreVersion(update.id)},
-			{ viewModel.cancel(update) }
+			{ viewModel.cancel(update) },
+			onDownload = { viewModel.downloadToStorage(it) },
+			onOpenPage = { viewModel.openSourcePage(it, handler) }
 		)
 	}
 }

@@ -12,6 +12,8 @@ data class AppUpdate(
 	val source: Source,
 	val iconUri: Uri = Uri.EMPTY,
 	val link: Link = Link.Empty,
+	val sourceUrl: String = "",
+	val releaseUrl: String = "",
 	val whatsNew: String = "",
 	val isInstalling: Boolean = false,
 	val total: Long = 0L,

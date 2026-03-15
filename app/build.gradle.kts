@@ -17,8 +17,8 @@ android {
         applicationId = "com.apkupdateross" + System.getenv("BUILD_TAG").orEmpty()
         minSdk = 24
         targetSdk = 35
-        versionCode = 21
-        versionName = if (buildNumber.isEmpty()) "1.1.1" else "0.0.$buildNumber"
+        versionCode = 22
+        versionName = if (buildNumber.isEmpty()) "1.1.2" else "0.0.$buildNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

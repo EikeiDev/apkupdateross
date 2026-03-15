@@ -10,6 +10,7 @@ import com.apkupdateross.data.ui.setProgress
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.Badger
+import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.SessionInstaller
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import com.apkupdateross.data.snack.TextSnack
+import com.apkupdateross.data.ui.Link
 
 
 class UpdatesViewModel(
@@ -30,10 +33,11 @@ class UpdatesViewModel(
 	private val prefs: Prefs,
 	private val badger: Badger,
 	downloader: Downloader,
+	downloadStorage: DownloadStorage,
 	snackBar: SnackBar,
 	stringer: Stringer,
 	installLog: InstallLog
-) : InstallViewModel(downloader, installer, prefs, snackBar, stringer, installLog) {
+) : InstallViewModel(downloader, installer, prefs, snackBar, stringer, installLog, downloadStorage) {
 
 	private val mutex = Mutex()
 	private val state = MutableStateFlow<UpdatesUiState>(UpdatesUiState.Loading)
@@ -146,6 +150,42 @@ class UpdatesViewModel(
 		val lastInstalled = prefs.lastSelfUpdateVersionCode.get()
 		val shouldShow = candidate.versionCode > lastInstalled && candidate.versionCode != snoozedSelfUpdateVersionCode
 		_selfUpdate.value = if (shouldShow) candidate else null
+	}
+
+	fun downloadToStorage(update: AppUpdate) = viewModelScope.launch(Dispatchers.IO) {
+		when (val link = update.link) {
+			is Link.Url -> saveStream(update, link.link)
+			is Link.Xapk -> saveStream(update, link.link)
+			else -> snackBar.snackBar(viewModelScope, TextSnack("Сохранение не поддерживается для этого источника"))
+		}
+	}
+
+	fun openSourcePage(update: AppUpdate, uriHandler: androidx.compose.ui.platform.UriHandler) {
+		val target = update.releaseUrl.ifBlank { update.sourceUrl.ifBlank { (update.link as? Link.Url)?.link.orEmpty() } }
+		if (target.isNotBlank()) {
+			uriHandler.openUri(target)
+		} else {
+			snackBar.snackBar(viewModelScope, TextSnack("Ссылка недоступна"))
+		}
+	}
+
+	private fun saveStream(update: AppUpdate, url: String) {
+		val result = downloader.downloadWithSize(update.id, url)
+		if (result == null) {
+			snackBar.snackBar(viewModelScope, TextSnack("Не удалось скачать файл"))
+			return
+		}
+		val ext = when {
+			url.lowercase().endsWith(".xapk") -> "xapk"
+			else -> "apk"
+		}
+		val mime = if (ext == "xapk") "application/vnd.android.xapk" else "application/vnd.android.package-archive"
+		val fileName = "${update.packageName}-${update.version}.$ext"
+		val ok = downloadStorage.save(fileName, mime, result.stream)
+		snackBar.snackBar(
+			viewModelScope,
+			if (ok) TextSnack("Сохранено в Download/APKUpdaterOSS") else TextSnack("Ошибка сохранения")
+		)
 	}
 
 }

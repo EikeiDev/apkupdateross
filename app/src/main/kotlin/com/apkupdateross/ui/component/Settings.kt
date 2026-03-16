@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -124,13 +127,24 @@ fun SwitchSetting(
     setValue: (Boolean) -> Unit,
     text: String,
     @DrawableRes icon: Int = R.drawable.ic_system,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    isExpanded: Boolean = false
 ) = Row(Modifier.fillMaxWidth().height(72.dp).clickable {
     onClick?.invoke()
 }.padding(horizontal = 16.dp)) {
     var value by remember { mutableStateOf(getValue()) }
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
     Text(text, Modifier.align(CenterVertically).weight(1f), style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+    
+    if (onClick != null) {
+        Icon(
+            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = null,
+            modifier = Modifier.align(CenterVertically).padding(end = 8.dp),
+            tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
     Switch(
         checked = value,
         onCheckedChange = {

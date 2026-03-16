@@ -34,6 +34,12 @@ class Prefs(
 	val usePlay = boolean("usePlay", defValue = true, backed = true)
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
 	val githubToken = string("githubToken", defValue = "", backed = true)
+	val gitlabToken = string("gitlabToken", defValue = "", backed = true)
+	val fdroidRepos = json("fdroidRepos", listOf(
+		com.apkupdateross.data.fdroid.FdroidRepo(name = "F-Droid", url = "https://f-droid.org/repo/", isDefault = true),
+		com.apkupdateross.data.fdroid.FdroidRepo(name = "IzzyOnDroid", url = "https://apt.izzysoft.de/fdroid/repo/", isDefault = true)
+	), true)
+	val ruStoreFilterThirdParty = boolean("ruStoreFilterThirdParty", defValue = false, backed = true)
 	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)

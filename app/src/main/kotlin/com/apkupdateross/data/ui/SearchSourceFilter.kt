@@ -5,8 +5,7 @@ import com.apkupdateross.R
 
 enum class SearchSourceFilter(@StringRes val labelRes: Int) {
     APKMIRROR(R.string.search_filter_apkmirror),
-    FDROID_MAIN(R.string.search_filter_fdroid_main),
-    FDROID_IZZY(R.string.search_filter_fdroid_izzy),
+    FDROID(R.string.search_filter_fdroid),
     APTOIDE(R.string.search_filter_aptoide),
     APKPURE(R.string.search_filter_apkpure),
     GITHUB(R.string.search_filter_github),

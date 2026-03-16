@@ -1,8 +1,12 @@
 package com.apkupdateross.repository
 
 import android.util.Log
+import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.SearchSourceFilter
+import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.repository.FdroidRepository
+import com.apkupdateross.service.FdroidService
 import com.apkupdateross.util.combine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -11,15 +15,24 @@ import kotlinx.coroutines.flow.flow
 
 class SearchRepository(
     private val apkMirrorRepository: ApkMirrorRepository,
-    private val fdroidRepository: FdroidRepository,
-    private val izzyRepository: FdroidRepository,
+    private val fdroidService: FdroidService,
     private val aptoideRepository: AptoideRepository,
     private val gitHubRepository: GitHubRepository,
     private val apkPureRepository: ApkPureRepository,
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
-    private val ruStoreRepository: RuStoreRepository
+    private val ruStoreRepository: RuStoreRepository,
+    private val prefs: Prefs
 ) {
+
+    private val fdroidRepoCache = mutableMapOf<String, FdroidRepository>()
+
+    private fun getFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo): FdroidRepository {
+        return fdroidRepoCache.getOrPut(repo.id) {
+            FdroidRepository(fdroidService, repo.url, com.apkupdateross.data.ui.Source(repo.name, com.apkupdateross.R.drawable.ic_fdroid), prefs)
+        }
+    }
+
 
     fun search(text: String, filters: Set<SearchSourceFilter>) = flow {
         val sources = buildSources(text, filters)
@@ -53,11 +66,10 @@ class SearchRepository(
         if (filters.shouldInclude(SearchSourceFilter.APKMIRROR)) {
             sources += apkMirrorRepository.search(text)
         }
-        if (filters.shouldInclude(SearchSourceFilter.FDROID_MAIN)) {
-            sources += fdroidRepository.search(text)
-        }
-        if (filters.shouldInclude(SearchSourceFilter.FDROID_IZZY)) {
-            sources += izzyRepository.search(text)
+        if (filters.shouldInclude(SearchSourceFilter.FDROID)) {
+            prefs.fdroidRepos.get().filter { it.isEnabled }.forEach { repo ->
+                sources += getFdroidRepo(repo).search(text)
+            }
         }
         if (filters.shouldInclude(SearchSourceFilter.APTOIDE)) {
             sources += aptoideRepository.search(text)

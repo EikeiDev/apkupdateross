@@ -40,6 +40,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider as Divider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
+import com.apkupdateross.data.fdroid.FdroidRepo
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.git.parseRepoUrl
@@ -93,7 +95,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	val ruStoreCacheCount = viewModel.ruStore404Count.collectAsStateWithLifecycle().value
 	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
 	val customRepos = viewModel.customGitRepos.collectAsStateWithLifecycle().value
+	val fdroidRepos = viewModel.fdroidRepos.collectAsStateWithLifecycle().value
 	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
+	var dialogFdroidRepo by remember { mutableStateOf<FdroidRepo?>(null) }
 	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 	if (uiState == SettingsUiState.Settings) {
 		DisposableEffect(Unit) {
@@ -106,9 +110,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 			ruStoreCacheCount,
 			updateMetrics,
 			customRepos,
-			onAddRepo = { dialogRepo = viewModel.createEmptyCustomRepo(GitProvider.GITHUB) },
+			fdroidRepos,
+			onAddRepo = { dialogRepo = viewModel.createEmptyCustomRepo(it) },
 			onEditRepo = { dialogRepo = it },
 			onDeleteRepo = { viewModel.removeCustomRepo(it.id) },
+			onAddFdroidRepo = { dialogFdroidRepo = FdroidRepo(name = "", url = "") },
+			onEditFdroidRepo = { dialogFdroidRepo = it },
+			onDeleteFdroidRepo = { viewModel.removeFdroidRepo(it) },
+			onToggleFdroidRepo = { id, enabled -> viewModel.toggleFdroidRepo(id, enabled) },
 			notificationPermissionLauncher = alarmPermissionLauncher
 		)
 	} else {
@@ -122,6 +131,16 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 			onSave = {
 				viewModel.addOrUpdateCustomRepo(it)
 				dialogRepo = null
+			}
+		)
+	}
+	dialogFdroidRepo?.let { repo ->
+		FdroidRepoDialog(
+			repo = repo,
+			onDismiss = { dialogFdroidRepo = null },
+			onSave = {
+				viewModel.addOrUpdateFdroidRepo(it)
+				dialogFdroidRepo = null
 			}
 		)
 	}
@@ -184,220 +203,283 @@ fun Settings(
 	ruStore404Count: Int,
 	updateMetrics: UpdateMetrics,
 	customRepos: List<CustomGitRepo>,
-	onAddRepo: () -> Unit,
+	fdroidRepos: List<FdroidRepo>,
 	onEditRepo: (CustomGitRepo) -> Unit,
 	onDeleteRepo: (CustomGitRepo) -> Unit,
+	onAddRepo: (GitProvider) -> Unit,
+	onAddFdroidRepo: () -> Unit,
+	onEditFdroidRepo: (FdroidRepo) -> Unit,
+	onDeleteFdroidRepo: (String) -> Unit,
+	onToggleFdroidRepo: (String, Boolean) -> Unit,
 	notificationPermissionLauncher: ActivityResultLauncher<String>
 ) = LazyColumn {
 	item {
-		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 16.dp))
-		SwitchSetting(
-			{ viewModel.getPlayTextAnimations() },
-			{ viewModel.setPlayTextAnimations(it) },
-			stringResource(R.string.play_text_animations),
-			R.drawable.ic_animation
-		)
-		SegmentedButtonSetting(
-			stringResource(R.string.theme),
-			listOf(
-				stringResource(R.string.theme_system),
-				stringResource(R.string.theme_dark),
-				stringResource(R.string.theme_light)
-			),
-			{ viewModel.getTheme() },
-			{ viewModel.setTheme(it) },
-			R.drawable.ic_theme
-		)
-	}
-
-	item {
-		LargeTitle(stringResource(R.string.settings_sources), Modifier.padding(start = 16.dp, top = 16.dp))
-		var githubExpanded by remember { mutableStateOf(false) }
-		var githubToken by rememberSaveable { mutableStateOf(viewModel.getGithubToken()) }
-		SwitchSetting(
-			{ viewModel.getUseGitHub() },
-			{ viewModel.setUseGitHub(it) },
-			stringResource(R.string.source_github),
-			R.drawable.ic_github,
-			onClick = { githubExpanded = !githubExpanded }
-		)
-		AnimatedVisibility(
-			visible = githubExpanded,
-			enter = expandVertically(),
-			exit = shrinkVertically()
+		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
-			OutlinedTextField(
-				value = githubToken,
-				onValueChange = {
-					githubToken = it
-					viewModel.setGithubToken(it)
-				},
-				modifier = Modifier
-					.fillMaxWidth()
-					.padding(horizontal = 16.dp, vertical = 8.dp),
-				label = { Text(stringResource(R.string.github_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-				singleLine = true,
-				visualTransformation = PasswordVisualTransformation()
-			)
+			Column {
+				SegmentedButtonSetting(
+					stringResource(R.string.theme),
+					listOf(stringResource(R.string.theme_system), stringResource(R.string.theme_dark), stringResource(R.string.theme_light)),
+					{ viewModel.getTheme() },
+					{ viewModel.setTheme(it) },
+					R.drawable.ic_theme
+				)
+				SwitchSetting(
+					{ viewModel.getPlayTextAnimations() },
+					{ viewModel.setPlayTextAnimations(it) },
+					stringResource(R.string.play_text_animations),
+					R.drawable.ic_animation
+				)
+			}
 		}
-		SwitchSetting(
-			{ viewModel.getUseGitLab() },
-			{ viewModel.setUseGitLab(it) },
-			stringResource(R.string.source_gitlab),
-			R.drawable.ic_gitlab
-		)
-		CustomGitReposSection(
-			repos = customRepos,
-			onAdd = onAddRepo,
-			onEdit = onEditRepo,
-			onDelete = onDeleteRepo
-		)
-		SwitchSetting(
-			{ viewModel.getUseApkMirror() },
-			{ viewModel.setUseApkMirror(it) },
-			stringResource(R.string.source_apkmirror),
-			R.drawable.ic_apkmirror
-		)
-		SwitchSetting(
-			{ viewModel.getUseFdroid() },
-			{ viewModel.setUseFdroid(it) },
-			stringResource(R.string.source_fdroid),
-			R.drawable.ic_fdroid
-		)
-		SwitchSetting(
-			{ viewModel.getUseIzzy() },
-			{ viewModel.setUseIzzy(it) },
-			stringResource(R.string.source_izzy),
-			R.drawable.ic_izzy
-		)
-		SwitchSetting(
-			{ viewModel.getUseAptoide() },
-			{ viewModel.setUseAptoide(it) },
-			stringResource(R.string.source_aptoide),
-			R.drawable.ic_aptoide
-		)
-		SwitchSetting(
-			{ viewModel.getUseApkPure() },
-			{ viewModel.setUseApkPure(it) },
-			stringResource(R.string.source_apkpure),
-			R.drawable.ic_apkpure
-		)
-		SwitchSetting(
-			{ viewModel.getUsePlay() },
-			{ viewModel.setUsePlay(it) },
-			stringResource(R.string.source_play),
-			R.drawable.ic_play
-		)
-		SwitchSetting(
-			{ viewModel.getUseRuStore() },
-			{ viewModel.setUseRuStore(it) },
-			stringResource(R.string.source_rustore),
-			R.drawable.ic_rustore
-		)
 	}
 
 	item {
-		LargeTitle(stringResource(R.string.settings_options), Modifier.padding(start = 16.dp, top = 16.dp))
-		SegmentedButtonSetting(
-			stringResource(R.string.install_mode),
-			listOf(
-				stringResource(R.string.install_mode_normal),
-				stringResource(R.string.install_mode_root),
-				stringResource(R.string.install_mode_shizuku)
-			),
-			{ viewModel.getInstallMode() },
-			{ viewModel.setInstallMode(it) },
-			R.drawable.ic_root,
-			viewModel.installModeAvailable.collectAsStateWithLifecycle().value
-		)
-		SwitchSetting(
-			{ viewModel.getIgnoreAlpha() },
-			{ viewModel.setIgnoreAlpha(it) },
-			stringResource(R.string.ignore_alpha),
-			R.drawable.ic_alpha
-		)
-		SwitchSetting(
-			{ viewModel.getIgnoreBeta() },
-			{ viewModel.setIgnoreBeta(it) },
-			stringResource(R.string.ignore_beta),
-			R.drawable.ic_beta
-		)
-		SwitchSetting(
-			{ viewModel.getIgnorePreRelease() },
-			{ viewModel.setIgnorePreRelease(it) },
-			stringResource(R.string.ignore_preRelease),
-			R.drawable.ic_pre_release
-		)
+		LargeTitle(stringResource(R.string.settings_sources), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				var githubExpanded by remember { mutableStateOf(false) }
+				var githubToken by rememberSaveable { mutableStateOf(viewModel.getGithubToken()) }
+				SwitchSetting(
+					{ viewModel.getUseGitHub() },
+					{ viewModel.setUseGitHub(it) },
+					stringResource(R.string.source_github),
+					R.drawable.ic_github,
+					onClick = { githubExpanded = !githubExpanded },
+					isExpanded = githubExpanded
+				)
+				AnimatedVisibility(
+					visible = githubExpanded,
+					enter = expandVertically(),
+					exit = shrinkVertically()
+				) {
+					Column {
+						OutlinedTextField(
+							value = githubToken,
+							onValueChange = {
+								githubToken = it
+								viewModel.setGithubToken(it)
+							},
+							modifier = Modifier
+								.fillMaxWidth()
+								.padding(horizontal = 16.dp, vertical = 8.dp),
+							label = { Text(stringResource(R.string.github_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+							singleLine = true,
+							visualTransformation = PasswordVisualTransformation()
+						)
+						CustomGitReposSection(
+							repos = customRepos.filter { it.platform == GitProvider.GITHUB },
+							onAdd = { onAddRepo(GitProvider.GITHUB) },
+							onEdit = onEditRepo,
+							onDelete = onDeleteRepo
+						)
+					}
+				}
+
+				var gitlabExpanded by remember { mutableStateOf(false) }
+				var gitlabToken by rememberSaveable { mutableStateOf(viewModel.getGitlabToken()) }
+				SwitchSetting(
+					{ viewModel.getUseGitLab() },
+					{ viewModel.setUseGitLab(it) },
+					stringResource(R.string.source_gitlab),
+					R.drawable.ic_gitlab,
+					onClick = { gitlabExpanded = !gitlabExpanded },
+					isExpanded = gitlabExpanded
+				)
+				AnimatedVisibility(
+					visible = gitlabExpanded,
+					enter = expandVertically(),
+					exit = shrinkVertically()
+				) {
+					Column {
+						OutlinedTextField(
+							value = gitlabToken,
+							onValueChange = {
+								gitlabToken = it
+								viewModel.setGitlabToken(it)
+							},
+							modifier = Modifier
+								.fillMaxWidth()
+								.padding(horizontal = 16.dp, vertical = 8.dp),
+							label = { Text(stringResource(R.string.gitlab_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+							singleLine = true,
+							visualTransformation = PasswordVisualTransformation()
+						)
+						CustomGitReposSection(
+							repos = customRepos.filter { it.platform == GitProvider.GITLAB },
+							onAdd = { onAddRepo(GitProvider.GITLAB) },
+							onEdit = onEditRepo,
+							onDelete = onDeleteRepo
+						)
+					}
+				}
+
+				var fdroidExpanded by remember { mutableStateOf(false) }
+				SwitchSetting(
+					{ viewModel.getUseFdroid() },
+					{ viewModel.setUseFdroid(it) },
+					stringResource(R.string.source_fdroid),
+					R.drawable.ic_fdroid,
+					onClick = { fdroidExpanded = !fdroidExpanded },
+					isExpanded = fdroidExpanded
+				)
+				AnimatedVisibility(
+					visible = fdroidExpanded,
+					enter = expandVertically(),
+					exit = shrinkVertically()
+				) {
+					Column {
+						FdroidReposSection(
+							repos = fdroidRepos,
+							onAdd = onAddFdroidRepo,
+							onEdit = onEditFdroidRepo,
+							onDelete = onDeleteFdroidRepo,
+							onToggle = onToggleFdroidRepo
+						)
+					}
+				}
+
+				var rustoreExpanded by remember { mutableStateOf(false) }
+				SwitchSetting(
+					{ viewModel.getUseRuStore() },
+					{ viewModel.setUseRuStore(it) },
+					stringResource(R.string.source_rustore),
+					R.drawable.ic_rustore,
+					onClick = { rustoreExpanded = !rustoreExpanded },
+					isExpanded = rustoreExpanded
+				)
+				AnimatedVisibility(
+					visible = rustoreExpanded,
+					enter = expandVertically(),
+					exit = shrinkVertically()
+				) {
+					Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+						SwitchSetting(
+							{ viewModel.getRuStoreFilterThirdParty() },
+							{ viewModel.setRuStoreFilterThirdParty(it) },
+							stringResource(R.string.ruStoreFilterThirdParty),
+							R.drawable.ic_safe
+						)
+						val clearTextBase = stringResource(R.string.clear_rustore_cache)
+						val clearText = if (ruStore404Count > 0) "$clearTextBase ($ruStore404Count)" else clearTextBase
+						ButtonSetting(
+							clearText,
+							{ viewModel.clearRuStoreCache() },
+							R.drawable.ic_rustore
+						)
+					}
+				}
+				
+				SwitchSetting({ viewModel.getUseApkMirror() }, { viewModel.setUseApkMirror(it) }, stringResource(R.string.source_apkmirror), R.drawable.ic_apkmirror)
+				SwitchSetting({ viewModel.getUseAptoide() }, { viewModel.setUseAptoide(it) }, stringResource(R.string.source_aptoide), R.drawable.ic_aptoide)
+				SwitchSetting({ viewModel.getUseApkPure() }, { viewModel.setUseApkPure(it) }, stringResource(R.string.source_apkpure), R.drawable.ic_apkpure)
+				SwitchSetting({ viewModel.getUsePlay() }, { viewModel.setUsePlay(it) }, stringResource(R.string.source_play), R.drawable.ic_play)
+			}
+		}
 	}
 
 	item {
-		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 16.dp))
-		SwitchSetting(
-			getValue = { viewModel.getEnableAlarm() },
-			setValue = { viewModel.setEnableAlarm(it, notificationPermissionLauncher) },
-			text = stringResource(R.string.settings_alarm),
-			icon = R.drawable.ic_alarm
-		)
-		SliderSetting(
-			{ viewModel.getAlarmHour().toFloat() },
-			{ viewModel.setAlarmHour(it.toInt()) },
-			stringResource(R.string.settings_hour),
-			0f..23f,
-			R.drawable.ic_hour
-		)
-		SegmentedButtonSetting(
-			stringResource(R.string.frequency),
-			listOf(
-				stringResource(R.string.settings_alarm_daily),
-				stringResource(R.string.settings_alarm_3day),
-				stringResource(R.string.settings_alarm_weekly)
-			),
-			{ viewModel.getAlarmFrequency() },
-			{ viewModel.setAlarmFrequency(it) },
-			R.drawable.ic_frequency
-		)
+		LargeTitle(stringResource(R.string.settings_options), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				SegmentedButtonSetting(
+					stringResource(R.string.install_mode),
+					listOf(stringResource(R.string.install_mode_normal), stringResource(R.string.install_mode_root), stringResource(R.string.install_mode_shizuku)),
+					{ viewModel.getInstallMode() },
+					{ viewModel.setInstallMode(it) },
+					R.drawable.ic_install,
+					enabledItems = viewModel.installModeAvailable.collectAsStateWithLifecycle().value
+				)
+				
+				Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+				SwitchSetting({ viewModel.getIgnoreAlpha() }, { viewModel.setIgnoreAlpha(it) }, stringResource(R.string.ignore_alpha), R.drawable.ic_alpha)
+				SwitchSetting({ viewModel.getIgnoreBeta() }, { viewModel.setIgnoreBeta(it) }, stringResource(R.string.ignore_beta), R.drawable.ic_beta)
+				SwitchSetting({ viewModel.getIgnorePreRelease() }, { viewModel.setIgnorePreRelease(it) }, stringResource(R.string.ignore_preRelease), R.drawable.ic_pre_release)
+			}
+		}
+	}
+
+	item {
+		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				SwitchSetting(
+					getValue = { viewModel.getEnableAlarm() },
+					setValue = { viewModel.setEnableAlarm(it, notificationPermissionLauncher) },
+					text = stringResource(R.string.settings_alarm),
+					icon = R.drawable.ic_alarm
+				)
+				SegmentedButtonSetting(
+					stringResource(R.string.frequency),
+					listOf(stringResource(R.string.settings_alarm_daily), stringResource(R.string.settings_alarm_3day), stringResource(R.string.settings_alarm_weekly)),
+					{ viewModel.getAlarmFrequency() },
+					{ viewModel.setAlarmFrequency(it) },
+					R.drawable.ic_frequency
+				)
+				SliderSetting(
+					{ viewModel.getAlarmHour().toFloat() },
+					{ viewModel.setAlarmHour(it.toInt()) },
+					stringResource(R.string.settings_hour),
+					0f..23f,
+					R.drawable.ic_hour
+				)
+			}
+		}
 	}
 	item {
-		LargeTitle(stringResource(R.string.settings_utils), Modifier.padding(start = 16.dp, top = 16.dp))
-		ButtonSetting(
-			stringResource(R.string.copy_app_list),
-			{ viewModel.copyAppList() },
-			R.drawable.ic_root
-		)
-		ButtonSetting(
-			stringResource(R.string.copy_app_logs),
-			{ viewModel.copyAppLogs() },
-			R.drawable.ic_root
-		)
-		val clearTextBase = stringResource(R.string.clear_rustore_cache)
-		val clearText = if (ruStore404Count > 0) "$clearTextBase ($ruStore404Count)" else clearTextBase
-		ButtonSetting(
-			clearText,
-			{ viewModel.clearRuStoreCache() },
-			R.drawable.ic_rustore
-		)
+		LargeTitle(stringResource(R.string.settings_utils), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				ButtonSetting(stringResource(R.string.copy_app_list), { viewModel.copyAppList() }, R.drawable.ic_root)
+				ButtonSetting(stringResource(R.string.copy_app_logs), { viewModel.copyAppLogs() }, R.drawable.ic_root)
+			}
+		}
 	}
 	item {
-		LargeTitle(stringResource(R.string.settings_notifications), Modifier.padding(start = 16.dp, top = 16.dp))
+		LargeTitle(stringResource(R.string.settings_notifications), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		NotificationStatusCard(viewModel)
 	}
 	item {
-		LargeTitle(stringResource(R.string.settings_metrics), Modifier.padding(start = 16.dp, top = 16.dp))
-		MetricRow(
-			text = stringResource(R.string.metric_last_check_duration),
-			value = updateMetrics.durationMs?.let { formatDuration(it) } ?: stringResource(R.string.metric_no_data),
-			icon = R.drawable.ic_hour
-		)
-		MetricRow(
-			text = stringResource(R.string.metric_last_check_time),
-			value = updateMetrics.timestamp?.let { formatTimestamp(it) } ?: stringResource(R.string.metric_no_data),
-			icon = R.drawable.ic_info
-		)
-		MetricRow(
-			text = stringResource(R.string.metric_last_check_sources),
-			value = updateMetrics.sources?.toString() ?: stringResource(R.string.metric_no_data),
-			icon = R.drawable.ic_safe
-		)
+		LargeTitle(stringResource(R.string.settings_metrics), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column(Modifier.padding(vertical = 8.dp)) {
+				MetricRow(
+					text = stringResource(R.string.metric_last_check_duration),
+					value = updateMetrics.durationMs?.let { formatDuration(it) } ?: stringResource(R.string.metric_no_data),
+					icon = R.drawable.ic_hour
+				)
+				MetricRow(
+					text = stringResource(R.string.metric_last_check_time),
+					value = updateMetrics.timestamp?.let { formatTimestamp(it) } ?: stringResource(R.string.metric_no_data),
+					icon = R.drawable.ic_info
+				)
+				MetricRow(
+					text = stringResource(R.string.metric_last_check_sources),
+					value = updateMetrics.sources?.toString() ?: stringResource(R.string.metric_no_data),
+					icon = R.drawable.ic_safe
+				)
+			}
+		}
+		Spacer(Modifier.height(24.dp))
 	}
 }
 
@@ -411,10 +493,10 @@ private fun CustomGitReposSection(
 	Row(
 		Modifier
 			.fillMaxWidth()
-			.padding(start = 16.dp, end = 8.dp, top = 16.dp),
+			.padding(start = 16.dp, end = 8.dp, top = 8.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		LargeTitle(stringResource(R.string.settings_custom_repos), Modifier.weight(1f))
+		Text(stringResource(R.string.settings_custom_repos), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
 		IconButton(onClick = onAdd) {
 			Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.settings_custom_repos_add))
 		}
@@ -475,7 +557,6 @@ private fun CustomRepoDialog(
 	onDismiss: () -> Unit,
 	onSave: (CustomGitRepo) -> Unit
 ) {
-	var platform by remember(repo.id) { mutableStateOf(repo.platform) }
 	var user by remember(repo.id) { mutableStateOf(repo.user) }
 	var project by remember(repo.id) { mutableStateOf(repo.repo) }
 	var packageName by remember(repo.id) { mutableStateOf(repo.packageName) }
@@ -483,7 +564,6 @@ private fun CustomRepoDialog(
 	var showError by remember { mutableStateOf(false) }
 	fun handleUrlInput(value: String): Boolean {
 		return parseRepoUrl(value)?.let { parsed ->
-			platform = parsed.provider
 			user = parsed.user
 			project = parsed.repo
 			true
@@ -499,7 +579,6 @@ private fun CustomRepoDialog(
 				}
 				onSave(
 					repo.copy(
-						platform = platform,
 						user = user,
 						repo = project,
 						packageName = packageName,
@@ -516,19 +595,6 @@ private fun CustomRepoDialog(
 		title = { Text(stringResource(R.string.settings_custom_repos_add)) },
 		text = {
 			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-				Text(text = stringResource(R.string.settings_custom_repo_provider), style = MaterialTheme.typography.labelLarge)
-				Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-					FilterChip(
-						selected = platform == GitProvider.GITHUB,
-						onClick = { platform = GitProvider.GITHUB },
-						label = { Text(stringResource(R.string.source_github)) }
-					)
-					FilterChip(
-						selected = platform == GitProvider.GITLAB,
-						onClick = { platform = GitProvider.GITLAB },
-						label = { Text(stringResource(R.string.source_gitlab)) }
-					)
-				}
 				OutlinedTextField(
 					value = user,
 					onValueChange = {
@@ -667,3 +733,139 @@ fun AboutTopBar(viewModel: SettingsViewModel) = TopAppBar(
 		}
 	}
 )
+
+@Composable
+private fun FdroidReposSection(
+	repos: List<FdroidRepo>,
+	onAdd: () -> Unit,
+	onEdit: (FdroidRepo) -> Unit,
+	onDelete: (String) -> Unit,
+	onToggle: (String, Boolean) -> Unit
+) {
+	Row(
+		Modifier
+			.fillMaxWidth()
+			.padding(start = 16.dp, end = 8.dp, top = 12.dp),
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		Text("F-Droid Repositories", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+		IconButton(onClick = onAdd) {
+			Icon(Icons.Filled.Add, contentDescription = "Add Repository")
+		}
+	}
+	repos.forEach { repo ->
+		FdroidRepoCard(
+			repo = repo,
+			onEdit = { onEdit(repo) },
+			onDelete = { onDelete(repo.id) },
+			onToggle = { onToggle(repo.id, it) }
+		)
+	}
+}
+
+@Composable
+private fun FdroidRepoCard(
+	repo: FdroidRepo,
+	onEdit: () -> Unit,
+	onDelete: () -> Unit,
+	onToggle: (Boolean) -> Unit
+) {
+	ElevatedCard(
+		modifier = Modifier
+			.fillMaxWidth()
+			.padding(horizontal = 16.dp, vertical = 4.dp)
+	) {
+		Row(
+			Modifier
+				.fillMaxWidth()
+				.padding(12.dp),
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			androidx.compose.material3.Switch(
+				checked = repo.isEnabled,
+				onCheckedChange = onToggle,
+				modifier = Modifier.padding(end = 12.dp)
+			)
+			Column(Modifier.weight(1f)) {
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					Text(repo.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+					if (repo.isDefault) {
+						Spacer(Modifier.width(8.dp))
+						Surface(
+							color = MaterialTheme.colorScheme.secondaryContainer,
+							shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+						) {
+							Text(
+								"Default",
+								Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+								style = MaterialTheme.typography.labelSmall,
+								color = MaterialTheme.colorScheme.onSecondaryContainer
+							)
+						}
+					}
+				}
+				Text(repo.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+			}
+			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp)) }
+			if (!repo.isDefault) {
+				IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp)) }
+			}
+		}
+	}
+}
+
+@Composable
+private fun FdroidRepoDialog(
+	repo: FdroidRepo,
+	onDismiss: () -> Unit,
+	onSave: (FdroidRepo) -> Unit
+) {
+	var name by remember(repo.id) { mutableStateOf(repo.name) }
+	var url by remember(repo.id) { mutableStateOf(repo.url) }
+	var showError by remember { mutableStateOf(false) }
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			TextButton(onClick = {
+				if (name.isBlank() || url.isBlank()) {
+					showError = true
+					return@TextButton
+				}
+				onSave(repo.copy(name = name, url = url))
+			}) {
+				Text("Save")
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text("Cancel") }
+		},
+		title = { Text(if (repo.name.isEmpty()) "Add Repository" else "Edit Repository") },
+		text = {
+			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+				OutlinedTextField(
+					value = name,
+					onValueChange = { name = it; showError = false },
+					label = { Text("Name") },
+					singleLine = true,
+					modifier = Modifier.fillMaxWidth()
+				)
+				OutlinedTextField(
+					value = url,
+					onValueChange = { url = it; showError = false },
+					label = { Text("URL") },
+					singleLine = true,
+					modifier = Modifier.fillMaxWidth()
+				)
+				if (showError) {
+					Text(
+						text = "Name and URL are required",
+						color = MaterialTheme.colorScheme.error,
+						style = MaterialTheme.typography.bodySmall
+					)
+				}
+			}
+		}
+	)
+}
+

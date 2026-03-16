@@ -2,8 +2,11 @@ package com.apkupdateross.repository
 
 import android.os.SystemClock
 import android.util.Log
+import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.service.FdroidService
+import com.apkupdateross.repository.FdroidRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -17,8 +20,7 @@ class UpdatesRepository(
     private val appsRepository: AppsRepository,
     private val apkMirrorRepository: ApkMirrorRepository,
     private val gitHubRepository: GitHubRepository,
-    private val fdroidRepository: FdroidRepository,
-    private val izzyRepository: FdroidRepository,
+    private val fdroidService: FdroidService,
     private val aptoideRepository: AptoideRepository,
     private val apkPureRepository: ApkPureRepository,
     private val gitLabRepository: GitLabRepository,
@@ -27,11 +29,18 @@ class UpdatesRepository(
     private val prefs: Prefs
 ) {
 
+    private val fdroidRepoCache = mutableMapOf<String, FdroidRepository>()
+
+    private fun getFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo): FdroidRepository {
+        return fdroidRepoCache.getOrPut(repo.id) {
+            FdroidRepository(fdroidService, repo.url, com.apkupdateross.data.ui.Source(repo.name, R.drawable.ic_fdroid), prefs)
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun updates(force: Boolean = false) = flow<List<AppUpdate>> {
         if (force) {
-            fdroidRepository.clearCache()
-            izzyRepository.clearCache()
+            fdroidRepoCache.values.forEach { it.clearCache() }
         }
         appsRepository.getApps().collect { result ->
             result.onSuccess { apps ->
@@ -39,8 +48,13 @@ class UpdatesRepository(
                 val sources = mutableListOf<Flow<List<AppUpdate>>>()
                 if (prefs.useApkMirror.get()) sources.add(apkMirrorRepository.updates(filtered))
                 if (prefs.useGitHub.get()) sources.add(gitHubRepository.updates(filtered))
-                if (prefs.useFdroid.get()) sources.add(fdroidRepository.updates(filtered))
-                if (prefs.useIzzy.get()) sources.add(izzyRepository.updates(filtered))
+                
+                if (prefs.useFdroid.get()) {
+                    prefs.fdroidRepos.get().filter { it.isEnabled }.forEach { repo ->
+                        sources.add(getFdroidRepo(repo).updates(filtered))
+                    }
+                }
+                
                 if (prefs.useAptoide.get()) sources.add(aptoideRepository.updates(filtered))
                 if (prefs.useApkPure.get()) sources.add(apkPureRepository.updates(filtered))
                 if (prefs.useGitLab.get()) sources.add(gitLabRepository.updates(filtered))

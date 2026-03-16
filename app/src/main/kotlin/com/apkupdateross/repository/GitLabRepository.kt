@@ -28,6 +28,8 @@ class GitLabRepository(
     private val prefs: Prefs
 ) {
 
+    private fun authHeader(): String? = prefs.gitlabToken.get().trim().takeIf { it.isNotEmpty() }
+
     suspend fun updates(apps: List<AppInstalled>) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
         loadGitLabApps().forEach { app ->
@@ -50,7 +52,7 @@ class GitLabRepository(
         currentVersion: String,
         extra: Regex?
     ) = flow {
-        val releases = service.getReleases(user, repo)
+        val releases = service.getReleases(user, repo, authHeader())
             .filter { Version(filterVersionTag(it.tag_name)) > Version(currentVersion) }
 
         if (releases.isNotEmpty()) {

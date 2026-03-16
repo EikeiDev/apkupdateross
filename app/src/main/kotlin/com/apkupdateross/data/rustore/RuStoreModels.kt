@@ -26,6 +26,8 @@ data class RuStoreAppDetails(
     val fileSize: Long = 0,
     val minSdkVersion: Int = 0,
     val downloads: Long = 0,
+    val companyName: String = "",
+    val isVerified: Boolean = false,
     val appVerUpdatedAt: String = "",
     val whatsNew: String = ""
 )

@@ -6,7 +6,8 @@ sealed class AppsUiState {
 	data class Loading(
 		val excludeSystem: Boolean,
 		val excludeAppStore: Boolean,
-		val excludeDisabled: Boolean
+		val excludeDisabled: Boolean,
+		val searchQuery: String = ""
 	): AppsUiState()
 
 	data object Error : AppsUiState()
@@ -15,7 +16,8 @@ sealed class AppsUiState {
 		val apps: List<AppInstalled>,
 		val excludeSystem: Boolean,
 		val excludeAppStore: Boolean,
-		val excludeDisabled: Boolean
+		val excludeDisabled: Boolean,
+		val searchQuery: String = ""
 	): AppsUiState()
 
 	inline fun onLoading(block: (Loading) -> Unit): AppsUiState {

@@ -61,6 +61,10 @@ class RuStoreRepository(
                     if (response.code == "OK" && response.body != null) {
                         clearRuStore404(app.packageName)
                         val details = response.body
+                        if (prefs.ruStoreFilterThirdParty.get() && !details.isVerified) {
+                            Log.d("RuStoreRepository", "Filtering ${app.packageName} - not a verified developer")
+                            return@runCatching null
+                        }
                         if (Version(details.versionName) > Version(app.version)) {
                             val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
                             details.toAppUpdate(app, downloadUrl)
@@ -106,6 +110,10 @@ class RuStoreRepository(
                         if (detailsResponse.code == "OK" && detailsResponse.body != null) {
                             clearRuStore404(searchApp.packageName)
                             val details = detailsResponse.body
+                            if (prefs.ruStoreFilterThirdParty.get() && !details.isVerified) {
+                                Log.d("RuStoreRepository", "Search filter ${searchApp.packageName} - not a verified developer")
+                                return@runCatching null
+                            }
                             val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
                             details.toAppUpdate(null, downloadUrl)
                         } else null

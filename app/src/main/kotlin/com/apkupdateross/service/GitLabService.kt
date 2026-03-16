@@ -10,7 +10,8 @@ interface GitLabService {
     @GET("api/v4/projects/{user}%2F{repo}/releases")
     suspend fun getReleases(
         @Path("user") user: String,
-        @Path("repo") repo: String
+        @Path("repo") repo: String,
+        @retrofit2.http.Header("PRIVATE-TOKEN") authHeader: String? = null
     ): List<GitLabRelease>
 
 }

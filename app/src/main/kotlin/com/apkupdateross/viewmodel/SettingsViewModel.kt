@@ -54,6 +54,8 @@ class SettingsViewModel(
 	val updateMetrics = _updateMetrics.asStateFlow()
     private val _customGitRepos = MutableStateFlow(prefs.customGitRepos.get())
     val customGitRepos = _customGitRepos.asStateFlow()
+    private val _fdroidRepos = MutableStateFlow(prefs.fdroidRepos.get())
+    val fdroidRepos = _fdroidRepos.asStateFlow()
     private var metricsJob: Job? = null
 
 	// installModeAvailable[0]=Normal always true, [1]=Root, [2]=Shizuku
@@ -62,7 +64,32 @@ class SettingsViewModel(
 	init {
 		refreshInstallModeAvailability()
 		refreshUpdateMetrics()
+		ensureDefaultRepos()
 	}
+
+    private fun ensureDefaultRepos() {
+        val current = prefs.fdroidRepos.get()
+        val hasFdroid = current.any { it.url == "https://f-droid.org/repo/" }
+        val hasIzzy = current.any { it.url == "https://apt.izzysoft.de/fdroid/repo/" }
+        
+        if (!hasFdroid || !hasIzzy) {
+            val updated = current.toMutableList()
+            if (!hasFdroid) {
+                updated.add(com.apkupdateross.data.fdroid.FdroidRepo(name = "F-Droid", url = "https://f-droid.org/repo/", isDefault = true))
+            }
+            if (!hasIzzy) {
+                updated.add(com.apkupdateross.data.fdroid.FdroidRepo(name = "IzzyOnDroid", url = "https://apt.izzysoft.de/fdroid/repo/", isDefault = true))
+            }
+            // Ensure they are marked as default if they already existed but with wrong flag
+            val final = updated.map { repo ->
+                if (repo.url == "https://f-droid.org/repo/" || repo.url == "https://apt.izzysoft.de/fdroid/repo/") {
+                    repo.copy(isDefault = true)
+                } else repo
+            }
+            prefs.fdroidRepos.put(final)
+            _fdroidRepos.value = final
+        }
+    }
 
 	fun refreshInstallModeAvailability() {
 		viewModelScope.launch(Dispatchers.IO) {
@@ -90,8 +117,6 @@ class SettingsViewModel(
 	fun setUseApkMirror(b: Boolean) = prefs.useApkMirror.put(b)
 	fun getUseFdroid() = prefs.useFdroid.get()
 	fun setUseFdroid(b: Boolean) = prefs.useFdroid.put(b)
-	fun getUseIzzy() = prefs.useIzzy.get()
-	fun setUseIzzy(b: Boolean) = prefs.useIzzy.put(b)
 	fun getUseGitHub() = prefs.useGitHub.get()
 	fun setUseGitHub(b: Boolean) = prefs.useGitHub.put(b)
 	fun getUseGitLab() = prefs.useGitLab.get()
@@ -109,6 +134,10 @@ class SettingsViewModel(
 	fun getEnableAlarm() = prefs.enableAlarm.get()
 	fun getGithubToken() = prefs.githubToken.get()
 	fun setGithubToken(token: String) = prefs.githubToken.put(token.trim())
+	fun getGitlabToken() = prefs.gitlabToken.get()
+	fun setGitlabToken(token: String) = prefs.gitlabToken.put(token.trim())
+	fun getRuStoreFilterThirdParty() = prefs.ruStoreFilterThirdParty.get()
+	fun setRuStoreFilterThirdParty(b: Boolean) = prefs.ruStoreFilterThirdParty.put(b)
 	fun getInstallMode() = prefs.installMode.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
@@ -136,6 +165,8 @@ class SettingsViewModel(
         _customGitRepos.value = current
     }
 
+    fun createEmptyCustomRepo(provider: GitProvider): CustomGitRepo = CustomGitRepo(platform = provider)
+
     fun removeCustomRepo(id: String) {
         val current = prefs.customGitRepos.get().toMutableList()
         val updated = current.filterNot { it.id == id }
@@ -145,7 +176,39 @@ class SettingsViewModel(
         }
     }
 
-    fun createEmptyCustomRepo(provider: GitProvider): CustomGitRepo = CustomGitRepo(platform = provider)
+    fun addOrUpdateFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo) {
+        val current = prefs.fdroidRepos.get().toMutableList()
+        val index = current.indexOfFirst { it.id == repo.id }
+        if (index >= 0) {
+            current[index] = repo
+        } else {
+            current.add(repo)
+        }
+        prefs.fdroidRepos.put(current)
+        _fdroidRepos.value = current
+    }
+
+    fun removeFdroidRepo(id: String) {
+        val current = prefs.fdroidRepos.get()
+        val repo = current.find { it.id == id }
+        if (repo?.isDefault == true) {
+            snackBar.snackBar(viewModelScope, TextSnack("Cannot remove default repository"))
+            return
+        }
+        val updated = current.filterNot { it.id == id }
+        prefs.fdroidRepos.put(updated)
+        _fdroidRepos.value = updated
+    }
+
+    fun toggleFdroidRepo(id: String, enabled: Boolean) {
+        val current = prefs.fdroidRepos.get().toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            current[index] = current[index].copy(isEnabled = enabled)
+            prefs.fdroidRepos.put(current)
+            _fdroidRepos.value = current
+        }
+    }
 
 	fun setInstallMode(mode: Int) {
 		when (mode) {

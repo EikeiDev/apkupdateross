@@ -3,6 +3,7 @@ package com.apkupdateross.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppsUiState
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.AppsRepository
@@ -20,6 +21,8 @@ class AppsViewModel(
 ) : ViewModel() {
 
 	private val mutex = Mutex()
+	private val _searchQuery = MutableStateFlow("")
+	private var fullAppsList = emptyList<AppInstalled>()
 	private val state = MutableStateFlow<AppsUiState>(buildLoadingState())
 
 	fun state(): StateFlow<AppsUiState> = state
@@ -29,12 +32,8 @@ class AppsViewModel(
 		badger.changeAppsBadge("")
 		repository.getApps().collect {
 			it.onSuccess { apps ->
-				state.value = AppsUiState.Success(
-					apps,
-					prefs.excludeSystem.get(),
-					prefs.excludeStore.get(),
-					prefs.excludeDisabled.get()
-				)
+				fullAppsList = apps
+				updateState()
 				badger.changeAppsBadge(apps.size.toString())
 			}.onFailure { ex ->
 				state.value = AppsUiState.Error
@@ -42,6 +41,31 @@ class AppsViewModel(
 				Log.e("InstalledViewModel", "Error getting apps.", ex)
 			}
 		}
+	}
+
+	fun onSearchQueryChange(query: String) = viewModelScope.launchWithMutex(mutex, Dispatchers.Default) {
+		_searchQuery.value = query
+		updateState()
+	}
+
+	private fun updateState() {
+		val query = _searchQuery.value.trim()
+		val filteredApps = if (query.isEmpty()) {
+			fullAppsList
+		} else {
+			fullAppsList.filter {
+				it.name.contains(query, ignoreCase = true) ||
+						it.packageName.contains(query, ignoreCase = true)
+			}
+		}
+
+		state.value = AppsUiState.Success(
+			filteredApps,
+			prefs.excludeSystem.get(),
+			prefs.excludeStore.get(),
+			prefs.excludeDisabled.get(),
+			query
+		)
 	}
 
 	fun onSystemClick() = viewModelScope.launchWithMutex(mutex, Dispatchers.Default) {
@@ -73,7 +97,8 @@ class AppsViewModel(
 	private fun buildLoadingState() = AppsUiState.Loading(
 		prefs.excludeSystem.get(),
 		prefs.excludeStore.get(),
-		prefs.excludeDisabled.get()
+		prefs.excludeDisabled.get(),
+		_searchQuery.value
 	)
 
 }

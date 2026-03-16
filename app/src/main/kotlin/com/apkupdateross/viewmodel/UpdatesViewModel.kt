@@ -44,6 +44,9 @@ class UpdatesViewModel(
 	private val _isRefreshing = MutableStateFlow(false)
 	private val _selfUpdate = MutableStateFlow<AppUpdate?>(null)
 	private var snoozedSelfUpdateVersionCode: Long? = null
+	val useCompactView = prefs.useCompactViewFlow
+	val portraitColumns = prefs.portraitColumnsFlow
+	val landscapeColumns = prefs.landscapeColumnsFlow
 
 	init {
 		subscribeToInstallStatus(state.value.updates())

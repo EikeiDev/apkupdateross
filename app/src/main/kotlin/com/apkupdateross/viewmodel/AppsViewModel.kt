@@ -23,6 +23,9 @@ class AppsViewModel(
 	private val mutex = Mutex()
 	private val _searchQuery = MutableStateFlow("")
 	private var fullAppsList = emptyList<AppInstalled>()
+	val useCompactView = prefs.useCompactViewFlow
+	val portraitColumns = prefs.portraitColumnsFlow
+	val landscapeColumns = prefs.landscapeColumnsFlow
 	private val state = MutableStateFlow<AppsUiState>(buildLoadingState())
 
 	fun state(): StateFlow<AppsUiState> = state

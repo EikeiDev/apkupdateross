@@ -39,20 +39,27 @@ fun EmptyGrid(
 }
 
 @Composable
-fun InstalledGrid(scroll: Boolean = true, content: LazyGridScope.() -> Unit) = LazyVerticalGrid(
-    columns = GridCells.Fixed(getNumColumns()),
+fun InstalledGrid(
+    scroll: Boolean = true,
+    compactMode: Boolean = false,
+    portraitColumns: Int = 1,
+    landscapeColumns: Int = 2,
+    content: LazyGridScope.() -> Unit
+) = LazyVerticalGrid(
+    columns = GridCells.Fixed(getNumColumns(compactMode, portraitColumns, landscapeColumns)),
     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    verticalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 16.dp),
+    horizontalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 16.dp),
     content = content,
     userScrollEnabled = scroll,
     modifier = Modifier.fillMaxSize()
 )
 
 @Composable
-fun getNumColumns(): Int {
-    return if(LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT)
-        1
-    else
-        2
+fun getNumColumns(compactMode: Boolean, portraitColumns: Int, landscapeColumns: Int): Int {
+    return if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
+        if (compactMode) portraitColumns else 1
+    } else {
+        if (compactMode) landscapeColumns else 2
+    }
 }

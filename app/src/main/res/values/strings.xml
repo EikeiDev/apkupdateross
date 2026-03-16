@@ -25,6 +25,7 @@
     <string name="play_text_animations">Play Text Animations</string>
     <string name="settings_sources">Sources</string>
     <string name="settings_ui">UI</string>
+    <string name="settings_compact_view">Compact view</string>
     <string name="settings_alarm">Auto-update schedule</string>
     <string name="settings_options">Options</string>
     <string name="settings_utils">Utils</string>

@@ -17,3 +17,16 @@ val ApkPureSource = Source("ApkPure", R.drawable.ic_apkpure)
 val GitLabSource = Source("GitLab", R.drawable.ic_gitlab)
 val PlaySource = Source("Play", R.drawable.ic_play)
 val RuStoreSource = Source("RuStore", R.drawable.ic_rustore)
+
+fun Source.priority(filterRuStore: Boolean = false): Int = when (name) {
+    "RuStore" -> if (filterRuStore) 110 else 65
+    "Play" -> 100
+    "GitHub" -> 90
+    "GitLab" -> 90
+    "ApkMirror" -> 80
+    "F-Droid (Main)" -> 70
+    "F-Droid (Izzy)" -> 70
+    "ApkPure" -> 60
+    "Aptoide" -> 50
+    else -> 0
+}

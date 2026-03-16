@@ -233,6 +233,12 @@ fun Settings(
 					stringResource(R.string.play_text_animations),
 					R.drawable.ic_animation
 				)
+				SwitchSetting(
+					{ viewModel.getUseCompactView() },
+					{ viewModel.setUseCompactView(it) },
+					stringResource(R.string.settings_compact_view),
+					R.drawable.ic_visible
+				)
 			}
 		}
 	}

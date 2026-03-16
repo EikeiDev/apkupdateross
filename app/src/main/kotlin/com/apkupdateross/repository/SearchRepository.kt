@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import com.apkupdateross.data.ui.priority
 
 class SearchRepository(
     private val apkMirrorRepository: ApkMirrorRepository,
@@ -38,9 +39,25 @@ class SearchRepository(
         val sources = buildSources(text, filters)
 
         if (sources.isNotEmpty()) {
-            sources.combine { updates ->
-                val result = updates.filter { it.isSuccess }.mapNotNull { it.getOrNull() }
-                emit(Result.success(result.flatten().sortedWith(
+            sources.combine { results ->
+                val apps = results.filter { it.isSuccess }.mapNotNull { it.getOrNull() }.flatten()
+                val filterAndDeduplicate = prefs.ruStoreFilterThirdParty.get()
+                
+                val finalApps = if (filterAndDeduplicate) {
+                    val accumulatedMap = mutableMapOf<String, AppUpdate>()
+                    apps.forEach { app ->
+                        val existing = accumulatedMap[app.packageName]
+                        // If multiple sources found the same app, prioritize based on score
+                        if (existing == null || app.source.priority(true) > existing.source.priority(true)) {
+                            accumulatedMap[app.packageName] = app
+                        }
+                    }
+                    accumulatedMap.values.toList()
+                } else {
+                    apps
+                }
+                
+                val sortedResult = finalApps.sortedWith(
                     compareBy<AppUpdate> {
                         !it.name.startsWith(text, ignoreCase = true)
                     }.thenBy {
@@ -48,7 +65,8 @@ class SearchRepository(
                     }.thenBy {
                         it.name
                     }
-                )))
+                )
+                emit(Result.success(sortedResult))
             }.collect()
         } else {
             emit(Result.success(emptyList()))

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import com.apkupdateross.R
@@ -60,9 +62,10 @@ fun CommonItem(
     oldVersionCode: Long?,
     uri: Uri? = null,
     single: Boolean = false,
-    source: Source? = null
+    source: Source? = null,
+    compactMode: Boolean = false
 ) = Row(Modifier.fillMaxWidth()) {
-    Box(Modifier.size(80.dp).padding(end = 12.dp)) {
+    Box(Modifier.size(if (compactMode) 48.dp else 80.dp).padding(end = if (compactMode) 8.dp else 12.dp)) {
         if (uri == null) {
             LoadingImageApp(packageName, Modifier.fillMaxSize())
         } else {
@@ -109,7 +112,7 @@ fun InstallButton(
 }
 
 @Composable
-fun InstalledItem(app: AppInstalled, onIgnore: (String) -> Unit = {}) {
+fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (String) -> Unit = {}) {
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -120,7 +123,7 @@ fun InstalledItem(app: AppInstalled, onIgnore: (String) -> Unit = {}) {
             .alpha(if (app.ignored) 0.5f else 1f)
             .clickable { expanded = !expanded }
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
@@ -131,7 +134,8 @@ fun InstalledItem(app: AppInstalled, onIgnore: (String) -> Unit = {}) {
                         oldVersion = null,
                         versionCode = app.versionCode,
                         oldVersionCode = null,
-                        single = true
+                        single = true,
+                        compactMode = compactMode
                     )
                 }
                 IconButton(onClick = { expanded = !expanded }) {
@@ -207,6 +211,7 @@ fun IgnoreVersionButton(
 @Composable
 fun UpdateItem(
     app: AppUpdate,
+    compactMode: Boolean = false,
     onInstall: (String) -> Unit = {},
     onIgnoreVersion: (Int) -> Unit,
     onCancel: () -> Unit = {},
@@ -221,11 +226,11 @@ fun UpdateItem(
             .fillMaxWidth()
             .clickable { expanded = !expanded }
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode)
+                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, compactMode = compactMode)
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
@@ -307,6 +312,7 @@ fun UpdateItem(
 @Composable
 fun SearchItem(
     app: AppUpdate,
+    compactMode: Boolean = false,
     onInstall: (String) -> Unit = {},
     onCancel: () -> Unit = {},
     onDownload: (AppUpdate) -> Unit = {},
@@ -320,11 +326,11 @@ fun SearchItem(
             .fillMaxWidth()
             .clickable { expanded = !expanded }
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, app.iconUri, true)
+                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, app.iconUri, true, compactMode = compactMode)
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
@@ -395,6 +401,85 @@ fun SearchItem(
                             SmallText("$percent%")
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GridItem(
+    packageName: String,
+    name: String,
+    version: String,
+    uri: Uri? = null,
+    source: Source? = null,
+    onIgnore: (() -> Unit)? = null,
+    isIgnored: Boolean = false,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isIgnored) 0.5f else 1f)
+            .clickable { onClick() }
+    ) {
+        Box {
+            Column(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(Modifier.size(80.dp)) {
+                    if (uri == null) {
+                        LoadingImageApp(packageName, Modifier.fillMaxSize())
+                    } else {
+                        LoadingImage(uri, Modifier.fillMaxSize())
+                    }
+                }
+                Text(
+                    text = name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName },
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (source != null) {
+                        SourceIcon(source, Modifier.size(18.dp).align(Alignment.CenterStart).offset(x = (-6).dp))
+                    }
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.alpha(0.8f).align(Alignment.Center)
+                    ) {
+                        Text(
+                            text = version,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            if (onIgnore != null) {
+                IconButton(
+                    onClick = onIgnore,
+                    modifier = Modifier.size(32.dp).align(Alignment.TopEnd).padding(2.dp)
+                ) {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(
+                            if (isIgnored) R.drawable.ic_visible else R.drawable.ic_visible_off
+                        ),
+                        contentDescription = "Ignore",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

@@ -49,6 +49,7 @@ import com.apkupdateross.R
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen
+import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.SearchItem
@@ -60,33 +61,58 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel = koinViewModel()
-) = Column {
-    SearchTopBar(viewModel)
-    viewModel.state().collectAsStateWithLifecycle().value.onError {
-        DefaultErrorScreen()
-    }.onSuccess {
-        SearchScreenSuccess(it, viewModel)
-    }.onLoading {
-        LoadingGrid()
+) {
+    val state = viewModel.state().collectAsStateWithLifecycle().value
+    val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
+    val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
+    val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
+
+    Column {
+        SearchTopBar(viewModel)
+        state.onError {
+            DefaultErrorScreen()
+        }.onSuccess {
+            SearchScreenSuccess(it, compactMode, portraitColumns, landscapeColumns, viewModel)
+        }.onLoading {
+            LoadingGrid()
+        }
     }
 }
 
 @Composable
 fun SearchScreenSuccess(
     state: SearchUiState.Success,
+    compactMode: Boolean,
+    portraitColumns: Int,
+    landscapeColumns: Int,
     viewModel: SearchViewModel
 ) = Column {
     val uriHandler = LocalUriHandler.current
     val updates = state.updates
 
-    InstalledGrid {
+    InstalledGrid(
+        compactMode = compactMode,
+        portraitColumns = portraitColumns,
+        landscapeColumns = landscapeColumns
+    ) {
         items(updates) { update ->
-            SearchItem(update, {
-                viewModel.install(update, uriHandler)
-            }, { viewModel.cancel(update) },
-                onDownload = { viewModel.downloadToStorage(it) },
-                onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
-            )
+            if (compactMode) {
+                GridItem(
+                    packageName = update.packageName,
+                    name = update.name,
+                    version = update.version,
+                    uri = update.iconUri,
+                    source = update.source,
+                    onClick = { viewModel.install(update, uriHandler) }
+                )
+            } else {
+                SearchItem(update, compactMode, {
+                    viewModel.install(update, uriHandler)
+                }, { viewModel.cancel(update) },
+                    onDownload = { viewModel.downloadToStorage(it) },
+                    onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
+                )
+            }
         }
     }
 

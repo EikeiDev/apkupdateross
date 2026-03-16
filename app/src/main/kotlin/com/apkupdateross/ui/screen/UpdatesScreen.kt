@@ -31,6 +31,8 @@ import com.apkupdateross.data.ui.UpdatesUiState
 import androidx.compose.ui.text.font.FontWeight
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.EmptyGrid
+import com.apkupdateross.ui.component.GridItem
+import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.RefreshIcon
@@ -149,15 +151,39 @@ fun Grid(
 	viewModel: UpdatesViewModel,
 	updates: List<AppUpdate>,
 	handler: UriHandler
-) = InstalledGrid {
-	items(updates) { update ->
-		UpdateItem(
-			update,
-			{ viewModel.install(update, handler) },
-			{ viewModel.ignoreVersion(update.id)},
-			{ viewModel.cancel(update) },
-			onDownload = { viewModel.downloadToStorage(it) },
-			onOpenPage = { viewModel.openSourcePage(it, handler) }
-		)
+) {
+	val state = viewModel.state().collectAsStateWithLifecycle().value
+	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
+	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
+	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
+
+	InstalledGrid(
+		compactMode = compactMode,
+		portraitColumns = portraitColumns,
+		landscapeColumns = landscapeColumns
+	) {
+		items(updates) { update ->
+			if (compactMode) {
+				GridItem(
+					packageName = update.packageName,
+					name = update.name,
+					version = update.version,
+					uri = null,
+					source = update.source,
+					onIgnore = { viewModel.ignoreVersion(update.id) },
+					onClick = { viewModel.install(update, handler) }
+				)
+			} else {
+				UpdateItem(
+					update,
+					compactMode,
+					{ viewModel.install(update, handler) },
+					{ viewModel.ignoreVersion(update.id)},
+					{ viewModel.cancel(update) },
+					onDownload = { viewModel.downloadToStorage(it) },
+					onOpenPage = { viewModel.openSourcePage(it, handler) }
+				)
+			}
+		}
 	}
 }

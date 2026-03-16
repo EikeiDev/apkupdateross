@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flow
+import com.apkupdateross.data.ui.priority
 
 
 class UpdatesRepository(
@@ -65,14 +66,27 @@ class UpdatesRepository(
                 val activeSources = sources.size
 
                 if (sources.isNotEmpty()) {
-                    val accumulated = mutableListOf<AppUpdate>()
+                    val accumulatedMap = mutableMapOf<String, AppUpdate>()
+                    val accumulatedList = mutableListOf<AppUpdate>()
+                    val filterAndDeduplicate = prefs.ruStoreFilterThirdParty.get()
+                    
                     sources.asFlow().flattenMerge(concurrency = sources.size).collect { newUpdates ->
                         if (newUpdates.isNotEmpty()) {
-                            accumulated.addAll(newUpdates)
-                            emit(accumulated.toList())
+                            if (filterAndDeduplicate) {
+                                newUpdates.forEach { update ->
+                                    val existing = accumulatedMap[update.packageName]
+                                    if (existing == null || update.source.priority(true) > existing.source.priority(true)) {
+                                        accumulatedMap[update.packageName] = update
+                                    }
+                                }
+                                emit(accumulatedMap.values.toList())
+                            } else {
+                                accumulatedList.addAll(newUpdates)
+                                emit(accumulatedList.toList())
+                            }
                         }
                     }
-                    emit(accumulated.toList())
+                    if (filterAndDeduplicate) emit(accumulatedMap.values.toList()) else emit(accumulatedList.toList())
                 } else {
                     emit(emptyList())
                 }
@@ -88,5 +102,4 @@ class UpdatesRepository(
     }.catch {
         Log.e("UpdatesRepository", "Error getting updates", it)
     }
-
 }

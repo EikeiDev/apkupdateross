@@ -42,6 +42,9 @@ class SearchViewModel(
 
     private val state = MutableStateFlow<SearchUiState>(SearchUiState.Success(emptyList()))
     private val _filters = MutableStateFlow(loadSavedFilters())
+    val useCompactView = prefs.useCompactViewFlow
+    val portraitColumns = prefs.portraitColumnsFlow
+    val landscapeColumns = prefs.landscapeColumnsFlow
     private var job: Job? = null
     private var lastQuery: String = ""
 

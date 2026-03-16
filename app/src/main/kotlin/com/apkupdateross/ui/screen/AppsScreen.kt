@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppInstalled
@@ -38,6 +39,7 @@ import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.ExcludeAppStoreIcon
 import com.apkupdateross.ui.component.ExcludeDisabledIcon
 import com.apkupdateross.ui.component.ExcludeSystemIcon
+import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.InstalledItem
 import com.apkupdateross.ui.component.LoadingGrid
@@ -53,6 +55,10 @@ fun AppsScreen(
 	viewModel: AppsViewModel = koinViewModel()
 ) {
 	val state = viewModel.state().collectAsStateWithLifecycle().value
+	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
+	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
+	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
+	val context = LocalContext.current
 
 	val (excludeSystem, excludeAppStore, excludeDisabled) = when (state) {
 		is AppsUiState.Loading -> Triple(state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
@@ -80,9 +86,30 @@ fun AppsScreen(
 			}.onError {
 				DefaultErrorScreen()
 			}.onSuccess {
-				InstalledGrid {
+				InstalledGrid(
+					compactMode = compactMode,
+					portraitColumns = portraitColumns,
+					landscapeColumns = landscapeColumns
+				) {
 					items(it.apps) { app ->
-						InstalledItem(app) { viewModel.ignore(app.packageName) }
+						if (compactMode) {
+							GridItem(
+								packageName = app.packageName,
+								name = app.name,
+								version = app.version,
+								uri = null,
+								isIgnored = app.ignored,
+								onIgnore = { viewModel.ignore(app.packageName) },
+								onClick = {
+									val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+									if (intent != null) {
+										context.startActivity(intent)
+									}
+								}
+							)
+						} else {
+							InstalledItem(app, compactMode) { viewModel.ignore(app.packageName) }
+						}
 					}
 				}
 			}

@@ -25,6 +25,7 @@
     <string name="play_text_animations">Проигрывать анимации текста</string>
     <string name="settings_sources">Источники</string>
     <string name="settings_ui">Интерфейс</string>
+    <string name="settings_compact_view">Компактный вид</string>
     <string name="settings_alarm">Расписание автообновлений</string>
     <string name="settings_options">Настройки</string>
     <string name="settings_utils">Утилиты</string>

@@ -142,6 +142,9 @@ class SettingsViewModel(
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
     fun getTheme() = prefs.theme.get()
+	fun getUseCompactView() = prefs.useCompactView.get()
+
+	fun setUseCompactView(b: Boolean) = prefs.setUseCompactView(b)
 
     fun setTheme(theme: Int) {
         prefs.theme.put(theme)

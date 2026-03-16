@@ -27,9 +27,10 @@ data class RuStoreAppDetails(
     val minSdkVersion: Int = 0,
     val downloads: Long = 0,
     val companyName: String = "",
-    val isVerified: Boolean = false,
     val appVerUpdatedAt: String = "",
-    val whatsNew: String = ""
+    val whatsNew: String = "",
+    val publicCompanyId: String? = null,
+    val labelIds: List<Int>? = null
 )
 
 // Search response body from /applicationData/apps

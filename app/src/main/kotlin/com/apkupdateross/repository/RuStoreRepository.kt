@@ -61,8 +61,11 @@ class RuStoreRepository(
                     if (response.code == "OK" && response.body != null) {
                         clearRuStore404(app.packageName)
                         val details = response.body
-                        if (prefs.ruStoreFilterThirdParty.get() && !details.isVerified) {
-                            Log.d("RuStoreRepository", "Filtering ${app.packageName} - not a verified developer")
+                        // Check if the app is "official": either has a company name or has a verification label (ID 7)
+                        val isOfficial = details.companyName.isNotBlank() || (details.labelIds?.contains(7) == true)
+                        
+                        if (prefs.ruStoreFilterThirdParty.get() && !isOfficial) {
+                            Log.d("RuStoreRepository", "Filtering ${app.packageName} - not an official or verified developer")
                             return@runCatching null
                         }
                         if (Version(details.versionName) > Version(app.version)) {
@@ -110,8 +113,10 @@ class RuStoreRepository(
                         if (detailsResponse.code == "OK" && detailsResponse.body != null) {
                             clearRuStore404(searchApp.packageName)
                             val details = detailsResponse.body
-                            if (prefs.ruStoreFilterThirdParty.get() && !details.isVerified) {
-                                Log.d("RuStoreRepository", "Search filter ${searchApp.packageName} - not a verified developer")
+                            val isOfficial = details.companyName.isNotBlank() || (details.labelIds?.contains(7) == true)
+                            
+                            if (prefs.ruStoreFilterThirdParty.get() && !isOfficial) {
+                                Log.d("RuStoreRepository", "Search filter ${searchApp.packageName} - not an official developer")
                                 return@runCatching null
                             }
                             val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)

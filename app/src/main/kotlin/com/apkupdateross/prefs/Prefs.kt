@@ -5,6 +5,7 @@ import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.aurora.gplayapi.data.models.AuthData
 import com.kryptoprefs.context.KryptoContext
+import kotlinx.coroutines.flow.asStateFlow
 import com.kryptoprefs.gson.json
 import com.kryptoprefs.preferences.KryptoPrefs
 
@@ -56,4 +57,30 @@ class Prefs(
 	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
 	val lastSelfUpdateVersionCode = long("lastSelfUpdateVersionCode", 0L, true)
 	val customGitRepos = json("customGitRepos", emptyList<CustomGitRepo>(), true)
+	val useCompactView = boolean("useCompactView", defValue = false, backed = true)
+
+	private val _useCompactViewFlow = kotlinx.coroutines.flow.MutableStateFlow(useCompactView.get())
+	val useCompactViewFlow = _useCompactViewFlow.asStateFlow()
+
+	private val _portraitColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(portraitColumns.get())
+	val portraitColumnsFlow = _portraitColumnsFlow.asStateFlow()
+
+	private val _landscapeColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(landscapeColumns.get())
+	val landscapeColumnsFlow = _landscapeColumnsFlow.asStateFlow()
+
+	fun setUseCompactView(b: Boolean) {
+		useCompactView.put(b)
+		_useCompactViewFlow.value = b
+	}
+
+	fun setPortraitColumns(i: Int) {
+		portraitColumns.put(i)
+		_portraitColumnsFlow.value = i
+	}
+
+	fun setLandscapeColumns(i: Int) {
+		landscapeColumns.put(i)
+		_landscapeColumnsFlow.value = i
+	}
 }
+

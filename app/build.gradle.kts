@@ -17,8 +17,17 @@ android {
         applicationId = "com.apkupdateross" + System.getenv("BUILD_TAG").orEmpty()
         minSdk = 24
         targetSdk = 35
-        versionCode = 25
-        versionName = if (buildNumber.isEmpty()) "1.1.5" else "0.0.$buildNumber"
+        
+        val currentVersion = "1.1.5"
+        val versionParts = (if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber").split('.')
+        val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
+        val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0
+        val patch = versionParts.getOrNull(2)?.toIntOrNull() ?: 0
+        val extra = versionParts.getOrNull(3)?.toIntOrNull() ?: 0
+        
+        versionCode = major * 1000000 + minor * 10000 + patch * 100 + extra
+        versionName = if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber"
+        
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

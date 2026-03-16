@@ -32,7 +32,8 @@ class SessionInstaller(
 ) {
 
     companion object {
-        const val INSTALL_ACTION = "installAction"
+        const val INSTALL_ACTION = "com.apkupdateross.INSTALL_ACTION"
+        const val INSTALL_ID = "installId"
     }
 
     private val installMutex = AtomicBoolean(false)
@@ -68,12 +69,18 @@ class SessionInstaller(
                 }
             }
 
-            val intent = Intent(context, MainActivity::class.java).apply {
-                action = "$INSTALL_ACTION.$id"
+            val intent = Intent(context, InstallReceiver::class.java).apply {
+                action = INSTALL_ACTION
+                putExtra(INSTALL_ID, id)
             }
 
             installMutex.lock()
-            val pending = PendingIntent.getActivity(context, 0, intent, FLAG_MUTABLE)
+            val pending = PendingIntent.getBroadcast(
+                context, 
+                id, 
+                intent, 
+                FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
             session.commit(pending.intentSender)
             session.close()
         }

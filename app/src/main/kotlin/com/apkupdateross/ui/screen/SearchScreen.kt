@@ -13,6 +13,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -111,7 +114,7 @@ fun SearchScreenSuccess(
             } else {
                 SearchItem(grouped, compactMode, {
                     viewModel.install(it, uriHandler)
-                }, { viewModel.cancel(update) },
+                }, { viewModel.cancel(it) },
                     onDownload = { viewModel.downloadToStorage(it) },
                     onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
                 )
@@ -129,8 +132,7 @@ fun SearchScreenSuccess(
 @Composable
 fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
     title = { SearchText(viewModel) },
-    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
-    actions = { SearchFilterAction(viewModel) }
+    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor())
 )
 
 @Composable
@@ -148,13 +150,34 @@ fun SearchText(viewModel: SearchViewModel) = Box {
     OutlinedTextField(
         value = value,
         onValueChange = { value = it },
-        modifier = Modifier.fillMaxWidth().padding(0.dp).focusRequester(focusRequester),
-        label = { Text(stringResource(R.string.tab_search)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 12.dp, top = 4.dp, bottom = 4.dp)
+            .focusRequester(focusRequester),
+        placeholder = { Text(stringResource(R.string.tab_search)) },
+        leadingIcon = {
+            Icon(Icons.Default.Search, contentDescription = "Search")
+        },
+        trailingIcon = {
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { 
+                    value = ""
+                    viewModel.search("") 
+                }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                }
+            } else {
+                SearchFilterAction(viewModel)
+            }
+        },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Color.Transparent,
-            unfocusedBorderColor = Color.Transparent
+            unfocusedBorderColor = Color.Transparent,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         maxLines = 1,
         singleLine = true
@@ -181,7 +204,7 @@ private fun SearchFilterAction(viewModel: SearchViewModel) {
 
     IconButton(onClick = { showDialog = true }) {
         Icon(
-            imageVector = Icons.Filled.Add,
+            imageVector = Icons.Default.Menu,
             contentDescription = stringResource(R.string.search_filter_button)
         )
     }

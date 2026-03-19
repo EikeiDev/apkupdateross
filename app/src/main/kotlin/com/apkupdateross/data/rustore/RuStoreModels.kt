@@ -82,6 +82,7 @@ fun RuStoreAppDetails.toAppUpdate(
     iconUri = if (iconUrl.isNotEmpty()) Uri.parse(iconUrl) else Uri.EMPTY,
     link = if (downloadUrl.isNotEmpty()) Link.Url(downloadUrl) else Link.Empty,
     whatsNew = whatsNew,
+    total = fileSize,
     sourceUrl = "https://www.rustore.ru/catalog/app/$packageName",
     releaseUrl = "https://www.rustore.ru/catalog/app/$packageName"
 )

@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 35
         
-        val currentVersion = "1.1.6"
+        val currentVersion = "1.1.7"
         val versionParts = (if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber").split('.')
         val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
         val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0

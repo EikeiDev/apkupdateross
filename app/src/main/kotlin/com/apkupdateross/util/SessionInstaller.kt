@@ -38,10 +38,10 @@ class SessionInstaller(
 
     private val installMutex = AtomicBoolean(false)
 
-    suspend fun install(id: Int, packageName: String, stream: InputStream) =
-        installList(id, packageName, listOf(stream))
+    suspend fun install(id: Int, packageName: String, stream: InputStream, total: Long = 0L) =
+        installList(id, packageName, listOf(stream), total)
 
-    private suspend fun installList(id: Int, packageName: String, streams: List<InputStream>) {
+    private suspend fun installList(id: Int, packageName: String, streams: List<InputStream>, total: Long = 0L) {
         val packageInstaller: PackageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setAppPackageName(packageName)
@@ -63,7 +63,8 @@ class SessionInstaller(
         packageInstaller.openSession(sessionId).use { session ->
             streams.forEach { stream ->
                 session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
-                    bytes += stream.copyToAndNotify(output, id, installLog, bytes)
+                    val copied = stream.copyToAndNotify(output, id, installLog, total, bytes) ?: throw Exception("Cancelled")
+                    bytes += copied
                     stream.close()
                     session.fsync(output)
                 }
@@ -134,7 +135,7 @@ class SessionInstaller(
     }
 
     @Suppress("BlockingMethodInNonBlockingContext")
-    suspend fun installXapk(id: Int, packageName: String, stream: InputStream) {
+    suspend fun installXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
         val file = File(context.cacheDir, randomUUID().toString())
         stream.copyTo(file.outputStream())
 
@@ -142,29 +143,29 @@ class SessionInstaller(
         val entries = zip.entries().toList()
 
         val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-        installList(id, packageName, apks)
+        installList(id, packageName, apks, total)
 
         zip.close()
         file.delete()
     }
 
-    suspend fun playInstall(id: Int, packageName: String, streams: List<InputStream>) =
-        installList(id, packageName, streams)
+    suspend fun playInstall(id: Int, packageName: String, streams: List<InputStream>, total: Long = 0L) =
+        installList(id, packageName, streams, total)
 
     fun isShizukuAvailable(): Boolean = runCatching {
         Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
 
-    suspend fun shizukuInstall(id: Int, packageName: String, stream: InputStream) =
-        shizukuInstall(id, packageName, listOf(stream))
+    suspend fun shizukuInstall(id: Int, packageName: String, stream: InputStream, total: Long = 0L) =
+        shizukuInstall(id, packageName, listOf(stream), total)
 
-    suspend fun shizukuInstall(id: Int, packageName: String, streams: List<InputStream>) {
+    suspend fun shizukuInstall(id: Int, packageName: String, streams: List<InputStream>, total: Long = 0L) {
         if (streams.size == 1) {
             val stream = streams[0]
             val tempFile = File(context.cacheDir, "${randomUUID()}.apk")
             var bytes = 0L
             tempFile.outputStream().use { output ->
-                bytes = stream.copyToAndNotify(output, id, installLog, bytes)
+                bytes = stream.copyToAndNotify(output, id, installLog, total, 0L) ?: throw Exception("Cancelled")
                 stream.close()
             }
             try {
@@ -188,7 +189,7 @@ class SessionInstaller(
                 val tempFile = File(context.cacheDir, "${randomUUID()}_$index.apk")
                 var bytes = 0L
                 tempFile.outputStream().use { output ->
-                    bytes = stream.copyToAndNotify(output, id, installLog, totalBytes)
+                    bytes = stream.copyToAndNotify(output, id, installLog, total, totalBytes) ?: throw Exception("Cancelled")
                     totalBytes += bytes
                     stream.close()
                 }
@@ -253,13 +254,13 @@ class SessionInstaller(
     }
 
     @Suppress("BlockingMethodInNonBlockingContext")
-    suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream) {
+    suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
         val file = File(context.cacheDir, randomUUID().toString())
         stream.copyTo(file.outputStream())
         val zip = ZipFile(file)
         val entries = zip.entries().toList()
         val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-        shizukuInstall(id, packageName, apks)
+        shizukuInstall(id, packageName, apks, total)
         zip.close()
         file.delete()
     }

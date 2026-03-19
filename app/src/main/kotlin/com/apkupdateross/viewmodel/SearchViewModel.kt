@@ -1,5 +1,6 @@
 package com.apkupdateross.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.apkupdateross.R
 import com.apkupdateross.data.snack.TextSnack
@@ -11,6 +12,7 @@ import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.data.ui.indexOf
 import com.apkupdateross.data.ui.removeId
+import com.apkupdateross.data.ui.removePackageName
 import com.apkupdateross.data.ui.setIsDownloading
 import com.apkupdateross.data.ui.setIsInstalling
 import com.apkupdateross.data.ui.setProgress
@@ -27,6 +29,8 @@ import com.apkupdateross.util.Stringer
 import com.apkupdateross.util.launchWithMutex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -102,7 +106,7 @@ class SearchViewModel(
         badger.changeSearchBadge("")
         searchRepository.search(text, filters).collect { result ->
             result.onSuccess { apps ->
-                val grouped = groupResults(apps)
+                val grouped = groupResults(apps, text)
                 state.value = SearchUiState.Success(grouped)
                 badger.changeSearchBadge(grouped.size.toString())
             }.onFailure {
@@ -112,7 +116,7 @@ class SearchViewModel(
         }
     }
 
-    private fun groupResults(updates: List<AppUpdate>): List<GroupedAppUpdate> {
+    private fun groupResults(updates: List<AppUpdate>, query: String): List<GroupedAppUpdate> {
         return updates.groupBy { it.packageName }
             .map { (packageName, list) ->
                 GroupedAppUpdate(
@@ -122,52 +126,76 @@ class SearchViewModel(
                             .thenBy { it.source != PlaySource }
                     )
                 )
-            }.sortedBy { it.primary.name }
+            }.sortedWith(
+                compareByDescending<GroupedAppUpdate> { it.primary.name.equals(query, ignoreCase = true) }
+                    .thenByDescending { it.packageName.equals(query, ignoreCase = true) }
+                    .thenByDescending { it.primary.name.startsWith(query, ignoreCase = true) }
+                    .thenByDescending { it.primary.name.contains(query, ignoreCase = true) }
+                    .thenByDescending { it.packageName.contains(query, ignoreCase = true) }
+                    .thenBy { it.primary.name }
+            )
     }
 
     override fun cancelInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-        state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(id, false))
+        activeJobs.remove(id)?.cancel()
+        state.value = SearchUiState.Success(
+            state.value.mutableUpdates().setIsInstalling(id, false).toMutableList().setIsDownloading(id, false)
+        )
         cancelDownload(id)
         installer.finish()
     }
 
     override fun finishInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-        val updates = state.value.mutableUpdates().removeId(id)
+        val current = state.value.mutableUpdates()
+        val finishedUpdate = current.flatMap { it.updates }.find { it.id == id }
+        val updates = finishedUpdate?.let { current.toMutableList().removePackageName(it.packageName) } ?: current.removeId(id)
         state.value = SearchUiState.Success(updates)
         badger.changeSearchBadge(updates.size.toString())
         clearDownload(id)
         installer.finish()
     }
 
-    override fun downloadAndRootInstall(update: AppUpdate) = viewModelScope.launch(Dispatchers.IO) {
-        state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(update.id, true))
-        downloadAndRootInstall(update.id, update.link)
-    }
-
-    override fun downloadAndInstall(update: AppUpdate) = viewModelScope.launch(Dispatchers.IO) {
-        if(installer.checkPermission()) {
+    override fun downloadAndRootInstall(update: AppUpdate): Job =
+        trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
             state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(update.id, true))
-            downloadAndInstall(update.id, update.packageName, update.link)
-        }
-    }
+            downloadAndRootInstall(update.id, update.link)
+        })
 
-    override fun downloadAndShizukuInstall(update: AppUpdate) = viewModelScope.launch(Dispatchers.IO) {
-        state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(update.id, true))
-        downloadAndShizukuInstall(update.id, update.packageName, update.link)
-    }
-
-    fun downloadToStorage(update: AppUpdate) = viewModelScope.launch(Dispatchers.IO) {
-        state.value = SearchUiState.Success(state.value.mutableUpdates().setIsDownloading(update.id, true))
-        try {
-            when (val link = update.link) {
-                is Link.Url -> saveStream(update, link.link)
-                is Link.Xapk -> saveStream(update, link.link)
-                is Link.Play -> savePlayFiles(update, link)
-                else -> snackBar.snackBar(viewModelScope, TextSnack("Сохранение не поддерживается для этого источника"))
+    override fun downloadAndInstall(update: AppUpdate): Job =
+        trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
+            if(installer.checkPermission()) {
+                state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(update.id, true))
+                downloadAndInstall(update.id, update.packageName, update.link)
             }
-        } finally {
-            state.value = SearchUiState.Success(state.value.mutableUpdates().setIsDownloading(update.id, false))
-        }
+        })
+
+    override fun downloadAndShizukuInstall(update: AppUpdate): Job =
+        trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
+            state.value = SearchUiState.Success(state.value.mutableUpdates().setIsInstalling(update.id, true))
+            downloadAndShizukuInstall(update.id, update.packageName, update.link)
+        })
+
+    fun downloadToStorage(update: AppUpdate) {
+        trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
+            state.value = SearchUiState.Success(state.value.mutableUpdates().setIsDownloading(update.id, true))
+            try {
+                runCatching {
+                    when (val link = update.link) {
+                        is Link.Url -> saveStream(update, link.link)
+                        is Link.Xapk -> saveStream(update, link.link)
+                        is Link.Play -> savePlayFiles(update, link)
+                        else -> snackBar.snackBar(viewModelScope, TextSnack("Сохранение не поддерживается для этого источника"))
+                    }
+                }.onFailure {
+                    if (it !is CancellationException) {
+                        Log.e("SearchViewModel", "Error in downloadToStorage", it)
+                    }
+                }
+            } finally {
+                state.value = SearchUiState.Success(state.value.mutableUpdates().setIsDownloading(update.id, false))
+                clearDownload(update.id)
+            }
+        })
     }
 
     private suspend fun savePlayFiles(update: AppUpdate, link: Link.Play) {
@@ -189,20 +217,23 @@ class SearchViewModel(
             val pis = PipedInputStream(pos)
             
             viewModelScope.launch(Dispatchers.IO) {
-                ZipOutputStream(pos).use { zos ->
-                    var currentOffset = 0L
-                    files.forEach { file: com.aurora.gplayapi.data.models.File ->
-                        zos.putNextEntry(ZipEntry(file.name))
-                        downloader.downloadStream(update.id, file.url)?.use { input: java.io.InputStream ->
-                            input.copyToAndNotify(zos, update.id, installLog, totalSize, currentOffset)
+                runCatching {
+                    ZipOutputStream(pos).use { zos ->
+                        var currentOffset = 0L
+                        for (file in files) {
+                            if (!isActive) break
+                            zos.putNextEntry(ZipEntry(file.name))
+                            downloader.downloadStream(update.id, file.url)?.use { input ->
+                                input.copyToAndNotify(zos, update.id, installLog, totalSize, currentOffset) ?: throw Exception("Cancelled")
+                            }
+                            zos.closeEntry()
+                            currentOffset += file.size
                         }
-                        zos.closeEntry()
-                        currentOffset += file.size
                     }
                 }
             }
             val fileName = "${update.name}_${update.version}.apks"
-            if (downloadStorage.save(fileName, "application/octet-stream", pis, update.id)) {
+            if (downloadStorage.save(fileName, "application/octet-stream", pis, update.id, null, totalSize)) {
                 snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
             } else {
                 snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
@@ -219,7 +250,7 @@ class SearchViewModel(
         }
     }
 
-    private fun saveStream(update: AppUpdate, url: String) {
+    private suspend fun saveStream(update: AppUpdate, url: String) {
         val result = downloader.downloadWithSize(update.id, url)
         if (result == null) {
             snackBar.snackBar(viewModelScope, TextSnack("Не удалось скачать файл"))
@@ -228,11 +259,16 @@ class SearchViewModel(
         val ext = if (url.lowercase().contains(".xapk")) "xapk" else "apk"
         val mime = if (ext == "xapk") "application/vnd.android.xapk" else "application/vnd.android.package-archive"
         val fileName = "${update.packageName}-${update.version}.$ext"
-        val ok = downloadStorage.save(fileName, mime, result.stream, update.id, installLog, result.contentLength)
-        snackBar.snackBar(
-            viewModelScope,
-            if (ok) TextSnack(stringer.get(R.string.download_success, fileName)) else TextSnack(stringer.get(R.string.download_failure, fileName))
-        )
+        val ok = runCatching { downloadStorage.save(fileName, mime, result.stream, update.id, installLog, result.contentLength) }.getOrElse { false }
+        if (ok) {
+            snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
+        } else {
+            // Check if cancelled
+            val current = (state.value as? SearchUiState.Success)?.updates?.find { it.packageName == update.packageName }?.updates?.find { it.id == update.id }
+            if (current?.isDownloading == true) {
+                 snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
+            }
+        }
     }
 
 }

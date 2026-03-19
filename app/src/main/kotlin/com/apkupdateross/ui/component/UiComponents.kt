@@ -23,6 +23,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import kotlin.math.roundToInt
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -78,18 +79,20 @@ fun CommonItem(
     Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
         LargeTitle(name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName })
         MediumText(packageName)
+        
         if (oldVersion != null && !single) {
             ScrollableText {
-                MediumText("$oldVersion -> $version")
+                MediumText("$oldVersion -> ${version.ifBlank { "?" }}")
             }
-        } else {
+        } else if (version.isNotBlank()) {
             MediumText(version)
         }
-        val code = if (versionCode == 0L) "?" else versionCode.toString()
+        
         if (oldVersionCode != null && !single) {
+            val code = if (versionCode == 0L) "?" else versionCode.toString()
             MediumText("$oldVersionCode -> $code")
-        } else {
-            MediumText(code)
+        } else if (versionCode > 0L) {
+            MediumText(versionCode.toString())
         }
     }
 }
@@ -98,10 +101,11 @@ fun CommonItem(
 fun InstallButton(
     app: AppUpdate,
     onInstall: (String) -> Unit,
-    onCancel: () -> Unit = {}
+    onCancel: (AppUpdate) -> Unit = {}
 ) = androidx.compose.material3.FilledTonalIconButton(
     modifier = Modifier,
-    onClick = { if (app.isInstalling) onCancel() else onInstall(app.packageName) }
+    onClick = { if (app.isInstalling) onCancel(app) else onInstall(app.packageName) },
+    enabled = !app.isDownloading
 ) {
     if (app.isInstalling) {
         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
@@ -217,13 +221,13 @@ fun UpdateItem(
     compactMode: Boolean = false,
     onInstall: (AppUpdate) -> Unit = {},
     onIgnoreVersion: (Int) -> Unit,
-    onCancel: () -> Unit = {},
+    onCancel: (AppUpdate) -> Unit = {},
     onDownload: (AppUpdate) -> Unit = {},
     onOpenPage: (AppUpdate) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
     var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
-    val app = activeUpdate
+    val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -243,7 +247,7 @@ fun UpdateItem(
                         contentDescription = "Expand"
                     )
                 }
-                InstallButton(app, { onInstall(app) }, onCancel)
+                if (!app.isPaid) InstallButton(app, { onInstall(app) }, { onCancel(app) })
             }
             
             // Expanded content
@@ -269,8 +273,8 @@ fun UpdateItem(
                                 )
                             }
                             FilledTonalIconButton(
-                                onClick = { onDownload(app) },
-                                enabled = !app.isInstalling && !app.isDownloading && canDownload
+                                onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
+                                enabled = canDownload && !app.isInstalling && !app.isPaid
                             ) {
                                 if (app.isDownloading) {
                                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -297,27 +301,27 @@ fun UpdateItem(
 
             // Progress bar (always visible if installing)
             val currentProgress = grouped.updates.firstOrNull { it.isInstalling || it.isDownloading } ?: activeUpdate
-            if ((currentProgress.isInstalling || currentProgress.isDownloading) && currentProgress.total > 0L) {
+            if (currentProgress.isInstalling || currentProgress.isDownloading) {
                 Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
-                    val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
-                    val percent = (fraction * 100).toInt()
-
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        LinearProgressIndicator(
-                            progress = { fraction },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            SmallText("$percent%")
+                        if (currentProgress.total > 0L) {
+                            val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
+                            val percent = (fraction * 100).roundToInt()
+                            LinearProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                SmallText("$percent%")
+                            }
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                            )
                         }
                     }
                 }
@@ -331,13 +335,13 @@ fun SearchItem(
     grouped: GroupedAppUpdate,
     compactMode: Boolean = false,
     onInstall: (AppUpdate) -> Unit = {},
-    onCancel: () -> Unit = {},
+    onCancel: (AppUpdate) -> Unit = {},
     onDownload: (AppUpdate) -> Unit = {},
     onOpenPage: (AppUpdate) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
     var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
-    val app = activeUpdate
+    val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -357,7 +361,7 @@ fun SearchItem(
                         contentDescription = "Expand"
                     )
                 }
-                InstallButton(app, { onInstall(app) }, onCancel)
+                if (!app.isPaid) InstallButton(app, { onInstall(app) }, { onCancel(app) })
             }
             
             // Expanded content
@@ -381,8 +385,8 @@ fun SearchItem(
                                 )
                             }
                             FilledTonalIconButton(
-                                onClick = { onDownload(app) },
-                                enabled = !app.isInstalling && !app.isDownloading && canDownload
+                                onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
+                                enabled = canDownload && !app.isInstalling && !app.isPaid
                             ) {
                                 if (app.isDownloading) {
                                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -409,27 +413,27 @@ fun SearchItem(
 
             // Progress bar (always visible if installing)
             val currentProgress = grouped.updates.firstOrNull { it.isInstalling || it.isDownloading } ?: activeUpdate
-            if ((currentProgress.isInstalling || currentProgress.isDownloading) && currentProgress.total > 0L) {
+            if (currentProgress.isInstalling || currentProgress.isDownloading) {
                 Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
-                    val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
-                    val percent = (fraction * 100).toInt()
-
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        LinearProgressIndicator(
-                            progress = { fraction },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            SmallText("$percent%")
+                        if (currentProgress.total > 0L) {
+                            val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
+                            val percent = (fraction * 100).roundToInt()
+                            LinearProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                SmallText("$percent%")
+                            }
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                            )
                         }
                     }
                 }

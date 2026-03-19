@@ -21,6 +21,7 @@ import com.apkupdateross.util.Stringer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import java.util.concurrent.ConcurrentHashMap
 
 
 abstract class InstallViewModel(
@@ -32,6 +33,14 @@ abstract class InstallViewModel(
     protected val installLog: InstallLog,
     protected val downloadStorage: DownloadStorage
 ): ViewModel() {
+    protected val activeJobs = ConcurrentHashMap<Int, Job>()
+
+    protected fun trackJob(id: Int, job: Job): Job {
+        activeJobs[id]?.cancel()
+        activeJobs[id] = job
+        job.invokeOnCompletion { activeJobs.remove(id, job) }
+        return job
+    }
 
     fun install(update: AppUpdate, uriHandler: UriHandler) {
         when (update.source) {
@@ -45,14 +54,18 @@ abstract class InstallViewModel(
     }
 
     protected fun subscribeToInstallStatus(updates: List<AppUpdate>) = installLog.status().onEach {
-        sendInstallSnack(updates, it)
-        if (it.success) {
-            finishInstall(it.id).join()
-        } else {
-            installLog.emitProgress(AppInstallProgress(it.id, 0L))
-            cancelInstall(it.id).join()
+        runCatching {
+            sendInstallSnack(updates, it)
+            if (it.success) {
+                finishInstall(it.id).join()
+            } else {
+                installLog.emitProgress(AppInstallProgress(it.id, 0L))
+                cancelInstall(it.id).join()
+            }
+            downloader.cleanup()
+        }.onFailure {
+            Log.e("InstallViewModel", "Error in subscribeToInstallStatus", it)
         }
-        downloader.cleanup()
     }.launchIn(viewModelScope)
 
     protected fun subscribeToInstallProgress(
@@ -100,21 +113,23 @@ abstract class InstallViewModel(
             Link.Empty -> Log.e("InstallViewModel", "downloadAndShizukuInstall: Unsupported.")
             is Link.Play -> {
                 val files = link.getInstallFiles()
-                installLog.emitProgress(AppInstallProgress(id, 0L, files.sumOf { it.size }))
-                installer.shizukuInstall(id, packageName, files.map { downloader.downloadStream(id, it.url)!! })
+                val total = files.sumOf { it.size }
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                val streams = files.map { downloader.downloadStream(id, it.url) ?: throw Exception("Failed to open stream for ${it.name}") }
+                installer.shizukuInstall(id, packageName, streams, total)
                 finishInstall(id)
             }
             is Link.Url -> {
                 val result = downloader.downloadWithSize(id, link.link)!!
                 val total = if (link.size > 0) link.size else result.contentLength
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                installer.shizukuInstall(id, packageName, result.stream)
+                installer.shizukuInstall(id, packageName, result.stream, total)
                 finishInstall(id)
             }
             is Link.Xapk -> {
                 val result = downloader.downloadWithSize(id, link.link)!!
                 installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
-                installer.shizukuInstallXapk(id, packageName, result.stream)
+                installer.shizukuInstallXapk(id, packageName, result.stream, result.contentLength)
                 finishInstall(id)
             }
         }
@@ -130,19 +145,21 @@ abstract class InstallViewModel(
             Link.Empty -> { Log.e("InstallViewModel", "downloadAndInstall: Unsupported.")}
             is Link.Play -> {
                 val files = link.getInstallFiles()
-                installLog.emitProgress(AppInstallProgress(id, 0L, files.sumOf { it.size }))
-                installer.playInstall(id, packageName, files.map { downloader.downloadStream(id, it.url)!! })
+                val total = files.sumOf { it.size }
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                val streams = files.map { downloader.downloadStream(id, it.url) ?: throw Exception("Failed to open stream for ${it.name}") }
+                installer.playInstall(id, packageName, streams, total)
             }
             is Link.Url -> {
                 val result = downloader.downloadWithSize(id, link.link)!!
                 val total = if (link.size > 0) link.size else result.contentLength
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                installer.install(id, packageName, result.stream)
+                installer.install(id, packageName, result.stream, total)
             }
             is Link.Xapk -> {
                 val result = downloader.downloadWithSize(id, link.link)!!
                 installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
-                installer.installXapk(id, packageName, result.stream)
+                installer.installXapk(id, packageName, result.stream, result.contentLength)
             }
         }
     }.getOrElse {

@@ -66,18 +66,23 @@ class ApkMirrorRepository(
         a.removeAt(0)
         img.removeAt(0)
         val result = (0 until a.size).map {
-            val detailsLink = h5[it].selectFirst("a")?.attr("href")
+            val detailsLink = h5[it].selectFirst("a")?.attr("href") ?: ""
+            val pseudoPackage = if (detailsLink.isNotBlank()) {
+                detailsLink.trim('/').replace('/', '.')
+            } else {
+                a[it].text() + "_" + it
+            }
             AppUpdate(
                 name = h5[it].attr("title"),
-                link = Link.Url("$baseUrl${h5[it].selectFirst("a")?.attr("href")}"),
+                link = Link.Empty,
                 iconUri = Uri.parse("$baseUrl${img[it].attr("src")}".replace("=32", "=128")),
-                version = "?",
-                oldVersion = "?",
+                version = "",
+                oldVersion = "",
                 versionCode = 0L,
                 oldVersionCode = 0L,
                 source = ApkMirrorSource,
-                packageName = a[it].text(),
-                sourceUrl = detailsLink?.let { d -> if (d.startsWith("http")) d else "$baseUrl$d" }.orEmpty()
+                packageName = pseudoPackage,
+                sourceUrl = if (detailsLink.startsWith("http")) detailsLink else "$baseUrl$detailsLink"
             )
         }
         emit(Result.success(result))

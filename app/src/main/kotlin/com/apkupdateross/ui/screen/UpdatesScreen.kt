@@ -243,7 +243,7 @@ fun Grid(
 					compactMode,
 					{ viewModel.install(it, handler) },
 					{ viewModel.ignoreVersion(it)},
-					{ viewModel.cancel(update) },
+					{ viewModel.cancel(it) },
 					onDownload = { viewModel.downloadToStorage(it) },
 					onOpenPage = { viewModel.openSourcePage(it, handler) }
 				)

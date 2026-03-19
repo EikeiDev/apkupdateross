@@ -7,6 +7,7 @@ import okhttp3.Request
 import java.io.File
 import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentSkipListSet
 
 
 class Downloader(
@@ -19,8 +20,13 @@ class Downloader(
     data class DownloadResult(val stream: InputStream, val contentLength: Long)
 
     private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
+    private val cancelledIds = ConcurrentSkipListSet<Int>()
 
     private fun registerCall(id: Int, call: Call): Call {
+        if (cancelledIds.contains(id)) {
+            call.cancel()
+            return call
+        }
         calls.compute(id) { _, list ->
             (list ?: mutableListOf()).apply { add(call) }
         }
@@ -74,12 +80,14 @@ class Downloader(
     }
 
     fun cancel(id: Int) = runCatching {
+        cancelledIds.add(id)
         calls.remove(id)?.forEach { call ->
             runCatching { call.cancel() }
         }
     }
 
     fun clear(id: Int) {
+        cancelledIds.remove(id)
         calls.remove(id)
     }
 

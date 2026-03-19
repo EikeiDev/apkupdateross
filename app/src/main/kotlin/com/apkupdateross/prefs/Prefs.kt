@@ -59,6 +59,9 @@ class Prefs(
 	val customGitRepos = json("customGitRepos", emptyList<CustomGitRepo>(), true)
 	val useCompactView = boolean("useCompactView", defValue = false, backed = true)
 
+	private val _ignoredVersionsFlow = kotlinx.coroutines.flow.MutableStateFlow(ignoredVersions.get())
+	val ignoredVersionsFlow = _ignoredVersionsFlow.asStateFlow()
+
 	private val _useCompactViewFlow = kotlinx.coroutines.flow.MutableStateFlow(useCompactView.get())
 	val useCompactViewFlow = _useCompactViewFlow.asStateFlow()
 
@@ -81,6 +84,11 @@ class Prefs(
 	fun setLandscapeColumns(i: Int) {
 		landscapeColumns.put(i)
 		_landscapeColumnsFlow.value = i
+	}
+
+	fun setIgnoredVersions(list: List<Int>) {
+		ignoredVersions.put(list)
+		_ignoredVersionsFlow.value = list
 	}
 }
 

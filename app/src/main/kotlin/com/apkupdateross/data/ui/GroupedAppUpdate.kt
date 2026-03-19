@@ -24,7 +24,12 @@ fun MutableList<GroupedAppUpdate>.setIsInstalling(id: Int, b: Boolean): List<Gro
         val updatedList = grouped.updates.toMutableList()
         val subIndex = updatedList.indexOfFirst { it.id == id }
         if (subIndex != -1) {
-            updatedList[subIndex] = updatedList[subIndex].copy(isInstalling = b)
+            val current = updatedList[subIndex]
+            updatedList[subIndex] = current.copy(
+                isInstalling = b,
+                progress = if (b) 0L else current.progress,
+                total = if (b) 0L else current.total
+            )
             this[index] = grouped.copy(updates = updatedList)
         }
     }
@@ -38,7 +43,12 @@ fun MutableList<GroupedAppUpdate>.setIsDownloading(id: Int, b: Boolean): List<Gr
         val updatedList = grouped.updates.toMutableList()
         val subIndex = updatedList.indexOfFirst { it.id == id }
         if (subIndex != -1) {
-            updatedList[subIndex] = updatedList[subIndex].copy(isDownloading = b)
+            val current = updatedList[subIndex]
+            updatedList[subIndex] = current.copy(
+                isDownloading = b,
+                progress = if (b) 0L else current.progress,
+                total = if (b) 0L else current.total
+            )
             this[index] = grouped.copy(updates = updatedList)
         }
     }
@@ -60,6 +70,11 @@ fun MutableList<GroupedAppUpdate>.removeId(id: Int): List<GroupedAppUpdate> {
             }
         }
     }
+    return this
+}
+
+fun MutableList<GroupedAppUpdate>.removePackageName(packageName: String): List<GroupedAppUpdate> {
+    this.removeAll { it.packageName == packageName }
     return this
 }
 

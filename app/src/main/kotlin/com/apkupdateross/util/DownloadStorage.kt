@@ -12,10 +12,13 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.isActive
+import kotlin.coroutines.coroutineContext
 
 class DownloadStorage(private val context: Context) {
 
-    fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean {
+    suspend fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveScoped(fileName, mimeType, inputStream, id, installLog, total, offset)
         } else {
@@ -23,7 +26,7 @@ class DownloadStorage(private val context: Context) {
         }
     }
 
-    private fun saveScoped(fileName: String, mimeType: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
+    private suspend fun saveScoped(fileName: String, mimeType: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
         val resolver = context.contentResolver
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
@@ -37,11 +40,7 @@ class DownloadStorage(private val context: Context) {
         return runCatching {
             resolver.openOutputStream(uri)?.use { output ->
                 inputStream.use { input ->
-                    if (installLog != null) {
-                        input.copyToAndNotify(output, id, installLog, total, offset)
-                    } else {
-                        input.copyTo(output)
-                    }
+                    if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
                 }
             } ?: return false
             contentValues.clear()
@@ -50,48 +49,51 @@ class DownloadStorage(private val context: Context) {
             true
         }.getOrElse {
             resolver.delete(uri, null, null)
+            if (it is CancellationException) throw it
             false
         }
     }
 
-    private fun saveLegacy(fileName: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
+    private suspend fun saveLegacy(fileName: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
         val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val targetDir = File(downloads, "APKUpdaterOSS").apply { if (!exists()) mkdirs() }
         val targetFile = File(targetDir, fileName)
         return try {
             FileOutputStream(targetFile).use { output ->
                 inputStream.use { input ->
-                    if (installLog != null) {
-                        input.copyToAndNotify(output, id, installLog, total, offset)
-                    } else {
-                        input.copyTo(output)
-                    }
+                    if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
                 }
             }
             true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (targetFile.exists()) targetFile.delete()
             false
         }
     }
 
 }
 
-fun InputStream.copyToAndNotify(
+suspend fun InputStream.copyToAndNotify(
     out: OutputStream,
     id: Int,
-    installLog: InstallLog,
-    total: Long,
+    installLog: InstallLog? = null,
+    total: Long = 0L,
     offset: Long = 0L,
     bufferSize: Int = DEFAULT_BUFFER_SIZE
-): Long {
+): Long? {
     var bytesCopied: Long = 0
     val buffer = ByteArray(bufferSize)
     var bytes = read(buffer)
     while (bytes >= 0) {
+        if (!coroutineContext.isActive) return null
         out.write(buffer, 0, bytes)
         bytesCopied += bytes
-        installLog.emitProgress(AppInstallProgress(id, offset + bytesCopied, total))
+        installLog?.emitProgress(AppInstallProgress(id, offset + bytesCopied, total))
         bytes = read(buffer)
+    }
+    if (coroutineContext.isActive && total > 0L) {
+        installLog?.emitProgress(AppInstallProgress(id, total, total))
     }
     return bytesCopied
 }

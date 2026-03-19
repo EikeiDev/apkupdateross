@@ -4,7 +4,7 @@ package com.apkupdateross.data.ui
 sealed class SearchUiState {
     data object Loading: SearchUiState()
     data object Error : SearchUiState()
-    data class Success(val updates: List<AppUpdate>): SearchUiState()
+    data class Success(val updates: List<GroupedAppUpdate>): SearchUiState()
 
     inline fun onLoading(block: (Loading) -> Unit): SearchUiState {
         if (this is Loading) block(this)
@@ -21,14 +21,14 @@ sealed class SearchUiState {
         return this
     }
 
-    fun mutableUpdates(): MutableList<AppUpdate> {
+    fun mutableUpdates(): MutableList<GroupedAppUpdate> {
         if (this is Success) {
             return updates.toMutableList()
         }
         return mutableListOf()
     }
 
-    fun updates(): List<AppUpdate> {
+    fun updates(): List<GroupedAppUpdate> {
         if (this is Success) {
             return updates
         }

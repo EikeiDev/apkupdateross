@@ -114,8 +114,11 @@
     <string name="self_update_button_later">Later</string>
     <string name="self_update_button_update">Update now</string>
     <string name="updates_empty">All apps are up to date</string>
+    <string name="filter_updates">Search updates…</string>
     <string name="download">Download</string>
     <string name="open">Open</string>
+    <string name="download_success">Saved to Download/APKUpdaterOSS: %1$s</string>
+    <string name="download_failure">Failed to save %1$s</string>
 
     // Notifications
     <string name="notification_channel_name">Updates</string>

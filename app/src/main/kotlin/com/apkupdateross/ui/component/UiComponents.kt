@@ -44,8 +44,11 @@ import com.apkupdateross.R
 import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.PlaySource
 import com.apkupdateross.data.ui.ApkPureSource
+import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.GroupedAppUpdate
+import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.Source
 import com.apkupdateross.util.getAppName
 import com.apkupdateross.util.to2f
@@ -210,15 +213,17 @@ fun IgnoreVersionButton(
 
 @Composable
 fun UpdateItem(
-    app: AppUpdate,
+    grouped: GroupedAppUpdate,
     compactMode: Boolean = false,
-    onInstall: (String) -> Unit = {},
+    onInstall: (AppUpdate) -> Unit = {},
     onIgnoreVersion: (Int) -> Unit,
     onCancel: () -> Unit = {},
     onDownload: (AppUpdate) -> Unit = {},
     onOpenPage: (AppUpdate) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
+    val app = activeUpdate
 
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -238,7 +243,7 @@ fun UpdateItem(
                         contentDescription = "Expand"
                     )
                 }
-                InstallButton(app, onInstall, onCancel)
+                InstallButton(app, { onInstall(app) }, onCancel)
             }
             
             // Expanded content
@@ -249,10 +254,10 @@ fun UpdateItem(
                     WhatsNew(app.whatsNew, app.source)
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IgnoreVersionButton(app, onIgnoreVersion, Modifier.padding(end = 12.dp))
-                        
-                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Play && app.link !is com.apkupdateross.data.ui.Link.Empty
-                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Empty
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IgnoreVersionButton(app, onIgnoreVersion)
+                            
                             FilledTonalIconButton(
                                 onClick = { onOpenPage(app) },
                                 enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
@@ -265,24 +270,36 @@ fun UpdateItem(
                             }
                             FilledTonalIconButton(
                                 onClick = { onDownload(app) },
-                                enabled = canDownload
+                                enabled = !app.isInstalling && !app.isDownloading && canDownload
                             ) {
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
-                                    contentDescription = stringResource(R.string.download),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                if (app.isDownloading) {
+                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(
+                                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                                        contentDescription = stringResource(R.string.download),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
-                        SourceIcon(app.source, Modifier.size(32.dp))
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        if (grouped.updates.size > 1) {
+                            SourceSelector(grouped.updates, activeUpdate, { activeUpdate = it })
+                        } else {
+                            SourceIcon(app.source, Modifier.size(32.dp))
+                        }
                     }
                 }
             }
 
             // Progress bar (always visible if installing)
-            if (app.isInstalling && app.total > 0L && app.progress > 0L) {
+            val currentProgress = grouped.updates.firstOrNull { it.isInstalling || it.isDownloading } ?: activeUpdate
+            if ((currentProgress.isInstalling || currentProgress.isDownloading) && currentProgress.total > 0L) {
                 Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
-                    val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
+                    val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
                     val percent = (fraction * 100).toInt()
 
                     Column(
@@ -311,14 +328,16 @@ fun UpdateItem(
 
 @Composable
 fun SearchItem(
-    app: AppUpdate,
+    grouped: GroupedAppUpdate,
     compactMode: Boolean = false,
-    onInstall: (String) -> Unit = {},
+    onInstall: (AppUpdate) -> Unit = {},
     onCancel: () -> Unit = {},
     onDownload: (AppUpdate) -> Unit = {},
     onOpenPage: (AppUpdate) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
+    val app = activeUpdate
 
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -338,7 +357,7 @@ fun SearchItem(
                         contentDescription = "Expand"
                     )
                 }
-                InstallButton(app, onInstall, onCancel)
+                InstallButton(app, { onInstall(app) }, onCancel)
             }
             
             // Expanded content
@@ -349,8 +368,8 @@ fun SearchItem(
                     WhatsNew(app.whatsNew, app.source)
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Play && app.link !is com.apkupdateross.data.ui.Link.Empty
-                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Empty
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             FilledTonalIconButton(
                                 onClick = { onOpenPage(app) },
                                 enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
@@ -363,24 +382,36 @@ fun SearchItem(
                             }
                             FilledTonalIconButton(
                                 onClick = { onDownload(app) },
-                                enabled = canDownload
+                                enabled = !app.isInstalling && !app.isDownloading && canDownload
                             ) {
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
-                                    contentDescription = stringResource(R.string.download),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                if (app.isDownloading) {
+                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(
+                                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                                        contentDescription = stringResource(R.string.download),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
-                        SourceIcon(app.source, Modifier.size(32.dp))
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        if (grouped.updates.size > 1) {
+                            SourceSelector(grouped.updates, activeUpdate, { activeUpdate = it })
+                        } else {
+                            SourceIcon(app.source, Modifier.size(32.dp))
+                        }
                     }
                 }
             }
 
             // Progress bar (always visible if installing)
-            if (app.isInstalling && app.total > 0L && app.progress > 0L) {
+            val currentProgress = grouped.updates.firstOrNull { it.isInstalling || it.isDownloading } ?: activeUpdate
+            if ((currentProgress.isInstalling || currentProgress.isDownloading) && currentProgress.total > 0L) {
                 Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
-                    val fraction = (app.progress.toFloat() / app.total.toFloat()).coerceIn(0f, 1f)
+                    val fraction = (currentProgress.progress.toFloat() / currentProgress.total.toFloat()).coerceIn(0f, 1f)
                     val percent = (fraction * 100).toInt()
 
                     Column(
@@ -401,6 +432,30 @@ fun SearchItem(
                             SmallText("$percent%")
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SourceSelector(
+    updates: List<AppUpdate>,
+    selected: AppUpdate,
+    onSelect: (AppUpdate) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        updates.forEach { update ->
+            val isSelected = update.id == selected.id
+            androidx.compose.material3.Surface(
+                onClick = { onSelect(update) },
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    SourceIcon(update.source, Modifier.size(24.dp))
                 }
             }
         }

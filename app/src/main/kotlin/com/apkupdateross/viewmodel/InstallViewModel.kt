@@ -29,7 +29,7 @@ abstract class InstallViewModel(
     private val prefs: Prefs,
     protected val snackBar: SnackBar,
     protected val stringer: Stringer,
-    private val installLog: InstallLog,
+    protected val installLog: InstallLog,
     protected val downloadStorage: DownloadStorage
 ): ViewModel() {
 

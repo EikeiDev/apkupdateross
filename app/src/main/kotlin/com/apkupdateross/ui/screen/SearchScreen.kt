@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.grid.items
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.R
+import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.ui.component.DefaultErrorScreen
@@ -95,7 +97,8 @@ fun SearchScreenSuccess(
         portraitColumns = portraitColumns,
         landscapeColumns = landscapeColumns
     ) {
-        items(updates) { update ->
+        items(updates) { grouped ->
+            val update = grouped.primary
             if (compactMode) {
                 GridItem(
                     packageName = update.packageName,
@@ -106,8 +109,8 @@ fun SearchScreenSuccess(
                     onClick = { viewModel.install(update, uriHandler) }
                 )
             } else {
-                SearchItem(update, compactMode, {
-                    viewModel.install(update, uriHandler)
+                SearchItem(grouped, compactMode, {
+                    viewModel.install(it, uriHandler)
                 }, { viewModel.cancel(update) },
                     onDownload = { viewModel.downloadToStorage(it) },
                     onOpenPage = { viewModel.openSourcePage(it, uriHandler) }

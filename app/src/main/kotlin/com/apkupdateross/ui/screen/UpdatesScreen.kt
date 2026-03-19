@@ -23,12 +23,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.UpdatesUiState
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.EmptyGrid
 import com.apkupdateross.ui.component.GridItem
@@ -44,13 +59,13 @@ import com.apkupdateross.viewmodel.UpdatesViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
-	val state = viewModel.state().collectAsStateWithLifecycle().value
+	val state by viewModel.state.collectAsStateWithLifecycle()
 	val isRefreshing = viewModel.isRefreshing().collectAsStateWithLifecycle().value
 	val selfUpdate = viewModel.selfUpdate().collectAsStateWithLifecycle().value
 	val uriHandler = LocalUriHandler.current
 
 	LaunchedEffect(Unit) {
-		if (viewModel.state().value is UpdatesUiState.Loading) viewModel.refresh()
+		if (state is UpdatesUiState.Loading) viewModel.refresh()
 	}
 
 	Column {
@@ -134,25 +149,73 @@ private fun SelfUpdateDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UpdatesTopBar(viewModel: UpdatesViewModel) = TopAppBar(
-	title = {
-		Text(stringResource(R.string.tab_updates), style = MaterialTheme.typography.titleLarge)
-	},
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
-	actions = {
-		IconButton(onClick = { viewModel.refresh() }) {
-			RefreshIcon(stringResource(R.string.refresh_updates))
+fun UpdatesTopBar(viewModel: UpdatesViewModel) {
+	var isSearchMode by rememberSaveable { mutableStateOf(false) }
+	val query by viewModel.filterQuery().collectAsStateWithLifecycle()
+	val focusRequester = remember { FocusRequester() }
+
+	TopAppBar(
+		navigationIcon = {
+			if (isSearchMode) {
+				IconButton(onClick = {
+					isSearchMode = false
+					viewModel.setFilterQuery("")
+				}) {
+					Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+				}
+			}
+		},
+		title = {
+			if (isSearchMode) {
+				OutlinedTextField(
+					value = query,
+					onValueChange = { viewModel.setFilterQuery(it) },
+					modifier = Modifier
+						.fillMaxWidth()
+						.padding(0.dp)
+						.focusRequester(focusRequester),
+					placeholder = { Text(stringResource(R.string.filter_updates)) },
+					colors = OutlinedTextFieldDefaults.colors(
+						focusedBorderColor = Color.Transparent,
+						unfocusedBorderColor = Color.Transparent
+					),
+					maxLines = 1,
+					singleLine = true,
+					trailingIcon = {
+						if (query.isNotEmpty()) {
+							IconButton(onClick = { viewModel.setFilterQuery("") }) {
+								Icon(Icons.Default.Close, contentDescription = "Clear")
+							}
+						}
+					}
+				)
+				LaunchedEffect(Unit) {
+					focusRequester.requestFocus()
+				}
+			} else {
+				Text(stringResource(R.string.tab_updates), style = MaterialTheme.typography.titleLarge)
+			}
+		},
+		colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+		actions = {
+			if (!isSearchMode) {
+				IconButton(onClick = { isSearchMode = true }) {
+					Icon(Icons.Default.Search, contentDescription = "Search")
+				}
+			}
+			IconButton(onClick = { viewModel.refresh() }) {
+				RefreshIcon(stringResource(R.string.refresh_updates))
+			}
 		}
-	}
-)
+	)
+}
 
 @Composable
 fun Grid(
 	viewModel: UpdatesViewModel,
-	updates: List<AppUpdate>,
+	updates: List<GroupedAppUpdate>,
 	handler: UriHandler
 ) {
-	val state = viewModel.state().collectAsStateWithLifecycle().value
 	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
 	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
 	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
@@ -162,7 +225,8 @@ fun Grid(
 		portraitColumns = portraitColumns,
 		landscapeColumns = landscapeColumns
 	) {
-		items(updates) { update ->
+		items(updates) { grouped ->
+			val update = grouped.primary
 			if (compactMode) {
 				GridItem(
 					packageName = update.packageName,
@@ -175,10 +239,10 @@ fun Grid(
 				)
 			} else {
 				UpdateItem(
-					update,
+					grouped,
 					compactMode,
-					{ viewModel.install(update, handler) },
-					{ viewModel.ignoreVersion(update.id)},
+					{ viewModel.install(it, handler) },
+					{ viewModel.ignoreVersion(it)},
 					{ viewModel.cancel(update) },
 					onDownload = { viewModel.downloadToStorage(it) },
 					onOpenPage = { viewModel.openSourcePage(it, handler) }

@@ -265,21 +265,3 @@ class SessionInstaller(
     }
 
 }
-
-fun InputStream.copyToAndNotify(out: OutputStream, id: Int, installLog: InstallLog, total: Long, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long {
-    var bytesCopied: Long = 0
-    var lastEmitted: Long = 0
-    val buffer = ByteArray(bufferSize)
-    var bytes = read(buffer)
-    while (bytes >= 0) {
-        out.write(buffer, 0, bytes)
-        bytesCopied += bytes
-        if (bytesCopied - lastEmitted >= 65536) {
-            installLog.emitProgress(AppInstallProgress(id, progress = total + bytesCopied))
-            lastEmitted = bytesCopied
-        }
-        bytes = read(buffer)
-    }
-    installLog.emitProgress(AppInstallProgress(id, progress = total + bytesCopied))
-    return bytesCopied
-}

@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 35
         
-        val currentVersion = "1.1.5"
+        val currentVersion = "1.1.6"
         val versionParts = (if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber").split('.')
         val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
         val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -99,7 +99,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.9")
     implementation("androidx.navigation:navigation-runtime-ktx:2.8.9")
-    implementation("androidx.tv:tv-foundation:1.0.0-alpha10")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs-gson:0.4.3")
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs:0.4.3")

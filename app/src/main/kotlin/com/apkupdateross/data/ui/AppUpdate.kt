@@ -16,6 +16,7 @@ data class AppUpdate(
 	val releaseUrl: String = "",
 	val whatsNew: String = "",
 	val isInstalling: Boolean = false,
+	val isDownloading: Boolean = false,
 	val total: Long = 0L,
 	val progress: Long = 0L,
 	val id: Int = "${source.name}.$packageName.$versionCode.$version".hashCode()
@@ -27,6 +28,14 @@ fun MutableList<AppUpdate>.setIsInstalling(id: Int, b: Boolean): List<AppUpdate>
 	val index = this.indexOf(id)
 	if (index != -1) {
 		this[index] = this[index].copy(isInstalling = b)
+	}
+	return this
+}
+
+fun MutableList<AppUpdate>.setIsDownloading(id: Int, b: Boolean): List<AppUpdate> {
+	val index = this.indexOf(id)
+	if (index != -1) {
+		this[index] = this[index].copy(isDownloading = b)
 	}
 	return this
 }

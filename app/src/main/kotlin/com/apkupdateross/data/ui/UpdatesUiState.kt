@@ -4,7 +4,7 @@ package com.apkupdateross.data.ui
 sealed class UpdatesUiState {
 	data object Loading: UpdatesUiState()
 	data object Error : UpdatesUiState()
-	data class Success(val updates: List<AppUpdate>): UpdatesUiState()
+	data class Success(val updates: List<GroupedAppUpdate>): UpdatesUiState()
 
 	inline fun onLoading(block: (Loading) -> Unit): UpdatesUiState {
 		if (this is Loading) block(this)
@@ -21,14 +21,14 @@ sealed class UpdatesUiState {
 		return this
 	}
 
-	fun mutableUpdates(): MutableList<AppUpdate> {
+	fun mutableUpdates(): MutableList<GroupedAppUpdate> {
 		if (this is Success) {
 			return updates.toMutableList()
 		}
 		return mutableListOf()
 	}
 
-	fun updates(): List<AppUpdate> {
+	fun updates(): List<GroupedAppUpdate> {
 		if (this is Success) {
 			return updates
 		}

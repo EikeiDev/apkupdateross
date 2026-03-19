@@ -82,9 +82,10 @@
     <string name="settings_custom_repo_save">Сохранить</string>
     <string name="settings_custom_repo_empty">Пока нет пользовательских репозиториев.</string>
     <string name="settings_custom_repo_error_required">Заполните поля: пользователь, репозиторий и имя пакета.</string>
+	<string name="filter_updates">Поиск обновлений…</string>
     <string name="search_no_results">По вашему запросу ничего не найдено.</string>
     <string name="search_filter_dialog_title">Фильтр источников</string>
-    <string name="search_filter_button">Выбрать источник</string>
+    <string name="search_filter_button">Фильтр источников</string>
     <string name="search_filter_hint">Выберите хотя бы один источник или используйте кнопку «Все источники», чтобы переключить всё сразу.</string>
     <string name="search_filter_toggle_all">Все источники</string>
     <string name="search_filter_apply">Применить</string>
@@ -116,6 +117,8 @@
     <string name="updates_empty">Все приложения в актуальном состоянии</string>
     <string name="download">Скачать</string>
     <string name="open">Открыть</string>
+    <string name="download_success">Сохранено в Download/APKUpdaterOSS: %1$s</string>
+    <string name="download_failure">Ошибка сохранения %1$s</string>
 
     // Notifications
     <string name="notification_channel_name">Обновления</string>

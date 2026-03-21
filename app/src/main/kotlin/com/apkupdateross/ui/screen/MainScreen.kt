@@ -129,8 +129,8 @@ fun intentListener(
 	updatesViewModel: UpdatesViewModel,
 	navController: NavController,
 	launcher: ManagedActivityResultLauncher<Intent, ActivityResult>
-) = runCatching {
-	val activity = LocalContext.current as ComponentActivity
+) {
+	val activity = LocalContext.current as? ComponentActivity ?: return
 	DisposableEffect(Unit) {
 		val listener = Consumer<Intent> {
 			mainViewModel.processIntent(it, launcher, updatesViewModel, navController)
@@ -138,8 +138,6 @@ fun intentListener(
 		activity.addOnNewIntentListener(listener)
 		onDispose { activity.removeOnNewIntentListener(listener) }
 	}
-}.getOrElse {
-	Log.e("MainScreen", "Error listening to intent.", it)
 }
 
 @Composable
@@ -148,11 +146,11 @@ fun checkNotificationIntent(
 	updatesViewModel: UpdatesViewModel,
 	navController: NavController,
 	launcher: ManagedActivityResultLauncher<Intent, ActivityResult>
-) = runCatching {
-	val activity = LocalContext.current as ComponentActivity
-	mainViewModel.processIntent(activity.intent, launcher, updatesViewModel, navController)
-}.getOrElse {
-	Log.e("MainScreen", "Error checking notification intent.", it)
+) {
+	val activity = LocalContext.current as? ComponentActivity ?: return
+	LaunchedEffect(activity.intent) {
+		mainViewModel.processIntent(activity.intent, launcher, updatesViewModel, navController)
+	}
 }
 
 @Composable

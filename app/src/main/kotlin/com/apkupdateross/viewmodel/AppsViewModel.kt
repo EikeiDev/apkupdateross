@@ -12,6 +12,7 @@ import com.apkupdateross.util.launchWithMutex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 
 class AppsViewModel(
@@ -26,12 +27,11 @@ class AppsViewModel(
 	val useCompactView = prefs.useCompactViewFlow
 	val portraitColumns = prefs.portraitColumnsFlow
 	val landscapeColumns = prefs.landscapeColumnsFlow
-	private val state = MutableStateFlow<AppsUiState>(buildLoadingState())
-
-	fun state(): StateFlow<AppsUiState> = state
+	private val _state = MutableStateFlow<AppsUiState>(buildLoadingState())
+	val state: StateFlow<AppsUiState> = _state.asStateFlow()
 
 	fun refresh(load: Boolean = true) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-		if (load) state.value = buildLoadingState()
+		if (load) _state.value = buildLoadingState()
 		badger.changeAppsBadge("")
 		repository.getApps().collect {
 			it.onSuccess { apps ->
@@ -39,7 +39,7 @@ class AppsViewModel(
 				updateState()
 				badger.changeAppsBadge(apps.size.toString())
 			}.onFailure { ex ->
-				state.value = AppsUiState.Error
+				_state.value = AppsUiState.Error
 				badger.changeAppsBadge("!")
 				Log.e("InstalledViewModel", "Error getting apps.", ex)
 			}
@@ -62,7 +62,7 @@ class AppsViewModel(
 			}
 		}
 
-		state.value = AppsUiState.Success(
+		_state.value = AppsUiState.Success(
 			filteredApps,
 			prefs.excludeSystem.get(),
 			prefs.excludeStore.get(),

@@ -12,7 +12,7 @@ import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.UpdatesNotification
 import com.apkupdateross.util.millisUntilHour
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.lastOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import retrofit2.HttpException
@@ -59,9 +59,13 @@ class UpdatesWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            val updates = updatesRepository.updates().firstOrNull() ?: emptyList()
-            if (updates.isNotEmpty()) {
-                notification.showUpdateNotification(updates.size)
+            val rawUpdates = updatesRepository.updates().lastOrNull() ?: emptyList()
+            val ignoredIds = prefs.ignoredVersions.get()
+            val filteredUpdates = rawUpdates.filter { !ignoredIds.contains(it.id) }
+            val uniqueUpdatesCount = filteredUpdates.distinctBy { it.packageName }.size
+            
+            if (uniqueUpdatesCount > 0) {
+                notification.showUpdateNotification(uniqueUpdatesCount)
             }
             Result.success()
         } catch (e: Exception) {

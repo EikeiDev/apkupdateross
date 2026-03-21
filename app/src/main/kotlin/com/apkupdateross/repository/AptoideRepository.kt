@@ -92,11 +92,10 @@ class AptoideRepository(
                 "${getGlEs(context)}&myCPU=${getAbis()}&leanback=${hasLeanback(context)}" +
                 "&myDensity=${getDensityDpi()}"
 
-        return Base64.encodeToString(filters.toByteArray(), 0)
-            .replace("=", "")
-            .replace("/", "*")
-            .replace("+", "_")
-            .replace("\n", "")
+        return Base64.encodeToString(
+            filters.toByteArray(),
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
     }
 
     private fun getSdkVer() = Build.VERSION.SDK_INT

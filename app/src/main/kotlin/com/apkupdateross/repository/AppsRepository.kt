@@ -59,8 +59,13 @@ class AppsRepository(
 		}
 	}
 
-	// Checks if Play Store or Amazon Store
-	private fun isAppStore(name: String?) = name?.contains("com.android.vending").orFalse()
-		|| name?.contains("com.amazon").orFalse()
+	private fun isAppStore(name: String?) = name?.let { n ->
+		n.contains("com.android.vending") ||
+		n.contains("com.amazon.venezia") ||
+		n.contains("com.huawei.appmarket") ||
+		n.contains("com.xiaomi.mipicks") ||
+		n.contains("com.sec.android.app.samsungapps") ||
+		n.contains("ru.vk.store")
+	}.orFalse()
 
 }

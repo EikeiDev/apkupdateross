@@ -3,6 +3,7 @@ package com.apkupdateross.util
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
+import com.apkupdateross.util.SessionInstaller
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -112,20 +113,28 @@ fun millisUntilHour(hour: Int): Long {
 }
 
 suspend fun AtomicBoolean.lock() {
-	while (get()) yield()
-	set(true)
+	while (!compareAndSet(false, true)) yield()
 }
 
 fun AtomicBoolean.unlock() = set(false)
 
 fun Intent.getIntentExtra(): Intent? = when {
-	Build.VERSION.SDK_INT > 33 -> getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+	Build.VERSION.SDK_INT >= 33 -> getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
 	else -> @Suppress("DEPRECATION") getParcelableExtra(Intent.EXTRA_INTENT)
 }
 
-fun Intent.getAppId() = runCatching {
-	action?.split(".")?.get(1)?.toInt()
-}.getOrNull()
+fun Intent.getAppId() = getIntExtra(SessionInstaller.INSTALL_ID, -1).takeIf { it != -1 }
+	?: runCatching { action?.substringAfterLast(".")?.toIntOrNull() }.getOrNull()
+
+fun String.versionCodeFromTag(): Long {
+	val clean = this.removePrefix("v").trim().filter { it.isDigit() || it == '.' }
+	val parts = clean.split('.')
+	val major = parts.getOrNull(0)?.toLongOrNull() ?: 0L
+	val minor = parts.getOrNull(1)?.toLongOrNull() ?: 0L
+	val patch = parts.getOrNull(2)?.toLongOrNull() ?: 0L
+	val extra = parts.getOrNull(3)?.toLongOrNull() ?: 0L
+	return major * 1000000L + minor * 10000L + patch * 100L + extra
+}
 
 fun randomUUID() = UUID.randomUUID().toString()
 
@@ -159,3 +168,5 @@ fun filterVersionTag(version: String) = version
 fun Float.to2f() = String
 	.format("%.2f", this)
 	.replace('.', DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator)
+
+fun Long.formatSize(context: Context): String = android.text.format.Formatter.formatShortFileSize(context, this)

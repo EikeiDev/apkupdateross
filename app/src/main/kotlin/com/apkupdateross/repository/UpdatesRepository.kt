@@ -66,27 +66,15 @@ class UpdatesRepository(
                 val activeSources = sources.size
 
                 if (sources.isNotEmpty()) {
-                    val accumulatedMap = mutableMapOf<String, AppUpdate>()
                     val accumulatedList = mutableListOf<AppUpdate>()
-                    val filterAndDeduplicate = prefs.ruStoreFilterThirdParty.get()
                     
                     sources.asFlow().flattenMerge(concurrency = sources.size).collect { newUpdates ->
                         if (newUpdates.isNotEmpty()) {
-                            if (filterAndDeduplicate) {
-                                newUpdates.forEach { update ->
-                                    val existing = accumulatedMap[update.packageName]
-                                    if (existing == null || update.source.priority(true) > existing.source.priority(true)) {
-                                        accumulatedMap[update.packageName] = update
-                                    }
-                                }
-                                emit(accumulatedMap.values.toList())
-                            } else {
-                                accumulatedList.addAll(newUpdates)
-                                emit(accumulatedList.toList())
-                            }
+                            accumulatedList.addAll(newUpdates)
+                            emit(accumulatedList.toList())
                         }
                     }
-                    if (filterAndDeduplicate) emit(accumulatedMap.values.toList()) else emit(accumulatedList.toList())
+                    emit(accumulatedList.toList())
                 } else {
                     emit(emptyList())
                 }

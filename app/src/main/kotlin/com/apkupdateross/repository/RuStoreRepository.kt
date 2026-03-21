@@ -35,7 +35,7 @@ class RuStoreRepository(
         private const val DELAY_STEP_MS = 150L
         private const val MAX_RATE_LIMIT_RETRIES = 1
         private const val RATE_LIMIT_COOLDOWN_MS = 60_000L
-        private const val RUSTORE_404_TTL_MS = 7 * 24 * 60 * 60 * 1000L
+        private const val RUSTORE_404_TTL_MS = 48 * 60 * 60 * 1000L
     }
 
     @Volatile
@@ -61,13 +61,6 @@ class RuStoreRepository(
                     if (response.code == "OK" && response.body != null) {
                         clearRuStore404(app.packageName)
                         val details = response.body
-                        // Check if the app is "official": either has a company name or has a verification label (ID 7)
-                        val isOfficial = details.companyName.isNotBlank() || (details.labelIds?.contains(7) == true)
-                        
-                        if (prefs.ruStoreFilterThirdParty.get() && !isOfficial) {
-                            Log.d("RuStoreRepository", "Filtering ${app.packageName} - not an official or verified developer")
-                            return@runCatching null
-                        }
                         if (Version(details.versionName) > Version(app.version)) {
                             val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
                             details.toAppUpdate(app, downloadUrl)
@@ -105,7 +98,7 @@ class RuStoreRepository(
                     Log.d("RuStoreRepository", "Skipping ${it.packageName} in search due to cached 404")
                 }
                 ignore
-            }) { searchApp, markRateLimit ->
+            }.take(10)) { searchApp, markRateLimit ->
                 retryOnRateLimit {
                     var hitRateLimit = false
                     val result = runCatching {
@@ -113,12 +106,6 @@ class RuStoreRepository(
                         if (detailsResponse.code == "OK" && detailsResponse.body != null) {
                             clearRuStore404(searchApp.packageName)
                             val details = detailsResponse.body
-                            val isOfficial = details.companyName.isNotBlank() || (details.labelIds?.contains(7) == true)
-                            
-                            if (prefs.ruStoreFilterThirdParty.get() && !isOfficial) {
-                                Log.d("RuStoreRepository", "Search filter ${searchApp.packageName} - not an official developer")
-                                return@runCatching null
-                            }
                             val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
                             details.toAppUpdate(null, downloadUrl)
                         } else null
@@ -297,6 +284,7 @@ class RuStoreRepository(
         }
     }
 
+    @Synchronized
     private fun updateRuStore404Packages(transform: (List<RuStore404Entry>) -> List<RuStore404Entry>) {
         val current = prefs.ruStore404Packages.get()
         val updated = transform(current)

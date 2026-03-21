@@ -13,85 +13,58 @@ data class GroupedAppUpdate(
     val progress: Long get() = updates.firstOrNull { it.isDownloading || it.isInstalling }?.progress ?: primary.progress
 }
 
-fun MutableList<GroupedAppUpdate>.indexOf(id: Int): Int {
+fun List<GroupedAppUpdate>.indexOf(id: Int): Int {
     return indexOfFirst { grouped -> grouped.updates.any { it.id == id } }
 }
 
-fun MutableList<GroupedAppUpdate>.setIsInstalling(id: Int, b: Boolean): List<GroupedAppUpdate> {
-    val index = this.indexOf(id)
-    if (index != -1) {
-        val grouped = this[index]
+fun List<GroupedAppUpdate>.setIsInstalling(id: Int, b: Boolean): List<GroupedAppUpdate> = map { grouped ->
+    val subIndex = grouped.updates.indexOfFirst { it.id == id }
+    if (subIndex != -1) {
         val updatedList = grouped.updates.toMutableList()
-        val subIndex = updatedList.indexOfFirst { it.id == id }
-        if (subIndex != -1) {
-            val current = updatedList[subIndex]
-            updatedList[subIndex] = current.copy(
-                isInstalling = b,
-                progress = if (b) 0L else current.progress,
-                total = if (b) 0L else current.total
-            )
-            this[index] = grouped.copy(updates = updatedList)
-        }
-    }
-    return this
+        val current = updatedList[subIndex]
+        updatedList[subIndex] = current.copy(
+            isInstalling = b,
+            progress = if (b) 0L else current.progress,
+            total = if (b) 0L else current.total
+        )
+        grouped.copy(updates = updatedList)
+    } else grouped
 }
 
-fun MutableList<GroupedAppUpdate>.setIsDownloading(id: Int, b: Boolean): List<GroupedAppUpdate> {
-    val index = this.indexOf(id)
-    if (index != -1) {
-        val grouped = this[index]
+fun List<GroupedAppUpdate>.setIsDownloading(id: Int, b: Boolean): List<GroupedAppUpdate> = map { grouped ->
+    val subIndex = grouped.updates.indexOfFirst { it.id == id }
+    if (subIndex != -1) {
         val updatedList = grouped.updates.toMutableList()
-        val subIndex = updatedList.indexOfFirst { it.id == id }
-        if (subIndex != -1) {
-            val current = updatedList[subIndex]
-            updatedList[subIndex] = current.copy(
-                isDownloading = b,
-                progress = if (b) 0L else current.progress,
-                total = if (b) 0L else current.total
-            )
-            this[index] = grouped.copy(updates = updatedList)
-        }
-    }
-    return this
+        val current = updatedList[subIndex]
+        updatedList[subIndex] = current.copy(
+            isDownloading = b,
+            progress = if (b) 0L else current.progress,
+            total = if (b) 0L else current.total
+        )
+        grouped.copy(updates = updatedList)
+    } else grouped
 }
 
-fun MutableList<GroupedAppUpdate>.removeId(id: Int): List<GroupedAppUpdate> {
-    val index = this.indexOf(id)
-    if (index != -1) {
-        val grouped = this[index]
+fun List<GroupedAppUpdate>.removeId(id: Int): List<GroupedAppUpdate> = mapNotNull { grouped ->
+    val subIndex = grouped.updates.indexOfFirst { it.id == id }
+    if (subIndex != -1) {
         val updatedList = grouped.updates.toMutableList()
-        val subIndex = updatedList.indexOfFirst { it.id == id }
-        if (subIndex != -1) {
-            updatedList.removeAt(subIndex)
-            if (updatedList.isEmpty()) {
-                this.removeAt(index)
-            } else {
-                this[index] = grouped.copy(updates = updatedList)
-            }
-        }
-    }
-    return this
+        updatedList.removeAt(subIndex)
+        if (updatedList.isEmpty()) null else grouped.copy(updates = updatedList)
+    } else grouped
 }
 
-fun MutableList<GroupedAppUpdate>.removePackageName(packageName: String): List<GroupedAppUpdate> {
-    this.removeAll { it.packageName == packageName }
-    return this
-}
+fun List<GroupedAppUpdate>.removePackageName(packageName: String): List<GroupedAppUpdate> = filter { it.packageName != packageName }
 
-fun MutableList<GroupedAppUpdate>.setProgress(progress: com.apkupdateross.data.ui.AppInstallProgress): List<GroupedAppUpdate> {
-    val index = this.indexOf(progress.id)
-    if (index != -1) {
-        val grouped = this[index]
+fun List<GroupedAppUpdate>.setProgress(progress: com.apkupdateross.data.ui.AppInstallProgress): List<GroupedAppUpdate> = map { grouped ->
+    val subIndex = grouped.updates.indexOfFirst { it.id == progress.id }
+    if (subIndex != -1) {
         val updatedList = grouped.updates.toMutableList()
-        val subIndex = updatedList.indexOfFirst { it.id == progress.id }
-        if (subIndex != -1) {
-            val current = updatedList[subIndex]
-            updatedList[subIndex] = current.copy(
-                progress = progress.progress ?: current.progress,
-                total = progress.total ?: current.total
-            )
-            this[index] = grouped.copy(updates = updatedList)
-        }
-    }
-    return this
+        val current = updatedList[subIndex]
+        updatedList[subIndex] = current.copy(
+            progress = progress.progress ?: current.progress,
+            total = progress.total ?: current.total
+        )
+        grouped.copy(updates = updatedList)
+    } else grouped
 }

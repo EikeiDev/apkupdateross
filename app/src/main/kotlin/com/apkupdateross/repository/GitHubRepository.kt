@@ -21,6 +21,7 @@ import com.apkupdateross.service.GitHubService
 import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
+import com.apkupdateross.util.versionCodeFromTag
 import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -88,13 +89,15 @@ class GitHubRepository(
         val assetUrl = release?.let { findApkAsset(it.assets) }?.takeIf { it.isNotEmpty() }
 
         if (release != null && assetUrl != null) {
-            val versionName = release.versionNameOrTag()
-            val versionCode = release.versionCodeFromTag()
+            val raw = release.tag_name.takeIf { it.isNotBlank() } ?: release.name
+            val versionName = raw.removePrefix("v").trim()
+            val versionCode = raw.versionCodeFromTag()
             val remoteVersion = Version(versionName)
             val localVersion = Version(BuildConfig.VERSION_NAME)
             val isNewer = remoteVersion > localVersion
             if (isNewer) {
-                val sourceUrl = "https://github.com/${service.getReleases().firstOrNull()?.author?.login ?: "EikeiDev"}/apkupdateross"
+                val author = release.author?.login ?: "EikeiDev"
+                val sourceUrl = "https://github.com/$author/apkupdateross"
                 emit(listOf(AppUpdate(
                     name = "APKUpdater",
                     packageName = BuildConfig.APPLICATION_ID,
@@ -148,7 +151,7 @@ class GitHubRepository(
                 packageName = packageName,
                 version = releases[0].tag_name,
                 oldVersion = app?.version ?: "?",
-                versionCode = 0L,
+                versionCode = releases[0].tag_name.takeIf { it.isNotBlank() }?.versionCodeFromTag() ?: releases[0].name.versionCodeFromTag(),
                 oldVersionCode = app?.versionCode ?: 0L,
                 source = GitHubSource,
                 link = findApkAssetArch(releases[0].assets, extra).let { Link.Url(it.browser_download_url, it.size) },
@@ -169,21 +172,6 @@ class GitHubRepository(
         }
         emit(emptyList())
         Log.e("GitHubRepository", "Error fetching releases for $packageName.", e)
-    }
-
-    private fun GitHubRelease.versionNameOrTag(): String {
-        val raw = tag_name.takeIf { it.isNotBlank() } ?: name
-        return raw.removePrefix("v").trim()
-    }
-
-    private fun GitHubRelease.versionCodeFromTag(): Long {
-        val clean = versionNameOrTag()
-        val parts = clean.split('.', '-', '_')
-        val major = parts.getOrNull(0)?.toLongOrNull() ?: 0L
-        val minor = parts.getOrNull(1)?.toLongOrNull() ?: 0L
-        val patch = parts.getOrNull(2)?.toLongOrNull() ?: 0L
-        val extra = parts.getOrNull(3)?.toLongOrNull() ?: 0L
-        return major * 1000000L + minor * 10000L + patch * 100L + extra
     }
 
     private fun filterPreRelease(release: GitHubRelease) = when {

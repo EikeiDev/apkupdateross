@@ -60,8 +60,8 @@ import com.apkupdateross.viewmodel.UpdatesViewModel
 @Composable
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
 	val state by viewModel.state.collectAsStateWithLifecycle()
-	val isRefreshing = viewModel.isRefreshing().collectAsStateWithLifecycle().value
-	val selfUpdate = viewModel.selfUpdate().collectAsStateWithLifecycle().value
+	val isRefreshing = viewModel.isRefreshing.collectAsStateWithLifecycle().value
+	val selfUpdate = viewModel.selfUpdate.collectAsStateWithLifecycle().value
 	val uriHandler = LocalUriHandler.current
 
 	LaunchedEffect(Unit) {
@@ -151,7 +151,7 @@ private fun SelfUpdateDialog(
 @Composable
 fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 	var isSearchMode by rememberSaveable { mutableStateOf(false) }
-	val query by viewModel.filterQuery().collectAsStateWithLifecycle()
+	val query by viewModel.filterQuery.collectAsStateWithLifecycle()
 	val focusRequester = remember { FocusRequester() }
 
 	TopAppBar(

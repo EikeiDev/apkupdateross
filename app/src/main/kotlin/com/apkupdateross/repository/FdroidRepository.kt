@@ -114,7 +114,8 @@ class FdroidRepository(
         var entry = jar.nextJarEntry
         while (entry != null) {
             if (entry.name == "index-v1.json") {
-                return Gson().fromJson(jar.reader(), FdroidData::class.java)
+                val reader = com.google.gson.stream.JsonReader(jar.reader())
+                return Gson().fromJson(reader, FdroidData::class.java)
             }
             entry = jar.nextJarEntry
         }

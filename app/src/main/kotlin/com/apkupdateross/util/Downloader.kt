@@ -8,6 +8,8 @@ import java.io.File
 import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 
 class Downloader(
@@ -34,16 +36,18 @@ class Downloader(
     }
 
     fun download(id: Int, url: String): File {
-        val file = File(dir, randomUUID())
+        val file = File(dir, "cache_${id}_${randomUUID()}")
         val c = when {
             url.contains("apkpure") -> apkPureClient
             url.contains("aurora") -> auroraClient
             else -> client
         }
         val call = registerCall(id, c.newCall(downloadRequest(url)))
-        call.execute().use {
-            if (it.isSuccessful) {
-                it.body?.byteStream()?.copyTo(file.outputStream())
+        call.execute().use { response ->
+            if (response.isSuccessful) {
+                file.outputStream().use { os ->
+                    response.body?.byteStream()?.copyTo(os)
+                }
             }
         }
         return file
@@ -75,8 +79,12 @@ class Downloader(
 
     private fun downloadRequest(url: String) = Request.Builder().url(url).build()
 
-    fun cleanup() = runCatching {
-        dir.listFiles()?.forEach { it.delete() }
+    fun cleanup(id: Int? = null) = runCatching {
+        if (id == null) {
+            dir.listFiles()?.forEach { it.delete() }
+        } else {
+             dir.listFiles()?.filter { it.name.startsWith("cache_${id}_") }?.forEach { it.delete() }
+        }
     }
 
     fun cancel(id: Int) = runCatching {
@@ -84,11 +92,19 @@ class Downloader(
         calls.remove(id)?.forEach { call ->
             runCatching { call.cancel() }
         }
+        cleanup(id)
+        // Auto-remove from cancelledIds after 5 seconds to prevent memory leak
+        // and allow future re-downloads of the same ID.
+        kotlinx.coroutines.GlobalScope.launch {
+            kotlinx.coroutines.delay(5000)
+            cancelledIds.remove(id)
+        }
     }
 
     fun clear(id: Int) {
         cancelledIds.remove(id)
         calls.remove(id)
+        cleanup(id)
     }
 
 }

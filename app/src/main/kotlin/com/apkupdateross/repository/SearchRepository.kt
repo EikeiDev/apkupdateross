@@ -41,23 +41,8 @@ class SearchRepository(
         if (sources.isNotEmpty()) {
             sources.combine { results ->
                 val apps = results.filter { it.isSuccess }.mapNotNull { it.getOrNull() }.flatten()
-                val filterAndDeduplicate = prefs.ruStoreFilterThirdParty.get()
                 
-                val finalApps = if (filterAndDeduplicate) {
-                    val accumulatedMap = mutableMapOf<String, AppUpdate>()
-                    apps.forEach { app ->
-                        val existing = accumulatedMap[app.packageName]
-                        // If multiple sources found the same app, prioritize based on score
-                        if (existing == null || app.source.priority(true) > existing.source.priority(true)) {
-                            accumulatedMap[app.packageName] = app
-                        }
-                    }
-                    accumulatedMap.values.toList()
-                } else {
-                    apps
-                }
-                
-                val sortedResult = finalApps.sortedWith(
+                val sortedResult = apps.sortedWith(
                     compareBy<AppUpdate> {
                         !it.name.startsWith(text, ignoreCase = true)
                     }.thenBy {

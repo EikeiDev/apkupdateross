@@ -136,8 +136,7 @@ class SettingsViewModel(
 	fun setGithubToken(token: String) = prefs.githubToken.put(token.trim())
 	fun getGitlabToken() = prefs.gitlabToken.get()
 	fun setGitlabToken(token: String) = prefs.gitlabToken.put(token.trim())
-	fun getRuStoreFilterThirdParty() = prefs.ruStoreFilterThirdParty.get()
-	fun setRuStoreFilterThirdParty(b: Boolean) = prefs.ruStoreFilterThirdParty.put(b)
+
 	fun getInstallMode() = prefs.installMode.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()

@@ -46,7 +46,7 @@ class SessionInstaller(
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setAppPackageName(packageName)
 
-        if (Build.VERSION.SDK_INT > 24) {
+        if (Build.VERSION.SDK_INT >= 24) {
             params.setOriginatingUid(android.os.Process.myUid())
         }
 
@@ -62,12 +62,16 @@ class SessionInstaller(
         var bytes = 0L
         packageInstaller.openSession(sessionId).use { session ->
             streams.forEach { stream ->
-                session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
-                    val copied = stream.copyToAndNotify(output, id, installLog, total, bytes) ?: throw Exception("Cancelled")
-                    bytes += copied
-                    stream.close()
-                    session.fsync(output)
+                stream.use { input ->
+                    session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
+                        val copied = input.copyToAndNotify(output, id, installLog, total, bytes) ?: throw Exception("Cancelled")
+                        bytes += copied
+                        session.fsync(output)
+                    }
                 }
+            }
+            if (total > 0) {
+                installLog.emitProgress(AppInstallProgress(id, total, total))
             }
 
             val intent = Intent(context, InstallReceiver::class.java).apply {
@@ -76,14 +80,18 @@ class SessionInstaller(
             }
 
             installMutex.lock()
-            val pending = PendingIntent.getBroadcast(
-                context, 
-                id, 
-                intent, 
-                FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            session.commit(pending.intentSender)
-            session.close()
+            try {
+                val pending = PendingIntent.getBroadcast(
+                    context, 
+                    id, 
+                    intent, 
+                    FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                session.commit(pending.intentSender)
+            } catch (e: Exception) {
+                installMutex.unlock()
+                throw e
+            }
         }
     }
 
@@ -94,29 +102,29 @@ class SessionInstaller(
     }
 
     fun rootInstallXapk(file: File): Boolean {
-        val zip = ZipFile(file)
-        val apks = zip.entries().toList().filter { it.name.contains(".apk") }
-        val result = if (apks.size == 1) {
-            val tempApk = File(file.parentFile, "${randomUUID()}.apk")
-            zip.getInputStream(apks[0]).use { it.copyTo(tempApk.outputStream()) }
-            val res = Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
-            tempApk.delete()
-            res
-        } else {
-            val createResult = Shell.cmd("pm install-create -r -d").exec()
-            val sessionId = Regex("\\[(\\d+)]").find(createResult.out.joinToString(""))?.groupValues?.get(1)
-                ?: run { zip.close(); file.delete(); return false }
-            apks.forEachIndexed { index, entry ->
-                val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
-                zip.getInputStream(entry).use { it.copyTo(tempApk.outputStream()) }
-                Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
+        return ZipFile(file).use { zip ->
+            val apks = zip.entries().toList().filter { it.name.contains(".apk") }
+            val result = if (apks.size == 1) {
+                val tempApk = File(file.parentFile, "${randomUUID()}.apk")
+                zip.getInputStream(apks[0]).use { it.copyTo(tempApk.outputStream()) }
+                val res = Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
                 tempApk.delete()
+                res
+            } else {
+                val createResult = Shell.cmd("pm install-create -r -d").exec()
+                val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out.joinToString(""))?.groupValues?.get(1)
+                    ?: run { file.delete(); return false }
+                apks.forEachIndexed { index, entry ->
+                    val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
+                    zip.getInputStream(entry).use { it.copyTo(tempApk.outputStream()) }
+                    Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
+                    tempApk.delete()
+                }
+                Shell.cmd("pm install-commit $sessionId").exec().isSuccess
             }
-            Shell.cmd("pm install-commit $sessionId").exec().isSuccess
+            file.delete()
+            result
         }
-        zip.close()
-        file.delete()
-        return result
     }
 
     fun finish() = installMutex.unlock()
@@ -139,13 +147,12 @@ class SessionInstaller(
         val file = File(context.cacheDir, randomUUID().toString())
         stream.copyTo(file.outputStream())
 
-        val zip = ZipFile(file)
-        val entries = zip.entries().toList()
+        ZipFile(file).use { zip ->
+            val entries = zip.entries().toList()
+            val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
+            installList(id, packageName, apks, total)
+        }
 
-        val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-        installList(id, packageName, apks, total)
-
-        zip.close()
         file.delete()
     }
 
@@ -165,8 +172,12 @@ class SessionInstaller(
             val tempFile = File(context.cacheDir, "${randomUUID()}.apk")
             var bytes = 0L
             tempFile.outputStream().use { output ->
-                bytes = stream.copyToAndNotify(output, id, installLog, total, 0L) ?: throw Exception("Cancelled")
-                stream.close()
+                stream.use { input ->
+                    bytes = input.copyToAndNotify(output, id, installLog, total, 0L) ?: throw Exception("Cancelled")
+                    if (total > 0) {
+                        installLog.emitProgress(AppInstallProgress(id, total, total))
+                    }
+                }
             }
             try {
                 val result = shizukuExec("pm install -r -d -S $bytes", tempFile)
@@ -181,7 +192,7 @@ class SessionInstaller(
             }
         } else {
             val createResult = shizukuExec("pm install-create -r -d")
-            val sessionId = Regex("\\[(\\d+)]").find(createResult.out)?.groupValues?.get(1)
+            val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out)?.groupValues?.get(1)
                 ?: throw Exception("Failed to create install session: ${createResult.out}")
 
             var totalBytes = 0L
@@ -189,9 +200,10 @@ class SessionInstaller(
                 val tempFile = File(context.cacheDir, "${randomUUID()}_$index.apk")
                 var bytes = 0L
                 tempFile.outputStream().use { output ->
-                    bytes = stream.copyToAndNotify(output, id, installLog, total, totalBytes) ?: throw Exception("Cancelled")
-                    totalBytes += bytes
-                    stream.close()
+                    stream.use { input ->
+                        bytes = input.copyToAndNotify(output, id, installLog, total, totalBytes) ?: throw Exception("Cancelled")
+                        totalBytes += bytes
+                    }
                 }
                 try {
                     val result = shizukuExec("pm install-write -S $bytes $sessionId $index", tempFile)
@@ -202,6 +214,9 @@ class SessionInstaller(
                 } finally {
                     tempFile.delete()
                 }
+            }
+            if (total > 0) {
+                installLog.emitProgress(AppInstallProgress(id, total, total))
             }
 
             val commitResult = shizukuExec("pm install-commit $sessionId")
@@ -257,11 +272,11 @@ class SessionInstaller(
     suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
         val file = File(context.cacheDir, randomUUID().toString())
         stream.copyTo(file.outputStream())
-        val zip = ZipFile(file)
-        val entries = zip.entries().toList()
-        val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-        shizukuInstall(id, packageName, apks, total)
-        zip.close()
+        ZipFile(file).use { zip ->
+            val entries = zip.entries().toList()
+            val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
+            shizukuInstall(id, packageName, apks, total)
+        }
         file.delete()
     }
 

@@ -23,6 +23,8 @@ import com.apkupdateross.util.orFalse
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
 private const val USER_AGENT = "APKUpdater-v3.0.3"
@@ -53,29 +55,36 @@ class ApkMirrorRepository(
     suspend fun search(text: String) = flow {
         val baseUrl = "https://www.apkmirror.com"
         val searchQuery = "/?post_type=app_release&searchtype=app&s="
-        val doc = Jsoup
-            .connect("$baseUrl$searchQuery$text")
-            .userAgent(USER_AGENT)
-            .referrer(baseUrl)
-            .timeout(15000)
-            .get()
+        val doc = withContext(Dispatchers.IO) {
+            Jsoup
+                .connect("$baseUrl$searchQuery$text")
+                .userAgent(USER_AGENT)
+                .referrer(baseUrl)
+                .timeout(15000)
+                .get()
+        }
         val row = doc.select("div.appRow")
-        val a = row.select("a.byDeveloper")
-        val h5 = row.select("h5.appRowTitle").take(a.size)
-        val img = row.select("img")
-        a.removeAt(0)
-        img.removeAt(0)
-        val result = (0 until a.size).map {
-            val detailsLink = h5[it].selectFirst("a")?.attr("href") ?: ""
+        val aLinks = row.select("a.byDeveloper")
+        val titles = row.select("h5.appRowTitle")
+        val images = row.select("img")
+        
+        val count = minOf(aLinks.size, titles.size, images.size)
+        if (count <= 1 || aLinks.isEmpty() || titles.isEmpty() || images.isEmpty()) {
+             emit(Result.success(emptyList()))
+             return@flow
+        }
+
+        val result = (1 until count).map { i ->
+            val detailsLink = titles[i].selectFirst("a")?.attr("href") ?: ""
             val pseudoPackage = if (detailsLink.isNotBlank()) {
                 detailsLink.trim('/').replace('/', '.')
             } else {
-                a[it].text() + "_" + it
+                aLinks[i].text() + "_" + i
             }
             AppUpdate(
-                name = h5[it].attr("title"),
+                name = titles[i].attr("title").ifBlank { titles[i].text() },
                 link = Link.Empty,
-                iconUri = Uri.parse("$baseUrl${img[it].attr("src")}".replace("=32", "=128")),
+                iconUri = Uri.parse("$baseUrl${images[i].attr("src")}".replace("=32", "=128")),
                 version = "",
                 oldVersion = "",
                 versionCode = 0L,

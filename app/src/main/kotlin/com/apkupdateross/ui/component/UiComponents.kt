@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import kotlin.math.roundToInt
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
@@ -120,7 +121,7 @@ fun InstallButton(
 
 @Composable
 fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (String) -> Unit = {}) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
     Card(

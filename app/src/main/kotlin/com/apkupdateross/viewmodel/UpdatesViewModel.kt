@@ -23,7 +23,6 @@ import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.SessionInstaller
-import com.apkupdateross.util.copyToAndNotify
 import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.Stringer
 import com.apkupdateross.util.launchWithMutex
@@ -40,6 +39,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.io.PipedInputStream
@@ -93,7 +93,9 @@ class UpdatesViewModel(
 		}
 		
 		UpdatesUiState.Success(result)
-	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UpdatesUiState.Loading)
+	}
+	.flowOn(Dispatchers.Default)
+	.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UpdatesUiState.Loading)
 
 	init {
 		_updates.onEach { updates ->
@@ -123,9 +125,9 @@ class UpdatesViewModel(
 		}
 	}
 
-	fun isRefreshing(): StateFlow<Boolean> = _isRefreshing.asStateFlow()
-	fun selfUpdate(): StateFlow<AppUpdate?> = _selfUpdate.asStateFlow()
-	fun filterQuery(): StateFlow<String> = _filterQuery.asStateFlow()
+	val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+	val selfUpdate: StateFlow<AppUpdate?> = _selfUpdate.asStateFlow()
+	val filterQuery: StateFlow<String> = _filterQuery.asStateFlow()
 
 	fun setFilterQuery(query: String) {
 		_filterQuery.value = query
@@ -281,80 +283,6 @@ class UpdatesViewModel(
 				clearDownload(update.id)
 			}
 		})
-	}
-
-	private suspend fun savePlayFiles(update: AppUpdate, link: Link.Play) {
-		val files = link.getInstallFiles()
-		if (files.isEmpty()) return
-
-		if (files.size == 1) {
-			val file = files.first()
-			val result = downloader.downloadWithSize(update.id, file.url) ?: return
-			val fileName = "${update.name}_${update.version}.apk"
-			if (downloadStorage.save(fileName, "application/vnd.android.package-archive", result.stream, update.id, installLog, result.contentLength)) {
-				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
-			} else {
-				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
-			}
-		} else {
-			val totalSize = files.sumOf { it.size }
-			val pos = PipedOutputStream()
-			val pis = PipedInputStream(pos)
-			
-			viewModelScope.launch(Dispatchers.IO) {
-				runCatching {
-					ZipOutputStream(pos).use { zos ->
-						var currentOffset = 0L
-						for (file in files) {
-							if (!isActive) break
-							zos.putNextEntry(ZipEntry(file.name))
-							downloader.downloadStream(update.id, file.url)?.use { input ->
-								input.copyToAndNotify(zos, update.id, installLog, totalSize, currentOffset) ?: throw Exception("Cancelled")
-							}
-							zos.closeEntry()
-							currentOffset += file.size
-						}
-					}
-				}
-			}
-			val fileName = "${update.name}_${update.version}.apks"
-			if (downloadStorage.save(fileName, "application/octet-stream", pis, update.id, null, totalSize)) {
-				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
-			} else {
-				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
-			}
-		}
-	}
-
-	fun openSourcePage(update: AppUpdate, uriHandler: androidx.compose.ui.platform.UriHandler) {
-		val target = update.releaseUrl.ifBlank { update.sourceUrl.ifBlank { (update.link as? Link.Url)?.link.orEmpty() } }
-		if (target.isNotBlank()) {
-			uriHandler.openUri(target)
-		} else {
-			snackBar.snackBar(viewModelScope, TextSnack("Ссылка недоступна"))
-		}
-	}
-
-	private suspend fun saveStream(update: AppUpdate, url: String) {
-		val result = downloader.downloadWithSize(update.id, url)
-		if (result == null) {
-			snackBar.snackBar(viewModelScope, TextSnack("Не удалось скачать файл"))
-			return
-		}
-		val ext = when {
-			url.lowercase().contains(".xapk") -> "xapk"
-			else -> "apk"
-		}
-		val mime = if (ext == "xapk") "application/vnd.android.xapk" else "application/vnd.android.package-archive"
-		val fileName = "${update.packageName}-${update.version}.$ext"
-		val ok = runCatching { downloadStorage.save(fileName, mime, result.stream, update.id, installLog, result.contentLength) }.getOrElse { false }
-		if (ok) {
-			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
-		} else if (!_updates.value.find { it.id == update.id }?.isDownloading!!) {
-			// If not downloading anymore, it might be cancelled
-		} else {
-			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
-		}
 	}
 
 }

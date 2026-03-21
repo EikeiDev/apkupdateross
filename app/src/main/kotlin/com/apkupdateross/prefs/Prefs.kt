@@ -40,7 +40,7 @@ class Prefs(
 		com.apkupdateross.data.fdroid.FdroidRepo(name = "F-Droid", url = "https://f-droid.org/repo/", isDefault = true),
 		com.apkupdateross.data.fdroid.FdroidRepo(name = "IzzyOnDroid", url = "https://apt.izzysoft.de/fdroid/repo/", isDefault = true)
 	), true)
-	val ruStoreFilterThirdParty = boolean("ruStoreFilterThirdParty", defValue = false, backed = true)
+
 	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)

@@ -54,7 +54,7 @@ import org.koin.androidx.compose.koinViewModel
 fun AppsScreen(
 	viewModel: AppsViewModel = koinViewModel()
 ) {
-	val state = viewModel.state().collectAsStateWithLifecycle().value
+	val state = viewModel.state.collectAsStateWithLifecycle().value
 	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
 	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
 	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()

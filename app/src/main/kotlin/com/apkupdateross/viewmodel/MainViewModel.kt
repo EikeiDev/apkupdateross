@@ -68,7 +68,7 @@ class MainViewModel(
 	private fun processInstallIntent(
 		intent: Intent,
 		launcher: ManagedActivityResultLauncher<Intent, ActivityResult>
-	) = viewModelScope.launch(Dispatchers.IO) {
+	) = viewModelScope.launch(Dispatchers.Main) {
 		when (intent.extras?.getInt(PackageInstaller.EXTRA_STATUS)) {
 			PackageInstaller.STATUS_PENDING_USER_ACTION -> {
 				intent.getIntentExtra()?.let {

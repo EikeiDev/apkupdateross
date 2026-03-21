@@ -26,49 +26,18 @@ data class AppUpdate(
 
 fun List<AppUpdate>.indexOf(id: Int) = indexOfFirst { it.id == id }
 
-fun MutableList<AppUpdate>.setIsInstalling(id: Int, b: Boolean): MutableList<AppUpdate> {
-	val index = this.indexOf(id)
-	if (index != -1) {
-		this[index] = this[index].copy(
-			isInstalling = b,
-			progress = if (b) 0L else this[index].progress,
-			total = if (b) 0L else this[index].total
-		)
-	}
-	return this
+fun List<AppUpdate>.setIsInstalling(id: Int, b: Boolean): List<AppUpdate> = map {
+	if (it.id == id) it.copy(isInstalling = b, progress = if (b) 0L else it.progress, total = if (b) 0L else it.total) else it
 }
 
-fun MutableList<AppUpdate>.setIsDownloading(id: Int, b: Boolean): MutableList<AppUpdate> {
-	val index = this.indexOf(id)
-	if (index != -1) {
-		this[index] = this[index].copy(
-			isDownloading = b,
-			progress = if (b) 0L else this[index].progress,
-			total = if (b) 0L else this[index].total
-		)
-	}
-	return this
+fun List<AppUpdate>.setIsDownloading(id: Int, b: Boolean): List<AppUpdate> = map {
+	if (it.id == id) it.copy(isDownloading = b, progress = if (b) 0L else it.progress, total = if (b) 0L else it.total) else it
 }
 
-fun MutableList<AppUpdate>.removeId(id: Int): MutableList<AppUpdate> {
-	val index = this.indexOf(id)
-	if (index != -1) this.removeAt(index)
-	return this
-}
+fun List<AppUpdate>.removeId(id: Int): List<AppUpdate> = filter { it.id != id }
 
-fun MutableList<AppUpdate>.removePackageName(packageName: String): MutableList<AppUpdate> {
-	this.removeAll { it.packageName == packageName }
-	return this
-}
+fun List<AppUpdate>.removePackageName(packageName: String): List<AppUpdate> = filter { it.packageName != packageName }
 
-fun MutableList<AppUpdate>.setProgress(progress: AppInstallProgress): MutableList<AppUpdate> {
-	val index = this.indexOf(progress.id)
-	if (index != -1) {
-		val current = this[index]
-		this[index] = current.copy(
-			progress = progress.progress ?: current.progress,
-			total = progress.total ?: current.total
-		)
-	}
-	return this
+fun List<AppUpdate>.setProgress(progress: AppInstallProgress): List<AppUpdate> = map {
+	if (it.id == progress.id) it.copy(progress = progress.progress ?: it.progress, total = progress.total ?: it.total) else it
 }

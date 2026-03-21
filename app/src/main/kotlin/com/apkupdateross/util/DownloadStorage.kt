@@ -14,12 +14,14 @@ import java.io.InputStream
 import java.io.OutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
 class DownloadStorage(private val context: Context) {
 
-    suspend fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    suspend fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveScoped(fileName, mimeType, inputStream, id, installLog, total, offset)
         } else {
             saveLegacy(fileName, inputStream, id, installLog, total, offset)
@@ -41,6 +43,9 @@ class DownloadStorage(private val context: Context) {
             resolver.openOutputStream(uri)?.use { output ->
                 inputStream.use { input ->
                     if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
+                    if (total > 0) {
+                         installLog?.emitProgress(AppInstallProgress(id, total, total))
+                    }
                 }
             } ?: return false
             contentValues.clear()
@@ -62,6 +67,9 @@ class DownloadStorage(private val context: Context) {
             FileOutputStream(targetFile).use { output ->
                 inputStream.use { input ->
                     if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
+                    if (total > 0) {
+                         installLog?.emitProgress(AppInstallProgress(id, total, total))
+                    }
                 }
             }
             true
@@ -91,9 +99,6 @@ suspend fun InputStream.copyToAndNotify(
         bytesCopied += bytes
         installLog?.emitProgress(AppInstallProgress(id, offset + bytesCopied, total))
         bytes = read(buffer)
-    }
-    if (coroutineContext.isActive && total > 0L) {
-        installLog?.emitProgress(AppInstallProgress(id, total, total))
     }
     return bytesCopied
 }

@@ -67,7 +67,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SearchScreen(
     viewModel: SearchViewModel = koinViewModel()
 ) {
-    val state = viewModel.state().collectAsStateWithLifecycle().value
+    val state = viewModel.state.collectAsStateWithLifecycle().value
     val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
     val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
     val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
@@ -199,7 +199,7 @@ private const val MIN_SEARCH_LENGTH = 3
 
 @Composable
 private fun SearchFilterAction(viewModel: SearchViewModel) {
-    val currentFilters by viewModel.filters().collectAsStateWithLifecycle()
+    val currentFilters by viewModel.filters.collectAsStateWithLifecycle()
     var showDialog by remember { mutableStateOf(false) }
 
     IconButton(onClick = { showDialog = true }) {

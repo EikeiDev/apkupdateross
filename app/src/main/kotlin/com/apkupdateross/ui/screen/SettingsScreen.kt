@@ -366,12 +366,7 @@ fun Settings(
 					exit = shrinkVertically()
 				) {
 					Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-						SwitchSetting(
-							{ viewModel.getRuStoreFilterThirdParty() },
-							{ viewModel.setRuStoreFilterThirdParty(it) },
-							stringResource(R.string.ruStoreFilterThirdParty),
-							R.drawable.ic_safe
-						)
+
 						val clearTextBase = stringResource(R.string.clear_rustore_cache)
 						val clearText = if (ruStore404Count > 0) "$clearTextBase ($ruStore404Count)" else clearTextBase
 						ButtonSetting(

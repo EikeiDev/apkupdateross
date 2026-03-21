@@ -102,6 +102,13 @@
     <string name="metric_last_check_time">Время последней проверки</string>
     <string name="metric_last_check_sources">Источник(и)</string>
     <string name="metric_no_data">Пока нет данных</string>
+    <string name="settings_backup_title">Бэкап и Восстановление</string>
+    <string name="settings_export">Экспорт настроек</string>
+    <string name="settings_import">Импорт настроек</string>
+    <string name="export_success">Настройки успешно экспортированы</string>
+    <string name="export_failed">Ошибка экспорта настроек</string>
+    <string name="import_success">Успешно. Перезапуск приложения...</string>
+    <string name="import_failed">Не удалось импортировать настройки из файла</string>
     <string name="refresh_metrics">Обновить метрики</string>
     <string name="notifications_status_on">Уведомления включены</string>
     <string name="notifications_status_off">Уведомления отключены</string>

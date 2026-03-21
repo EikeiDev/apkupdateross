@@ -329,6 +329,60 @@ class SettingsViewModel(
 		clipboard.copy(data.decodeToString(), "App Logs")
 	}
 
+	fun exportSettings(uri: android.net.Uri, context: android.content.Context) = viewModelScope.launch(Dispatchers.IO) {
+		runCatching {
+			val prefs = context.getSharedPreferences(context.getString(R.string.app_name), android.content.Context.MODE_PRIVATE)
+			val jsonObject = org.json.JSONObject()
+			for ((key, value) in prefs.all) {
+				jsonObject.put(key, value)
+			}
+			val jsonBytes = jsonObject.toString(4).toByteArray()
+			context.contentResolver.openOutputStream(uri)?.use { 
+				it.write(jsonBytes)
+			}
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.export_success)))
+		}.onFailure {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.export_failed)))
+		}
+	}
+
+	fun importSettings(uri: android.net.Uri, context: android.content.Context) = viewModelScope.launch(Dispatchers.IO) {
+		runCatching {
+			context.contentResolver.openInputStream(uri)?.use { stream ->
+				val json = stream.bufferedReader().readText()
+				val jsonObject = org.json.JSONObject(json)
+				val prefs = context.getSharedPreferences(context.getString(R.string.app_name), android.content.Context.MODE_PRIVATE)
+				val editor = prefs.edit()
+				val keys = jsonObject.keys()
+				while (keys.hasNext()) {
+					val key = keys.next()
+					val value = jsonObject.get(key)
+					when (value) {
+						is Boolean -> editor.putBoolean(key, value)
+						is Int -> editor.putInt(key, value)
+						is Long -> editor.putLong(key, value)
+						is Float -> editor.putFloat(key, value)
+						is String -> editor.putString(key, value)
+					}
+				}
+				editor.apply()
+				
+				kotlinx.coroutines.withContext(Dispatchers.Main) {
+					snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.import_success)))
+					delay(1000)
+					val pm = context.packageManager
+					val intent = pm.getLaunchIntentForPackage(context.packageName)
+					val componentName = intent?.component
+					val restartIntent = android.content.Intent.makeRestartActivityTask(componentName)
+					context.startActivity(restartIntent)
+					Runtime.getRuntime().exit(0)
+				}
+			}
+		}.onFailure {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.import_failed)))
+		}
+	}
+
 	fun clearRuStoreCache() = viewModelScope.launch(Dispatchers.IO) {
 		prefs.ruStore404Packages.put(emptyList())
 		refreshRuStore404Count()

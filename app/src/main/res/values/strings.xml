@@ -101,6 +101,14 @@
     <string name="metric_last_check_time">Last check time</string>
     <string name="metric_last_check_sources">Sources checked</string>
     <string name="metric_no_data">Not available yet</string>
+    
+    <string name="settings_backup_title">Backup &amp; Restore</string>
+    <string name="settings_export">Export Settings</string>
+    <string name="settings_import">Import Settings</string>
+    <string name="export_success">Settings exported successfully</string>
+    <string name="export_failed">Failed to export settings</string>
+    <string name="import_success">Import successful. Restarting app...</string>
+    <string name="import_failed">Failed to import settings</string>
     <string name="refresh_metrics">Refresh metrics</string>
     <string name="notifications_status_on">Notifications enabled</string>
     <string name="notifications_status_off">Notifications disabled</string>

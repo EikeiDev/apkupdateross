@@ -98,6 +98,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	val fdroidRepos = viewModel.fdroidRepos.collectAsStateWithLifecycle().value
 	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
 	var dialogFdroidRepo by remember { mutableStateOf<FdroidRepo?>(null) }
+	var dialogAlphaList by remember { mutableStateOf(false) }
+
 	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 	if (uiState == SettingsUiState.Settings) {
 		DisposableEffect(Unit) {
@@ -212,7 +214,15 @@ fun Settings(
 	onDeleteFdroidRepo: (String) -> Unit,
 	onToggleFdroidRepo: (String, Boolean) -> Unit,
 	notificationPermissionLauncher: ActivityResultLauncher<String>
-) = LazyColumn {
+) {
+	val context = LocalContext.current
+	val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+		uri?.let { viewModel.exportSettings(it, context) }
+	}
+	val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+		uri?.let { viewModel.importSettings(it, context) }
+	}
+	LazyColumn {
 	item {
 		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
@@ -453,6 +463,18 @@ fun Settings(
 		}
 	}
 	item {
+		LargeTitle(stringResource(R.string.settings_backup_title), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				ButtonSetting(stringResource(R.string.settings_export), { exportLauncher.launch("apkupdateross_backup.json") }, R.drawable.ic_safe)
+				ButtonSetting(stringResource(R.string.settings_import), { importLauncher.launch(arrayOf("application/json", "*/*")) }, R.drawable.ic_safe)
+			}
+		}
+	}
+	item {
 		LargeTitle(stringResource(R.string.settings_notifications), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		NotificationStatusCard(viewModel)
 	}
@@ -482,6 +504,7 @@ fun Settings(
 		}
 		Spacer(Modifier.height(24.dp))
 	}
+}
 }
 
 @Composable

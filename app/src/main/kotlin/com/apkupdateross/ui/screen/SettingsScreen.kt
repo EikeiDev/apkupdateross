@@ -3,6 +3,7 @@ package com.apkupdateross.ui.screen
 import android.Manifest
 import android.content.Intent
 import android.os.Build
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -11,6 +12,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +33,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -40,6 +46,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider as Divider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -149,53 +156,141 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 }
 
 @Composable
-fun About() = Box(
+fun About() = Column(
 	Modifier.fillMaxSize()
+		.verticalScroll(rememberScrollState())
+		.padding(24.dp),
+	horizontalAlignment = Alignment.CenterHorizontally
 ) {
-	ElevatedCard(
-		modifier = Modifier
-			.fillMaxWidth()
-			.padding(horizontal = 24.dp, vertical = 32.dp)
-			.align(Alignment.TopCenter),
-		shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp)
+	Spacer(Modifier.height(48.dp))
+
+	// Hero section with glowing icon
+	Box(contentAlignment = Alignment.Center) {
+		Surface(
+			modifier = Modifier.size(130.dp),
+			shape = CircleShape,
+			color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+		) {}
+		Surface(
+			modifier = Modifier.size(110.dp),
+			shape = CircleShape,
+			color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+		) {}
+		LoadingImageApp(BuildConfig.APPLICATION_ID, Modifier.size(90.dp))
+	}
+
+	Spacer(Modifier.height(32.dp))
+
+	Text(
+		text = stringResource(R.string.app_name),
+		style = MaterialTheme.typography.displaySmall,
+		fontWeight = FontWeight.ExtraBold,
+		color = MaterialTheme.colorScheme.onSurface
+	)
+
+	Spacer(Modifier.height(12.dp))
+
+	AssistChip(
+		onClick = {},
+		label = { Text("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
+		leadingIcon = {
+			Icon(
+				Icons.Default.Info,
+				null,
+				Modifier.size(18.dp),
+				tint = MaterialTheme.colorScheme.primary
+			)
+		},
+		shape = CircleShape,
+		border = null,
+		colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+			containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+			labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+		)
+	)
+
+	Spacer(Modifier.height(48.dp))
+
+	// Links Section
+	Column(
+		modifier = Modifier.fillMaxWidth(),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
-		Column(
-			Modifier.fillMaxWidth().padding(32.dp),
-			horizontalAlignment = Alignment.CenterHorizontally
-		) {
-			LoadingImageApp(BuildConfig.APPLICATION_ID, Modifier.size(100.dp))
-			Spacer(Modifier.height(24.dp))
-			Text(
-				text = stringResource(R.string.app_name),
-				style = MaterialTheme.typography.headlineLarge,
-				fontWeight = FontWeight.Bold,
-				color = MaterialTheme.colorScheme.primary
-			)
-			Spacer(Modifier.height(8.dp))
-			Surface(
-				color = MaterialTheme.colorScheme.secondaryContainer,
-				shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-			) {
-				Text(
-					"${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-					Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-					color = MaterialTheme.colorScheme.onSecondaryContainer,
-					style = MaterialTheme.typography.bodyMedium
-				)
+		SocialButton(
+			icon = R.drawable.ic_github,
+			label = stringResource(R.string.github),
+			url = stringResource(R.string.github_url)
+		)
+		SocialButton(
+			imageVector = Icons.Default.Favorite,
+			label = stringResource(R.string.donate),
+			url = stringResource(R.string.donate_url)
+		)
+	}
+
+	Spacer(Modifier.height(64.dp))
+	Spacer(Modifier.weight(1f))
+
+	// Footer
+	Text(
+		text = "Copyright © ${Calendar.getInstance().get(Calendar.YEAR)}",
+		style = MaterialTheme.typography.labelMedium,
+		color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+	)
+	Text(
+		text = "rumboalla, NotDev",
+		style = MaterialTheme.typography.labelLarge,
+		fontWeight = FontWeight.Bold,
+		color = MaterialTheme.colorScheme.onSurfaceVariant
+	)
+	Spacer(Modifier.height(16.dp))
+}
+
+@Composable
+private fun SocialButton(
+	@DrawableRes icon: Int? = null,
+	imageVector: androidx.compose.ui.graphics.vector.ImageVector? = null,
+	label: String,
+	url: String
+) {
+	val context = LocalContext.current
+	androidx.compose.material3.FilledTonalButton(
+		onClick = {
+			runCatching {
+				val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+				context.startActivity(intent)
 			}
-			Spacer(Modifier.height(32.dp))
-			Text(
-				"Copyright © ${Calendar.getInstance().get(Calendar.YEAR)}",
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-				style = MaterialTheme.typography.bodyMedium
+		},
+		modifier = Modifier
+			.fillMaxWidth(0.7f)
+			.height(56.dp),
+		shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+		colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+			containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+		)
+	) {
+		if (icon != null) {
+			Icon(
+				painter = painterResource(icon),
+				contentDescription = null,
+				modifier = Modifier.size(24.dp),
+				tint = MaterialTheme.colorScheme.primary
 			)
-			Text(
-				"rumboalla, NotDev",
-				fontWeight = FontWeight.Bold,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-				style = MaterialTheme.typography.bodyMedium
+		} else if (imageVector != null) {
+			Icon(
+				imageVector = imageVector,
+				contentDescription = null,
+				modifier = Modifier.size(24.dp),
+				tint = MaterialTheme.colorScheme.primary
 			)
 		}
+		Spacer(Modifier.width(12.dp))
+		Text(
+			text = label,
+			style = MaterialTheme.typography.titleMedium,
+			fontWeight = FontWeight.SemiBold
+		)
 	}
 }
 

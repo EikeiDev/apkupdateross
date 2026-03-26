@@ -142,4 +142,8 @@
     </plurals>
 
     <string name="version_code">Version code</string>
+    <string name="github">GitHub</string>
+    <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
+    <string name="donate">Donate</string>
+    <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
 </resources>

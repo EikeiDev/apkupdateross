@@ -25,7 +25,7 @@
     <string name="play_text_animations">Play Text Animations</string>
     <string name="settings_sources">Sources</string>
     <string name="settings_ui">UI</string>
-    <string name="settings_compact_view">Compact view</string>
+    <string name="settings_compact_view">Compact mode</string>
     <string name="settings_alarm">Auto-update schedule</string>
     <string name="settings_options">Options</string>
     <string name="settings_utils">Utils</string>
@@ -142,6 +142,13 @@
     </plurals>
 
     <string name="version_code">Version code</string>
+    <string name="ignored_updates">Ignored Updates</string>
+    <string name="manage_ignored_updates">Manage ignored updates</string>
+    <string name="ignored_updates_empty">No ignored updates</string>
+    <string name="clear_all">Clear all</string>
+
+    <string name="ignored_toast">%1$s ignored</string>
+    <string name="undo">UNDO</string>
     <string name="github">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
     <string name="donate">Donate</string>

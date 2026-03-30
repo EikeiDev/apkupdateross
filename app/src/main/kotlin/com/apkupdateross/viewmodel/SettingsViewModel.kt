@@ -56,6 +56,7 @@ class SettingsViewModel(
     val customGitRepos = _customGitRepos.asStateFlow()
     private val _fdroidRepos = MutableStateFlow(prefs.fdroidRepos.get())
     val fdroidRepos = _fdroidRepos.asStateFlow()
+    val ignoredUpdateInfos = prefs.ignoredUpdateInfosFlow
     private var metricsJob: Job? = null
 
 	// installModeAvailable[0]=Normal always true, [1]=Root, [2]=Shizuku
@@ -149,6 +150,18 @@ class SettingsViewModel(
         prefs.theme.put(theme)
         themer.setTheme(isDarkTheme(theme))
     }
+
+	fun removeIgnoredUpdateInfo(packageName: String) {
+		val infos = prefs.ignoredUpdateInfos.get().toMutableList()
+		val ids = prefs.ignoredVersions.get().toMutableList()
+		infos.removeAll { it.packageName == packageName }
+		ids.removeAll { id -> prefs.ignoredUpdateInfos.get().filter { it.packageName == packageName }.map { it.id }.contains(id) }
+		prefs.setIgnoredVersions(ids.distinct(), infos.distinctBy { it.id })
+	}
+
+	fun clearAllIgnoredUpdates() {
+		prefs.setIgnoredVersions(emptyList(), emptyList())
+	}
 
     fun addOrUpdateCustomRepo(repo: CustomGitRepo) {
         val trimmed = repo.trimmed()

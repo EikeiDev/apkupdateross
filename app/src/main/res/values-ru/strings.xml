@@ -25,7 +25,7 @@
     <string name="play_text_animations">Проигрывать анимации текста</string>
     <string name="settings_sources">Источники</string>
     <string name="settings_ui">Интерфейс</string>
-    <string name="settings_compact_view">Компактный вид</string>
+    <string name="settings_compact_view">Компактный режим</string>
     <string name="settings_alarm">Расписание автообновлений</string>
     <string name="settings_options">Настройки</string>
     <string name="settings_utils">Утилиты</string>
@@ -140,6 +140,13 @@
         <item quantity="many">Найдено %1$d обновлений.</item>
     </plurals>
     <string name="version_code">Код версии</string>
+    <string name="ignored_updates">Скрытые обновления</string>
+    <string name="manage_ignored_updates">Управление скрытыми обновлениями</string>
+    <string name="ignored_updates_empty">Нет скрытых обновлений</string>
+    <string name="clear_all">Очистить все</string>
+
+    <string name="ignored_toast">%1$s скрыто</string>
+    <string name="undo">ОТМЕНА</string>
     <string name="github">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
     <string name="donate">Поддержать разработчика</string>

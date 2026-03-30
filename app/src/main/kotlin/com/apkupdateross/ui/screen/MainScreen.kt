@@ -109,8 +109,18 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 @Composable
 fun handleSnackBar(): SnackbarHostState {
 	val snackBarHostState = remember { SnackbarHostState() }
-	koinInject<SnackBar>().flow().CollectAsEffect(Dispatchers.IO) {
-		snackBarHostState.showSnackbar(it)
+	koinInject<SnackBar>().flow().CollectAsEffect(Dispatchers.IO) { snack ->
+		val result = snackBarHostState.showSnackbar(
+			message = snack.message,
+			actionLabel = snack.actionLabel,
+			duration = snack.duration,
+			withDismissAction = snack.withDismissAction
+		)
+		if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+			if (snack is com.apkupdateross.data.snack.ActionSnack) {
+				snack.action()
+			}
+		}
 	}
 	return snackBarHostState
 }

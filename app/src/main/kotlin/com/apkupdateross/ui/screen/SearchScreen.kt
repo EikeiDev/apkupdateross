@@ -109,7 +109,10 @@ fun SearchScreenSuccess(
                     version = update.version,
                     uri = update.iconUri,
                     source = update.source,
-                    onClick = { viewModel.install(update, uriHandler) }
+                    onClick = { viewModel.install(update, uriHandler) },
+                    updates = grouped.updates,
+                    onUpdateOpenPage = { viewModel.openSourcePage(it, uriHandler) },
+                    onUpdateClick = { viewModel.install(it, uriHandler) }
                 )
             } else {
                 SearchItem(grouped, compactMode, {

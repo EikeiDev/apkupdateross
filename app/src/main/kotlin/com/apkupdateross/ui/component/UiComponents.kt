@@ -21,6 +21,10 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import kotlin.math.roundToInt
@@ -475,15 +479,27 @@ fun GridItem(
     uri: Uri? = null,
     source: Source? = null,
     onIgnore: (() -> Unit)? = null,
+    onOpenPage: (() -> Unit)? = null,
     isIgnored: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    updates: List<AppUpdate> = emptyList(),
+    onUpdateIgnore: ((Int) -> Unit)? = null,
+    onUpdateOpenPage: ((AppUpdate) -> Unit)? = null,
+    onUpdateClick: ((AppUpdate) -> Unit)? = null
 ) {
+    var activeUpdate by remember(updates) { mutableStateOf(updates.firstOrNull()) }
+    val currentVersion = activeUpdate?.version ?: version
+    val currentSource = activeUpdate?.source ?: source
+    val currentOnIgnore = if (activeUpdate != null && onUpdateIgnore != null) ({ onUpdateIgnore(activeUpdate!!.id) }) else onIgnore
+    val currentOnOpenPage = if (activeUpdate != null && onUpdateOpenPage != null) ({ onUpdateOpenPage(activeUpdate!!) }) else onOpenPage
+    val currentOnClick = if (activeUpdate != null && onUpdateClick != null) ({ onUpdateClick(activeUpdate!!) }) else onClick
+
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isIgnored) 0.5f else 1f)
-            .clickable { onClick() }
+            .clickable { currentOnClick() }
     ) {
         Box {
             Column(
@@ -508,28 +524,73 @@ fun GridItem(
                     textAlign = TextAlign.Center
                 )
                 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    if (source != null) {
-                        SourceIcon(source, Modifier.size(18.dp).align(Alignment.CenterStart).offset(x = (-6).dp))
-                    }
-                    androidx.compose.material3.Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.alpha(0.8f).align(Alignment.Center)
+                androidx.compose.material3.Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.alpha(0.8f)
+                ) {
+                    var showDropdown by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = version,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.let { if (currentOnOpenPage != null) it.clickable { currentOnOpenPage() } else it }
+                        ) {
+                            if (currentSource != null) {
+                                Box(modifier = Modifier.padding(end = 4.dp)) {
+                                    SourceIcon(currentSource, Modifier.size(14.dp))
+                                }
+                            }
+                            Text(
+                                text = currentVersion,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (updates.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 2.dp)
+                                    .clickable { showDropdown = true }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Source",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showDropdown,
+                                onDismissRequest = { showDropdown = false }
+                            ) {
+                                updates.forEach { update ->
+                                    DropdownMenuItem(
+                                        text = { Text(update.version, style = MaterialTheme.typography.bodyMedium) },
+                                        leadingIcon = { SourceIcon(update.source, Modifier.size(24.dp)) },
+                                        onClick = {
+                                            activeUpdate = update
+                                            showDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (onIgnore != null) {
+            if (currentOnIgnore != null) {
                 IconButton(
-                    onClick = onIgnore,
+                    onClick = currentOnIgnore,
                     modifier = Modifier.size(32.dp).align(Alignment.TopEnd).padding(2.dp)
                 ) {
                     Icon(

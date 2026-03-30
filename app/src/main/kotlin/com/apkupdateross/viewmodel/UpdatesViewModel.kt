@@ -100,8 +100,14 @@ class UpdatesViewModel(
 	init {
 		_updates.onEach { updates ->
 			updateSelfUpdateCandidate(updates)
-			badger.changeUpdatesBadge(groupUpdates(updates).size.toString())
 		}.launchIn(viewModelScope)
+
+		kotlinx.coroutines.flow.combine(_updates, prefs.ignoredVersionsFlow) { updates, ignoredIds ->
+			val filtered = updates.filter { !ignoredIds.contains(it.id) }
+			val count = groupUpdates(filtered).size
+			badger.changeUpdatesBadge(if (count > 0) count.toString() else "")
+		}.launchIn(viewModelScope)
+
 
 		// Static subscription for status (efficient)
 		installLog.status().onEach { status ->
@@ -163,15 +169,44 @@ class UpdatesViewModel(
 		
 		val ignored = prefs.ignoredVersions.get().toMutableList()
 		val targetIds = allUpdates.filter { 
-			it.packageName == reference.packageName && it.versionCode == reference.versionCode 
+			it.packageName == reference.packageName
 		}.map { it.id }
+		
+		val targetInfos = allUpdates.filter { it.packageName == reference.packageName }
+			.map { com.apkupdateross.data.ui.IgnoredUpdateInfo(it.id, it.packageName, it.name, it.version) }
+
+		val ignoredInfos = prefs.ignoredUpdateInfos.get().toMutableList()
 
 		if (ignored.contains(id)) {
 			ignored.removeAll(targetIds.toSet())
+			ignoredInfos.removeAll { info -> targetIds.contains(info.id) }
 		} else {
 			ignored.addAll(targetIds)
+			ignoredInfos.addAll(targetInfos)
+			snackBar.snackBar(
+				viewModelScope,
+				com.apkupdateross.data.snack.ActionSnack(
+					message = stringer.get(R.string.ignored_toast, reference.name),
+					actionLabel = stringer.get(R.string.undo),
+					action = { unignoreVersion(id) }
+				)
+			)
 		}
-		prefs.setIgnoredVersions(ignored.distinct())
+		prefs.setIgnoredVersions(ignored.distinct(), ignoredInfos.distinctBy { it.id })
+	}
+
+	fun unignoreVersion(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
+		val allUpdates = _updates.value
+		val reference = allUpdates.find { it.id == id } ?: return@launchWithMutex
+		val targetIds = allUpdates.filter { it.packageName == reference.packageName }.map { it.id }
+		
+		val ignored = prefs.ignoredVersions.get().toMutableList()
+		val ignoredInfos = prefs.ignoredUpdateInfos.get().toMutableList()
+
+		ignored.removeAll(targetIds.toSet())
+		ignoredInfos.removeAll { info -> targetIds.contains(info.id) }
+		
+		prefs.setIgnoredVersions(ignored.distinct(), ignoredInfos.distinctBy { it.id })
 	}
 
 	override fun cancelInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {

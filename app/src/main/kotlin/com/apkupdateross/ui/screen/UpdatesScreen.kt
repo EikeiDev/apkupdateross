@@ -235,7 +235,12 @@ fun Grid(
 					uri = null,
 					source = update.source,
 					onIgnore = { viewModel.ignoreVersion(update.id) },
-					onClick = { viewModel.install(update, handler) }
+					onOpenPage = { viewModel.openSourcePage(update, handler) },
+					onClick = { viewModel.install(update, handler) },
+					updates = grouped.updates,
+					onUpdateIgnore = { viewModel.ignoreVersion(it) },
+					onUpdateOpenPage = { viewModel.openSourcePage(it, handler) },
+					onUpdateClick = { viewModel.install(it, handler) }
 				)
 			} else {
 				UpdateItem(

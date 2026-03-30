@@ -16,6 +16,7 @@ class Prefs(
 ): KryptoContext(prefs) {
 	val ignoredApps = json("ignoredApps", emptyList<String>(), true)
 	val ignoredVersions = json("ignoredVersions", emptyList<Int>(), true)
+	val ignoredUpdateInfos = json("ignoredUpdateInfos", emptyList<com.apkupdateross.data.ui.IgnoredUpdateInfo>(), true)
 	val excludeSystem = boolean("excludeSystem", defValue = true, backed = true)
 	val excludeDisabled = boolean("excludeDisabled", defValue = true, backed = true)
 	val excludeStore = boolean("excludeStore", defValue = false, backed = true)
@@ -62,6 +63,9 @@ class Prefs(
 	private val _ignoredVersionsFlow = kotlinx.coroutines.flow.MutableStateFlow(ignoredVersions.get())
 	val ignoredVersionsFlow = _ignoredVersionsFlow.asStateFlow()
 
+	private val _ignoredUpdateInfosFlow = kotlinx.coroutines.flow.MutableStateFlow(ignoredUpdateInfos.get())
+	val ignoredUpdateInfosFlow = _ignoredUpdateInfosFlow.asStateFlow()
+
 	private val _useCompactViewFlow = kotlinx.coroutines.flow.MutableStateFlow(useCompactView.get())
 	val useCompactViewFlow = _useCompactViewFlow.asStateFlow()
 
@@ -86,9 +90,12 @@ class Prefs(
 		_landscapeColumnsFlow.value = i
 	}
 
-	fun setIgnoredVersions(list: List<Int>) {
+	fun setIgnoredVersions(list: List<Int>, infos: List<com.apkupdateross.data.ui.IgnoredUpdateInfo>) {
 		ignoredVersions.put(list)
 		_ignoredVersionsFlow.value = list
+		ignoredUpdateInfos.put(infos)
+		_ignoredUpdateInfosFlow.value = infos
 	}
+
 }
 

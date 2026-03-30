@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -106,6 +110,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
 	var dialogFdroidRepo by remember { mutableStateOf<FdroidRepo?>(null) }
 	var dialogAlphaList by remember { mutableStateOf(false) }
+	var dialogIgnoredUpdates by remember { mutableStateOf(false) }
 
 	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 	if (uiState == SettingsUiState.Settings) {
@@ -127,7 +132,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 			onEditFdroidRepo = { dialogFdroidRepo = it },
 			onDeleteFdroidRepo = { viewModel.removeFdroidRepo(it) },
 			onToggleFdroidRepo = { id, enabled -> viewModel.toggleFdroidRepo(id, enabled) },
-			notificationPermissionLauncher = alarmPermissionLauncher
+			notificationPermissionLauncher = alarmPermissionLauncher,
+			onManageIgnoredUpdates = { dialogIgnoredUpdates = true }
 		)
 	} else {
 		AboutTopBar(viewModel)
@@ -151,6 +157,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 				viewModel.addOrUpdateFdroidRepo(it)
 				dialogFdroidRepo = null
 			}
+		)
+	}
+	if (dialogIgnoredUpdates) {
+		IgnoredUpdatesDialog(
+			viewModel = viewModel,
+			onDismiss = { dialogIgnoredUpdates = false }
 		)
 	}
 }
@@ -308,7 +320,8 @@ fun Settings(
 	onEditFdroidRepo: (FdroidRepo) -> Unit,
 	onDeleteFdroidRepo: (String) -> Unit,
 	onToggleFdroidRepo: (String, Boolean) -> Unit,
-	notificationPermissionLauncher: ActivityResultLauncher<String>
+	notificationPermissionLauncher: ActivityResultLauncher<String>,
+	onManageIgnoredUpdates: () -> Unit
 ) {
 	val context = LocalContext.current
 	val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -552,6 +565,7 @@ fun Settings(
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
+				ButtonSetting(stringResource(R.string.manage_ignored_updates), onManageIgnoredUpdates, R.drawable.ic_disabled)
 				ButtonSetting(stringResource(R.string.copy_app_list), { viewModel.copyAppList() }, R.drawable.ic_root)
 				ButtonSetting(stringResource(R.string.copy_app_logs), { viewModel.copyAppLogs() }, R.drawable.ic_root)
 			}
@@ -981,6 +995,95 @@ private fun FdroidRepoDialog(
 						text = "Name and URL are required",
 						color = MaterialTheme.colorScheme.error,
 						style = MaterialTheme.typography.bodySmall
+					)
+				}
+			}
+		}
+	)
+}
+
+@Composable
+fun IgnoredUpdatesDialog(
+	viewModel: SettingsViewModel,
+	onDismiss: () -> Unit
+) {
+	val ignoredInfos by viewModel.ignoredUpdateInfos.collectAsStateWithLifecycle()
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.ignored_updates)) },
+		text = {
+			if (ignoredInfos.isEmpty()) {
+				Text(
+					text = stringResource(R.string.ignored_updates_empty),
+					modifier = Modifier.padding(vertical = 16.dp),
+					color = MaterialTheme.colorScheme.onSurfaceVariant
+				)
+			} else {
+				androidx.compose.foundation.lazy.LazyColumn(
+					modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+				) {
+					items(ignoredInfos.distinctBy { it.packageName }) { info ->
+						Row(
+							modifier = Modifier
+								.fillMaxWidth()
+								.padding(vertical = 8.dp),
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							LoadingImageApp(
+								packageName = info.packageName,
+								modifier = Modifier.size(40.dp)
+							)
+							Spacer(modifier = Modifier.width(12.dp))
+							Column(modifier = Modifier.weight(1f)) {
+								val pm = LocalContext.current.packageManager
+								Text(
+									text = info.name.ifEmpty { 
+										try {
+											pm.getApplicationInfo(info.packageName, 0).loadLabel(pm).toString()
+										} catch (e: Exception) {
+											info.packageName
+										}
+									},
+									style = MaterialTheme.typography.bodyLarge,
+									maxLines = 1,
+									overflow = TextOverflow.Ellipsis
+								)
+								Text(
+									text = info.packageName,
+									style = MaterialTheme.typography.bodyMedium,
+									color = MaterialTheme.colorScheme.onSurfaceVariant,
+									maxLines = 1,
+									overflow = TextOverflow.Ellipsis
+								)
+							}
+							IconButton(
+								onClick = { viewModel.removeIgnoredUpdateInfo(info.packageName) }
+							) {
+								Icon(
+									imageVector = Icons.Default.Close,
+									contentDescription = null,
+									tint = MaterialTheme.colorScheme.onSurfaceVariant
+								)
+							}
+						}
+					}
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = onDismiss) {
+				Text("OK")
+			}
+		},
+		dismissButton = {
+			if (ignoredInfos.isNotEmpty()) {
+				TextButton(
+					onClick = { viewModel.clearAllIgnoredUpdates() }
+				) {
+					Text(
+						stringResource(R.string.clear_all),
+						color = MaterialTheme.colorScheme.error
 					)
 				}
 			}

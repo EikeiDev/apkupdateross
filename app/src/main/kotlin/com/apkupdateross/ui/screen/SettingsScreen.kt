@@ -323,6 +323,7 @@ fun Settings(
 	notificationPermissionLauncher: ActivityResultLauncher<String>,
 	onManageIgnoredUpdates: () -> Unit
 ) {
+	val installMode = viewModel.installModeFlow.collectAsStateWithLifecycle().value
 	val context = LocalContext.current
 	val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
 		uri?.let { viewModel.exportSettings(it, context) }
@@ -540,6 +541,14 @@ fun Settings(
 					setValue = { viewModel.setEnableAlarm(it, notificationPermissionLauncher) },
 					text = stringResource(R.string.settings_alarm),
 					icon = R.drawable.ic_alarm
+				)
+				SwitchSetting(
+					getValue = { viewModel.getAutoUpdateBackground() },
+					setValue = { viewModel.setAutoUpdateBackground(it) },
+					text = stringResource(R.string.settings_auto_update),
+					subtitle = stringResource(R.string.settings_auto_update_desc),
+					icon = R.drawable.ic_system,
+					enabled = installMode > 0
 				)
 				SegmentedButtonSetting(
 					stringResource(R.string.frequency),

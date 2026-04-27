@@ -57,6 +57,11 @@ class SettingsViewModel(
     private val _fdroidRepos = MutableStateFlow(prefs.fdroidRepos.get())
     val fdroidRepos = _fdroidRepos.asStateFlow()
     val ignoredUpdateInfos = prefs.ignoredUpdateInfosFlow
+	val useCompactView = prefs.useCompactViewFlow
+	
+	private val _installModeFlow = MutableStateFlow(prefs.installMode.get())
+	val installModeFlow = _installModeFlow.asStateFlow()
+	
     private var metricsJob: Job? = null
 
 	// installModeAvailable[0]=Normal always true, [1]=Root, [2]=Shizuku
@@ -114,6 +119,8 @@ class SettingsViewModel(
 	fun getIgnoreBeta() = prefs.ignoreBeta.get()
 	fun setIgnorePreRelease(b: Boolean) = prefs.ignorePreRelease.put(b)
 	fun getIgnorePreRelease() = prefs.ignorePreRelease.get()
+	fun setAutoUpdateBackground(b: Boolean) = prefs.autoUpdateBackground.put(b)
+	fun getAutoUpdateBackground() = prefs.autoUpdateBackground.get()
 	fun getUseApkMirror() = prefs.useApkMirror.get()
 	fun setUseApkMirror(b: Boolean) = prefs.useApkMirror.put(b)
 	fun getUseFdroid() = prefs.useFdroid.get()
@@ -231,8 +238,10 @@ class SettingsViewModel(
 				runCatching { Shell.getShell() }
 				if (Shell.isAppGrantedRoot() == true) {
 					prefs.installMode.put(1)
+					_installModeFlow.value = 1
 				} else {
 					prefs.installMode.put(0)
+					_installModeFlow.value = 0
 				}
 				refreshInstallModeAvailability()
 			}
@@ -243,12 +252,15 @@ class SettingsViewModel(
 				}
 				if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
 					prefs.installMode.put(2)
+					_installModeFlow.value = 2
 					refreshInstallModeAvailability()
 				} else {
 					Shizuku.addRequestPermissionResultListener(object : Shizuku.OnRequestPermissionResultListener {
 						override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
 							if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
-								prefs.installMode.put(if (grantResult == PackageManager.PERMISSION_GRANTED) 2 else 0)
+								val mode = if (grantResult == PackageManager.PERMISSION_GRANTED) 2 else 0
+								prefs.installMode.put(mode)
+								_installModeFlow.value = mode
 								refreshInstallModeAvailability()
 								Shizuku.removeRequestPermissionResultListener(this)
 							}
@@ -259,7 +271,10 @@ class SettingsViewModel(
 			}.getOrElse {
 				snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.shizuku_not_running)))
 			}
-			else -> prefs.installMode.put(0)
+			else -> {
+				prefs.installMode.put(0)
+				_installModeFlow.value = 0
+			}
 		}
 	}
 

@@ -74,6 +74,10 @@ class PlayRepository(
     }
 
     suspend fun search(text: String) = flow {
+        val ignoreAlpha = prefs.ignoreAlpha.get()
+        val ignoreBeta = prefs.ignoreBeta.get()
+        val ignorePre = prefs.ignorePreRelease.get()
+
         if (text.contains(" ") || !text.contains(".")) {
             // Normal Search
             val authData = auth()
@@ -82,16 +86,37 @@ class PlayRepository(
                 .searchResults(text)
                 .appList
                 .take(10)
+                .filter { app ->
+                    val vName = app.versionName ?: ""
+                    if (ignoreAlpha && vName.contains("alpha", true)) return@filter false
+                    if (ignoreBeta && vName.contains("beta", true)) return@filter false
+                    if (ignorePre && vName.contains("pre", true)) return@filter false
+
+                    if (ignoreBeta && app.earlyAccess) return@filter false
+                    if (ignoreBeta && app.testingProgram?.isSubscribed == true) return@filter false
+
+                    true
+                }
                 .map { it.toAppUpdate(::getInstallFiles) }
             emit(Result.success(updates))
         } else {
             // Package Name Search
             val authData = auth()
-            val update = AppDetailsHelper(authData)
+            val app = AppDetailsHelper(authData)
                 .using(playHttpClient)
                 .getAppByPackageName(text)
-                .toAppUpdate(::getInstallFiles)
-            emit(Result.success(listOf(update)))
+            
+            val vName = app.versionName ?: ""
+            if ((ignoreAlpha && vName.contains("alpha", true)) ||
+                (ignoreBeta && vName.contains("beta", true)) ||
+                (ignorePre && vName.contains("pre", true)) ||
+                (ignoreBeta && app.earlyAccess) ||
+                (ignoreBeta && app.testingProgram?.isSubscribed == true)) {
+                emit(Result.success(emptyList()))
+            } else {
+                val update = app.toAppUpdate(::getInstallFiles)
+                emit(Result.success(listOf(update)))
+            }
         }
     }.catch {
         emit(Result.failure(it))
@@ -103,8 +128,23 @@ class PlayRepository(
         val details = AppDetailsHelper(authData)
             .using(playHttpClient)
             .getAppByPackageName(apps.getPackageNames())
+        val ignoreAlpha = prefs.ignoreAlpha.get()
+        val ignoreBeta = prefs.ignoreBeta.get()
+        val ignorePre = prefs.ignorePreRelease.get()
+
         val updates = details
             .filter { it.versionCode > apps.getVersionCode(it.packageName) }
+            .filter { app ->
+                val vName = app.versionName ?: ""
+                if (ignoreAlpha && vName.contains("alpha", true)) return@filter false
+                if (ignoreBeta && vName.contains("beta", true)) return@filter false
+                if (ignorePre && vName.contains("pre", true)) return@filter false
+
+                if (ignoreBeta && app.earlyAccess) return@filter false
+                if (ignoreBeta && app.testingProgram?.isSubscribed == true) return@filter false
+
+                true
+            }
             .map {
                 it.toAppUpdate(
                     ::getInstallFiles,

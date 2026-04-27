@@ -27,6 +27,8 @@
     <string name="settings_ui">Интерфейс</string>
     <string name="settings_compact_view">Компактный режим</string>
     <string name="settings_alarm">Расписание автообновлений</string>
+    <string name="settings_auto_update">Скачивать и устанавливать автоматически</string>
+    <string name="settings_auto_update_desc">Тихое обновление приложений в фоне (Требуется режим установки Shizuku или Root)</string>
     <string name="settings_options">Настройки</string>
     <string name="settings_utils">Утилиты</string>
     <string name="settings_hour">Время проверки</string>
@@ -139,8 +141,10 @@
         <item quantity="few">Найдено %1$d обновлений.</item>
         <item quantity="many">Найдено %1$d обновлений.</item>
     </plurals>
+    <string name="notification_update_content">Нажмите чтобы установить</string>
+    <string name="notification_update_failed">Не удалось обновить приложение: %s</string>
     <string name="version_code">Код версии</string>
-    <string name="ignored_updates">Скрытые обновления</string>
+    <string name="ignored_updates">Пропущенные Обновления</string>
     <string name="manage_ignored_updates">Управление скрытыми обновлениями</string>
     <string name="ignored_updates_empty">Нет скрытых обновлений</string>
     <string name="clear_all">Очистить все</string>

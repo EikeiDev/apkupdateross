@@ -26,6 +26,7 @@ class Prefs(
 	val ignoreAlpha = boolean("ignoreAlpha", defValue = true, backed = true)
 	val ignoreBeta = boolean("ignoreBeta", defValue = true, backed = true)
 	val ignorePreRelease = boolean("ignorePreRelease", defValue = true, backed = true)
+	val autoUpdateBackground = boolean("autoUpdateBackground", defValue = false, backed = true)
 	val useApkMirror = boolean("useApkMirror", defValue = false, backed = true)
 	val useGitHub = boolean("useGitHub", defValue = true, backed = true)
 	val useGitLab = boolean("useGitLab", defValue = true, backed = true)

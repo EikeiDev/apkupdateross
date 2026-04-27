@@ -48,6 +48,27 @@ class UpdatesNotification(private val context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    fun showUpdateFailedNotification(appName: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            action = UpdateAction
+        }
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_install)
+            .setContentTitle(updateTitle)
+            .setContentText(context.getString(R.string.notification_update_failed, appName))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT + PendingIntent.FLAG_IMMUTABLE))
+            .setAutoCancel(true)
+
+        createNotificationChannel()
+        if (areNotificationsEnabled()) {
+            NotificationManagerCompat.from(context).notify(appName.hashCode(), builder.build())
+        }
+    }
+
     fun checkNotificationPermission(launcher: ActivityResultLauncher<String>) {
         if (Build.VERSION.SDK_INT >= 33) {
             if (!areNotificationsEnabled()) {

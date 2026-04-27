@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment.Companion.CenterEnd
 import androidx.compose.ui.Alignment.Companion.CenterStart
 import androidx.compose.ui.Alignment.Companion.CenterVertically
@@ -128,13 +129,24 @@ fun SwitchSetting(
     text: String,
     @DrawableRes icon: Int = R.drawable.ic_system,
     onClick: (() -> Unit)? = null,
-    isExpanded: Boolean = false
-) = Row(Modifier.fillMaxWidth().height(72.dp).clickable {
-    onClick?.invoke()
+    isExpanded: Boolean = false,
+    subtitle: String? = null,
+    enabled: Boolean = true
+) = Row(Modifier.fillMaxWidth().height(if (subtitle != null) 88.dp else 72.dp).clickable(enabled = enabled) {
+    if (onClick != null) onClick() else {
+        val next = !getValue()
+        setValue(next)
+    }
 }.padding(horizontal = 16.dp)) {
     var value by remember { mutableStateOf(getValue()) }
-    SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
-    Text(text, Modifier.align(CenterVertically).weight(1f), style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+    val alpha = if (enabled) 1f else 0.5f
+    SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp).alpha(alpha))
+    Column(Modifier.align(CenterVertically).weight(1f).alpha(alpha)) {
+        Text(text, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) {
+            Text(subtitle, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
     
     if (onClick != null) {
         Icon(
@@ -147,6 +159,7 @@ fun SwitchSetting(
 
     Switch(
         checked = value,
+        enabled = enabled,
         onCheckedChange = {
             setValue(it)
             value = getValue()

@@ -55,6 +55,28 @@ import com.apkupdateross.ui.component.UpdateItem
 import com.apkupdateross.ui.theme.statusBarColor
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.viewmodel.UpdatesViewModel
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import com.apkupdateross.data.ui.Source
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +84,8 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 	val state by viewModel.state.collectAsStateWithLifecycle()
 	val isRefreshing = viewModel.isRefreshing.collectAsStateWithLifecycle().value
 	val selfUpdate = viewModel.selfUpdate.collectAsStateWithLifecycle().value
+	val loadingSources by viewModel.loadingSources.collectAsStateWithLifecycle()
+	val failedSources by viewModel.failedSources.collectAsStateWithLifecycle()
 	val uriHandler = LocalUriHandler.current
 
 	LaunchedEffect(Unit) {
@@ -75,6 +99,43 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 			onUpdate = { viewModel.install(it, uriHandler) },
 			onLater = { viewModel.snoozeSelfUpdate(it.versionCode) }
 		)
+		AnimatedVisibility(
+			visible = loadingSources.isNotEmpty() || failedSources.isNotEmpty(),
+			enter = expandVertically(),
+			exit = shrinkVertically()
+		) {
+			LazyRow(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(8.dp),
+				contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+			) {
+				items(loadingSources.toList(), key = { "loading_${it.name}" }) { source ->
+					AssistChip(
+						onClick = {},
+						label = { Text(source.name, style = MaterialTheme.typography.labelSmall) },
+						leadingIcon = { CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp) }
+					)
+				}
+				items(failedSources.toList(), key = { "failed_${it.name}" }) { source ->
+					AssistChip(
+						onClick = {},
+						label = { Text(source.name, style = MaterialTheme.typography.labelSmall) },
+						leadingIcon = {
+							Icon(
+								Icons.Filled.Warning,
+								contentDescription = null,
+								modifier = Modifier.size(12.dp),
+								tint = MaterialTheme.colorScheme.error
+							)
+						},
+						colors = AssistChipDefaults.assistChipColors(
+							containerColor = MaterialTheme.colorScheme.errorContainer,
+							labelColor = MaterialTheme.colorScheme.onErrorContainer
+						)
+					)
+				}
+			}
+		}
 		PullToRefreshBox(
 			isRefreshing = isRefreshing,
 			onRefresh = { viewModel.refresh() },
@@ -86,7 +147,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 				DefaultErrorScreen()
 			}.onSuccess {
 				when {
-					it.updates.isEmpty() && isRefreshing -> LoadingGrid()
+					it.updates.isEmpty() && isRefreshing -> EmptyGrid(text = stringResource(R.string.checking_updates))
 					it.updates.isEmpty() -> EmptyGrid(text = stringResource(R.string.updates_empty))
 					else -> Grid(viewModel, it.updates, uriHandler)
 				}
@@ -225,34 +286,87 @@ fun Grid(
 		portraitColumns = portraitColumns,
 		landscapeColumns = landscapeColumns
 	) {
-		items(updates) { grouped ->
+		items(updates, key = { it.packageName }) { grouped ->
 			val update = grouped.primary
-			if (compactMode) {
-				GridItem(
-					packageName = update.packageName,
-					name = update.name,
-					version = update.version,
-					uri = null,
-					source = update.source,
-					onIgnore = { viewModel.ignoreVersion(update.id) },
-					onOpenPage = { viewModel.openSourcePage(update, handler) },
-					onClick = { viewModel.install(update, handler) },
-					updates = grouped.updates,
-					onUpdateIgnore = { viewModel.ignoreVersion(it) },
-					onUpdateOpenPage = { viewModel.openSourcePage(it, handler) },
-					onUpdateClick = { viewModel.install(it, handler) }
-				)
-			} else {
-				UpdateItem(
-					grouped,
-					compactMode,
-					{ viewModel.install(it, handler) },
-					{ viewModel.ignoreVersion(it)},
-					{ viewModel.cancel(it) },
-					onDownload = { viewModel.downloadToStorage(it) },
-					onOpenPage = { viewModel.openSourcePage(it, handler) }
-				)
+			SwipeToIgnoreBox(
+				onIgnore = { viewModel.ignoreVersion(update.id) },
+				shape = androidx.compose.foundation.shape.RoundedCornerShape(if (compactMode) 12.dp else 16.dp)
+			) {
+				if (compactMode) {
+					GridItem(
+						packageName = update.packageName,
+						name = update.name,
+						version = update.version,
+						uri = null,
+						source = update.source,
+						onIgnore = { viewModel.ignoreVersion(update.id) },
+						onOpenPage = { viewModel.openSourcePage(update, handler) },
+						onClick = { viewModel.install(update, handler) },
+						updates = grouped.updates,
+						onUpdateIgnore = { viewModel.ignoreVersion(it) },
+						onUpdateOpenPage = { viewModel.openSourcePage(it, handler) },
+						onUpdateClick = { viewModel.install(it, handler) }
+					)
+				} else {
+					UpdateItem(
+						grouped,
+						compactMode,
+						{ viewModel.install(it, handler) },
+						{ viewModel.ignoreVersion(it)},
+						{ viewModel.cancel(it) },
+						onDownload = { viewModel.downloadToStorage(it) },
+						onOpenPage = { viewModel.openSourcePage(it, handler) }
+					)
+				}
 			}
 		}
 	}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToIgnoreBox(
+	onIgnore: () -> Unit,
+	shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+	content: @Composable () -> Unit
+) {
+	val dismissState = rememberSwipeToDismissBoxState(
+		confirmValueChange = { dismissValue ->
+			if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+				onIgnore()
+				true
+			} else {
+				false
+			}
+		}
+	)
+
+	SwipeToDismissBox(
+		state = dismissState,
+		backgroundContent = {
+			val color by animateColorAsState(
+				when (dismissState.targetValue) {
+					SwipeToDismissBoxValue.Settled -> Color.Transparent
+					else -> MaterialTheme.colorScheme.errorContainer
+				}
+			)
+			Box(
+				Modifier
+					.fillMaxSize()
+					.clip(shape)
+					.background(color)
+					.padding(horizontal = 20.dp),
+				contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart
+			) {
+				Icon(
+					Icons.Default.Delete,
+					contentDescription = "Ignore",
+					tint = MaterialTheme.colorScheme.onErrorContainer
+				)
+			}
+		},
+		content = {
+			content()
+		}
+	)
 }

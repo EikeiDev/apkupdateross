@@ -49,9 +49,6 @@ class AptoideRepository(
             .filter { isSaneVersion(it.file.vername, it.file.vercode) }
             .filter { Version(it.file.vername) > Version(apps.getVersion(it.packageName)) }
         emit(r.map { it.toAppUpdate(apps.getApp(it.packageName)) })
-    }.catch {
-        emit(emptyList())
-        Log.e("AptoideRepository", "Error looking for updates.", it)
     }
 
     suspend fun search(text: String) = flow {

@@ -155,4 +155,8 @@
     <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
     <string name="donate">Поддержать разработчика</string>
     <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
+    <string name="checking_updates">Проверка обновлений…</string>
+    <string name="settings_network">Сеть</string>
+    <string name="settings_global_timeout">Глобальный таймаут (сек)</string>
+    <string name="settings_play_timeout">Таймаут Play Store (сек)</string>
 </resources>

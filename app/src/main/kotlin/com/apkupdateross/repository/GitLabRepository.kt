@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import retrofit2.HttpException
 
 
 class GitLabRepository(
@@ -77,9 +78,13 @@ class GitLabRepository(
         } else {
             emit(emptyList())
         }
-    }.catch {
-        emit(emptyList())
-        Log.e("GitLabRepository", "Error fetching releases for $packageName.", it)
+    }.catch { e ->
+        if (e is HttpException && e.code() == 404) {
+            emit(emptyList())
+            Log.e("GitLabRepository", "Repo not found for $packageName.", e)
+        } else {
+            throw e
+        }
     }
 
     suspend fun search(text: String) = flow {

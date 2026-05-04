@@ -60,6 +60,8 @@ class Prefs(
 	val lastSelfUpdateVersionCode = long("lastSelfUpdateVersionCode", 0L, true)
 	val customGitRepos = json("customGitRepos", emptyList<CustomGitRepo>(), true)
 	val useCompactView = boolean("useCompactView", defValue = false, backed = true)
+	val globalTimeoutSec = int("globalTimeoutSec", defValue = 30, backed = true)
+	val playTimeoutSec = int("playTimeoutSec", defValue = 20, backed = true)
 
 	private val _ignoredVersionsFlow = kotlinx.coroutines.flow.MutableStateFlow(ignoredVersions.get())
 	val ignoredVersionsFlow = _ignoredVersionsFlow.asStateFlow()

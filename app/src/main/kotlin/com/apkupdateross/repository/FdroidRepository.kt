@@ -61,9 +61,6 @@ class FdroidRepository(
             .filter { it.apk.versionCode > apps.getVersionCode(it.app.packageName) }
             .parseUpdates(apps)
         emit(updates)
-    }.catch {
-        emit(emptyList())
-        Log.e("FdroidRepository", "Error looking for updates.", it)
     }
 
     suspend fun search(text: String) = flow {

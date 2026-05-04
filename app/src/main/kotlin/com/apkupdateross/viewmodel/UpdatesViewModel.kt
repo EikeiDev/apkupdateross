@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.util.zip.ZipEntry
@@ -71,6 +72,8 @@ class UpdatesViewModel(
 	val useCompactView = prefs.useCompactViewFlow
 	val portraitColumns = prefs.portraitColumnsFlow
 	val landscapeColumns = prefs.landscapeColumnsFlow
+	val loadingSources = updatesRepository.loadingSources
+	val failedSources = updatesRepository.failedSources
 
 	val state: StateFlow<UpdatesUiState> = combine(
 		_updates,
@@ -139,21 +142,27 @@ class UpdatesViewModel(
 		_filterQuery.value = query
 	}
 
-	fun refresh(load: Boolean = true) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-		if (load) _isInitialLoading.value = true
-		_isRefreshing.value = true
+	private var refreshJob: Job? = null
+
+	fun refresh(load: Boolean = true): Job? {
+		if (refreshJob?.isActive == true) return refreshJob
+		refreshJob = viewModelScope.launch(Dispatchers.IO) {
+			if (load) _isInitialLoading.value = true
+			_isRefreshing.value = true
 		try {
 			updatesRepository.updates(force = load).collect { entries ->
-				val current = _updates.value
-				_updates.value = entries.map { entry ->
-					current.find { it.id == entry.id }?.let { existing ->
-						entry.copy(
-							isInstalling = existing.isInstalling,
-							isDownloading = existing.isDownloading,
-							progress = existing.progress,
-							total = if (existing.total > 0) existing.total else entry.total
-						)
-					} ?: entry
+				mutex.withLock {
+					val current = _updates.value
+					_updates.value = entries.map { entry ->
+						current.find { it.id == entry.id }?.let { existing ->
+							entry.copy(
+								isInstalling = existing.isInstalling,
+								isDownloading = existing.isDownloading,
+								progress = existing.progress,
+								total = if (existing.total > 0) existing.total else entry.total
+							)
+						} ?: entry
+					}
 				}
 				_isInitialLoading.value = false
 			}
@@ -161,6 +170,8 @@ class UpdatesViewModel(
 			_isRefreshing.value = false
 			_isInitialLoading.value = false
 		}
+		}
+		return refreshJob
 	}
 
 	fun ignoreVersion(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {

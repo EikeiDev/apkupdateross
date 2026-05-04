@@ -33,9 +33,6 @@ class ApkPureRepository(
             .filter { filterBeta(it) }
             .map { it.toAppUpdate(apps.getApp(it.package_name)) }
         emit(updates)
-    }.catch {
-        Log.e("ApkPureRepository", it.message, it)
-        emit(emptyList())
     }
 
     suspend fun search(text: String) = flow {

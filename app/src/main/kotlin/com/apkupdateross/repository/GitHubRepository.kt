@@ -56,9 +56,6 @@ class GitHubRepository(
         checks.combine { all ->
             emit(all.flatMap { it })
         }.collect()
-    }.catch {
-        emit(emptyList())
-        Log.e("GitHubRepository", "Error fetching releases.", it)
     }
 
     suspend fun search(text: String) = flow {
@@ -123,9 +120,13 @@ class GitHubRepository(
             !rateLimitShown.getAndSet(true)
         ) {
             snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+            throw e
+        } else if (e is HttpException && e.code() == 404) {
+            emit(emptyList())
+            Log.e("GitHubRepository", "Self-update repo not found.", e)
+        } else {
+            throw e
         }
-        emit(emptyList())
-        Log.e("GitHubRepository", "Error checking self-update.", e)
     }
 
     private fun checkApp(
@@ -169,9 +170,13 @@ class GitHubRepository(
             !rateLimitShown.getAndSet(true)
         ) {
             snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+            throw e
+        } else if (e is HttpException && e.code() == 404) {
+            emit(emptyList())
+            Log.e("GitHubRepository", "Repo not found for $packageName.", e)
+        } else {
+            throw e
         }
-        emit(emptyList())
-        Log.e("GitHubRepository", "Error fetching releases for $packageName.", e)
     }
 
     private fun filterPreRelease(release: GitHubRelease) = when {

@@ -530,6 +530,32 @@ fun Settings(
 	}
 
 	item {
+		LargeTitle(stringResource(R.string.settings_network), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
+		ElevatedCard(
+			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+		) {
+			Column {
+				SliderSetting(
+					getValue = { viewModel.getGlobalTimeoutSec().toFloat() },
+					setValue = { viewModel.setGlobalTimeoutSec(it.toInt()) },
+					text = stringResource(R.string.settings_global_timeout),
+					valueRange = 10f..120f,
+					icon = R.drawable.ic_system
+				)
+				Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+				SliderSetting(
+					getValue = { viewModel.getPlayTimeoutSec().toFloat() },
+					setValue = { viewModel.setPlayTimeoutSec(it.toInt()) },
+					text = stringResource(R.string.settings_play_timeout),
+					valueRange = 10f..120f,
+					icon = R.drawable.ic_play
+				)
+			}
+		}
+	}
+
+	item {
 		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
 			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),

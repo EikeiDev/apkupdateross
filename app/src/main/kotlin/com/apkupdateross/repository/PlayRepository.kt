@@ -22,6 +22,7 @@ import com.aurora.gplayapi.helpers.SearchHelper
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withTimeoutOrNull
 
 
 class PlayRepository(
@@ -124,38 +125,38 @@ class PlayRepository(
     }
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
-        val authData = auth()
-        val details = AppDetailsHelper(authData)
-            .using(playHttpClient)
-            .getAppByPackageName(apps.getPackageNames())
-        val ignoreAlpha = prefs.ignoreAlpha.get()
-        val ignoreBeta = prefs.ignoreBeta.get()
-        val ignorePre = prefs.ignorePreRelease.get()
+        val timeout = prefs.playTimeoutSec.get() * 1000L
+        withTimeoutOrNull(timeout) {
+            val authData = auth()
+            val details = AppDetailsHelper(authData)
+                .using(playHttpClient)
+                .getAppByPackageName(apps.getPackageNames())
+            val ignoreAlpha = prefs.ignoreAlpha.get()
+            val ignoreBeta = prefs.ignoreBeta.get()
+            val ignorePre = prefs.ignorePreRelease.get()
 
-        val updates = details
-            .filter { it.versionCode > apps.getVersionCode(it.packageName) }
-            .filter { app ->
-                val vName = app.versionName ?: ""
-                if (ignoreAlpha && vName.contains("alpha", true)) return@filter false
-                if (ignoreBeta && vName.contains("beta", true)) return@filter false
-                if (ignorePre && vName.contains("pre", true)) return@filter false
+            val updates = details
+                .filter { it.versionCode > apps.getVersionCode(it.packageName) }
+                .filter { app ->
+                    val vName = app.versionName ?: ""
+                    if (ignoreAlpha && vName.contains("alpha", true)) return@filter false
+                    if (ignoreBeta && vName.contains("beta", true)) return@filter false
+                    if (ignorePre && vName.contains("pre", true)) return@filter false
 
-                if (ignoreBeta && app.earlyAccess) return@filter false
-                if (ignoreBeta && app.testingProgram?.isSubscribed == true) return@filter false
+                    if (ignoreBeta && app.earlyAccess) return@filter false
+                    if (ignoreBeta && app.testingProgram?.isSubscribed == true) return@filter false
 
-                true
-            }
-            .map {
-                it.toAppUpdate(
-                    ::getInstallFiles,
-                    apps.getVersion(it.packageName),
-                    apps.getVersionCode(it.packageName)
-                )
-            }
-        emit(updates)
-    }.catch {
-        emit(emptyList())
-        Log.e("PlayRepository", "Error looking for updates.", it)
+                    true
+                }
+                .map {
+                    it.toAppUpdate(
+                        ::getInstallFiles,
+                        apps.getVersion(it.packageName),
+                        apps.getVersionCode(it.packageName)
+                    )
+                }
+            emit(updates)
+        } ?: throw IllegalStateException("PlayStore update check timed out after ${prefs.playTimeoutSec.get()} seconds")
     }
 
     private fun getInstallFiles(app: App) = PurchaseHelper(auth())

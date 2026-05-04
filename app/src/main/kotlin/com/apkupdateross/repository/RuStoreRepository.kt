@@ -88,9 +88,6 @@ class RuStoreRepository(
             }
         }
         emit(updates)
-    }.catch {
-        emit(emptyList())
-        Log.e("RuStoreRepository", "Error looking for updates.", it)
     }
 
     suspend fun search(text: String) = flow {

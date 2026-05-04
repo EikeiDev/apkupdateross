@@ -157,4 +157,8 @@
     <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
     <string name="donate">Donate</string>
     <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
+    <string name="checking_updates">Checking for updates…</string>
+    <string name="settings_network">Network</string>
+    <string name="settings_global_timeout">Global timeout (sec)</string>
+    <string name="settings_play_timeout">Play Store timeout (sec)</string>
 </resources>

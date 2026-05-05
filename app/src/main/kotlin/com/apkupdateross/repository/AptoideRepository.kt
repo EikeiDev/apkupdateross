@@ -13,6 +13,7 @@ import com.apkupdateross.data.aptoide.toAppUpdate
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.data.ui.getVersion
+import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.data.ui.toApksData
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.AptoideService
@@ -47,8 +48,11 @@ class AptoideRepository(
             .list
             .filter { it.store.id == 15L }
             .filter { isSaneVersion(it.file.vername, it.file.vercode) }
-            .filter { Version(it.file.vername) > Version(apps.getVersion(it.packageName)) }
+            .filter { (it.file.vercode.toLongOrNull() ?: 0L) > apps.getVersionCode(it.packageName) }
         emit(r.map { it.toAppUpdate(apps.getApp(it.packageName)) })
+    }.catch {
+        emit(emptyList())
+        Log.e("AptoideRepository", "Error looking for updates.", it)
     }
 
     suspend fun search(text: String) = flow {

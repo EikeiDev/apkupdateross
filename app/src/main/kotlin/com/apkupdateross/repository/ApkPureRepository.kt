@@ -9,6 +9,7 @@ import com.apkupdateross.data.apkpure.toAppUpdate
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.data.ui.getSignature
+import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.ApkPureService
 import com.google.gson.Gson
@@ -31,6 +32,7 @@ class ApkPureRepository(
             .filter { filterSignature(it.sign, apps.getSignature(it.package_name)) }
             .filter { filterAlpha(it) }
             .filter { filterBeta(it) }
+            .filter { it.version_code > apps.getVersionCode(it.package_name) }
             .map { it.toAppUpdate(apps.getApp(it.package_name)) }
         emit(updates)
     }

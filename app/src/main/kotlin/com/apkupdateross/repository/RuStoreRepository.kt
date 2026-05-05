@@ -61,14 +61,9 @@ class RuStoreRepository(
                     if (response.code == "OK" && response.body != null) {
                         clearRuStore404(app.packageName)
                         val details = response.body
-                        if (Version(details.versionName) > Version(app.version)) {
-                            if (details.minSdkVersion > Build.VERSION.SDK_INT) {
-                                Log.i("RuStoreRepository", "Skipping update for ${app.packageName} (requires API ${details.minSdkVersion}, current is ${Build.VERSION.SDK_INT})")
-                                null
-                            } else {
-                                val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
-                                details.toAppUpdate(app, downloadUrl)
-                            }
+                        if (details.versionCode > app.versionCode) {
+                            val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
+                            details.toAppUpdate(app, downloadUrl)
                         } else null
                     } else null
                 }.onFailure { exception ->
@@ -88,6 +83,9 @@ class RuStoreRepository(
             }
         }
         emit(updates)
+    }.catch {
+        emit(emptyList())
+        Log.e("RuStoreRepository", "Error looking for updates.", it)
     }
 
     suspend fun search(text: String) = flow {
@@ -108,13 +106,8 @@ class RuStoreRepository(
                         if (detailsResponse.code == "OK" && detailsResponse.body != null) {
                             clearRuStore404(searchApp.packageName)
                             val details = detailsResponse.body
-                            if (details.minSdkVersion > Build.VERSION.SDK_INT) {
-                                Log.i("RuStoreRepository", "Skipping search result for ${searchApp.packageName} (requires API ${details.minSdkVersion})")
-                                null
-                            } else {
-                                val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
-                                details.toAppUpdate(null, downloadUrl)
-                            }
+                            val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
+                            details.toAppUpdate(null, downloadUrl)
                         } else null
                     }.onFailure { exception ->
                         if (exception is HttpException && exception.code() == 429) {

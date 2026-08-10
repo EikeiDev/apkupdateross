@@ -146,7 +146,7 @@ val mainModule = module {
 	single {
 		val client = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).build()
 		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
-		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("APKPure/3.20.49 (Aegon)").build()
+		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
 		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
 		Downloader(client, apkPureClient, auroraClient, dir)
 	}
@@ -164,8 +164,18 @@ val mainModule = module {
 	single { AptoideRepository(get(), get(), get()) }
 
 	single {
+		// RuStore's backapi rejects requests without this header (HTTP 400 since mid-2026).
+		// The value is the RuStore app's version code; bump it if the API starts rejecting it again.
+		val ruStoreClient = get<OkHttpClient>().newBuilder()
+			.addInterceptor { chain ->
+				val request = chain.request().newBuilder()
+					.header("ruStoreVerCode", "1105002")
+					.build()
+				chain.proceed(request)
+			}
+			.build()
 		Retrofit.Builder()
-			.client(get())
+			.client(ruStoreClient)
 			.baseUrl("https://backapi.rustore.ru/")
 			.addConverterFactory(GsonConverterFactory.create(get()))
 			.build()

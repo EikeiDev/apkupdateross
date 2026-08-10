@@ -67,6 +67,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Alignment.Companion.CenterVertically
@@ -371,6 +372,7 @@ fun Settings(
 			Column {
 				var githubExpanded by remember { mutableStateOf(false) }
 				var githubToken by rememberSaveable { mutableStateOf(viewModel.getGithubToken()) }
+				var githubTokenVisible by rememberSaveable { mutableStateOf(false) }
 				SwitchSetting(
 					{ viewModel.getUseGitHub() },
 					{ viewModel.setUseGitHub(it) },
@@ -396,7 +398,16 @@ fun Settings(
 								.padding(horizontal = 16.dp, vertical = 8.dp),
 							label = { Text(stringResource(R.string.github_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
 							singleLine = true,
-							visualTransformation = PasswordVisualTransformation()
+							visualTransformation = if (githubTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							trailingIcon = {
+								IconButton(onClick = { githubTokenVisible = !githubTokenVisible }) {
+									Icon(
+										painter = painterResource(if (githubTokenVisible) R.drawable.ic_visible else R.drawable.ic_visible_off),
+										contentDescription = if (githubTokenVisible) "Hide password" else "Show password",
+										modifier = Modifier.size(24.dp)
+									)
+								}
+							}
 						)
 						CustomGitReposSection(
 							repos = customRepos.filter { it.platform == GitProvider.GITHUB },
@@ -409,6 +420,7 @@ fun Settings(
 
 				var gitlabExpanded by remember { mutableStateOf(false) }
 				var gitlabToken by rememberSaveable { mutableStateOf(viewModel.getGitlabToken()) }
+				var gitlabTokenVisible by rememberSaveable { mutableStateOf(false) }
 				SwitchSetting(
 					{ viewModel.getUseGitLab() },
 					{ viewModel.setUseGitLab(it) },
@@ -434,7 +446,16 @@ fun Settings(
 								.padding(horizontal = 16.dp, vertical = 8.dp),
 							label = { Text(stringResource(R.string.gitlab_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
 							singleLine = true,
-							visualTransformation = PasswordVisualTransformation()
+							visualTransformation = if (gitlabTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+							trailingIcon = {
+								IconButton(onClick = { gitlabTokenVisible = !gitlabTokenVisible }) {
+									Icon(
+										painter = painterResource(if (gitlabTokenVisible) R.drawable.ic_visible else R.drawable.ic_visible_off),
+										contentDescription = if (gitlabTokenVisible) "Hide password" else "Show password",
+										modifier = Modifier.size(24.dp)
+									)
+								}
+							}
 						)
 						CustomGitReposSection(
 							repos = customRepos.filter { it.platform == GitProvider.GITLAB },

@@ -44,6 +44,7 @@ class Prefs(
 	), true)
 
 	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
+	val playProfileVersion = int("playProfileVersion", 0, true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)

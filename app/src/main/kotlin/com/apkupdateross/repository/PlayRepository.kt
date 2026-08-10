@@ -23,6 +23,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 
 
 class PlayRepository(
@@ -33,6 +34,7 @@ class PlayRepository(
 ) {
     companion object {
         const val AUTH_URL = "https://auroraoss.com/api/auth"
+        const val DEVICE_PROFILE_VERSION = 1
     }
 
     private fun refreshAuth(): AuthData {
@@ -42,7 +44,8 @@ class PlayRepository(
         if (playResponse.isSuccessful) {
             val authData = gson.fromJson(String(playResponse.responseBytes), AuthData::class.java)
             prefs.playAuthData.put(authData)
-            return authData
+            prefs.playProfileVersion.put(DEVICE_PROFILE_VERSION)
+            return authData.withDeviceLocale()
         }
         throw IllegalStateException("Auth not successful.")
     }
@@ -50,6 +53,10 @@ class PlayRepository(
     private fun auth(): AuthData {
         val savedData = prefs.playAuthData.get()
         if (savedData.email.isEmpty()) {
+            return refreshAuth()
+        }
+        if (prefs.playProfileVersion.get() != DEVICE_PROFILE_VERSION) {
+            Log.i("PlayRepository", "Device profile changed, re-authenticating.")
             return refreshAuth()
         }
         if (System.currentTimeMillis() - prefs.lastPlayCheck.get() > 60 * 60 * 1_000) {
@@ -71,7 +78,12 @@ class PlayRepository(
             }
             Log.i("PlayRepository", "Token still valid.")
         }
-        return savedData
+        return savedData.withDeviceLocale()
+    }
+
+    private fun AuthData.withDeviceLocale() = apply {
+        runCatching { locale = Locale.getDefault() }
+            .onFailure { Log.e("PlayRepository", "Could not set session locale.", it) }
     }
 
     suspend fun search(text: String) = flow {

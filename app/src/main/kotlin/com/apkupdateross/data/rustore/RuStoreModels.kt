@@ -80,7 +80,8 @@ data class RuStoreSearchApp(
 data class RuStoreDownloadRequest(
     val appId: Long,
     val sdkVersion: Int = Build.VERSION.SDK_INT,
-    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
+    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
+    val withoutSplits: Boolean = true
 )
 
 // Download link response body

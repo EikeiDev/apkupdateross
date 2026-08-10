@@ -3,7 +3,11 @@ package com.apkupdateross.repository
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import com.apkupdateross.data.rustore.RuStoreBatchApp
+import com.apkupdateross.data.rustore.RuStoreBatchEntry
+import com.apkupdateross.data.rustore.RuStoreBatchRequest
 import com.apkupdateross.data.rustore.RuStoreDownloadRequest
+import com.apkupdateross.data.rustore.ruStoreApkUrl
 import com.apkupdateross.data.rustore.toAppUpdate
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
@@ -14,6 +18,7 @@ import com.apkupdateross.service.RuStoreService
 import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
@@ -44,44 +49,52 @@ class RuStoreRepository(
     private var lastRateLimitTimestamp = 0L
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
-        val ignoredPackages = getActiveRuStore404Set()
-        val filteredApps = apps.filterNot {
-            val ignore = ignoredPackages.contains(it.packageName)
-            if (ignore) {
-                Log.d("RuStoreRepository", "Skipping ${it.packageName} due to cached 404")
-            }
-            ignore
+        val batchRequest = RuStoreBatchRequest(
+            apps.map { RuStoreBatchEntry(it.packageName, it.versionCode) }
+        )
+        val batchResponse = service.getBatchUpdates(batchRequest)
+        val appsWithUpdates: List<RuStoreBatchApp> = batchResponse.body.content
+
+        if (appsWithUpdates.isEmpty()) {
+            emit(emptyList())
+            return@flow
         }
 
-        val updates = processAppsInBatches(filteredApps) { app, markRateLimit ->
+        val updates = processAppsWithRateLimiting(appsWithUpdates) { batchApp, markRateLimit ->
             retryOnRateLimit {
                 var hitRateLimit = false
                 val result = runCatching {
-                    val response = service.getAppDetails(app.packageName)
-                    if (response.code == "OK" && response.body != null) {
-                        clearRuStore404(app.packageName)
-                        val details = response.body
-                        if (details.versionCode > app.versionCode) {
-                            val downloadUrl = getDownloadUrl(details.appId, details.minSdkVersion)
-                            details.toAppUpdate(app, downloadUrl)
-                        } else null
-                    } else null
+                    val detailResponse = service.getAppDetails(batchApp.packageName)
+                    if (detailResponse.code != "OK" || detailResponse.body == null || detailResponse.body.appId == 0L) return@runCatching null
+
+                    val ruStoreApp = detailResponse.body
+                    clearRuStore404(batchApp.packageName)
+                    if (!filterAlpha(ruStoreApp.versionName) || !filterBeta(ruStoreApp.versionName)) return@runCatching null
+
+                    val downloadUrl = getDownloadUrl(ruStoreApp.appId, ruStoreApp.minSdkVersion)
+                    if (downloadUrl.isEmpty()) return@runCatching null
+
+                    val app = apps.getApp(batchApp.packageName)
+                    ruStoreApp.toAppUpdate(app, downloadUrl)
                 }.onFailure { exception ->
-                    if (exception is HttpException && exception.code() == 429) {
-                        hitRateLimit = true
-                        Log.w("RuStoreRepository", "Rate limit hit for ${app.packageName}, skipping")
-                        markRateLimit()
-                    } else if (exception is HttpException && exception.code() == 404) {
-                        markRuStore404(app.packageName)
-                        Log.w("RuStoreRepository", "RuStore returned 404 for ${app.packageName}, caching")
-                    } else {
-                        Log.e("RuStoreRepository", "Error checking update for ${app.packageName}", exception)
+                    when {
+                        exception is HttpException && exception.code() == 429 -> {
+                            hitRateLimit = true
+                            Log.w("RuStoreRepository", "Rate limit hit for ${batchApp.packageName}")
+                            markRateLimit()
+                        }
+                        exception is HttpException && exception.code() == 404 -> {
+                            markRuStore404(batchApp.packageName)
+                            Log.w("RuStoreRepository", "404 for ${batchApp.packageName}, caching")
+                        }
+                        else -> Log.e("RuStoreRepository", "Error checking ${batchApp.packageName}", exception)
                     }
                 }.getOrNull()
 
                 AttemptResult(result, hitRateLimit)
             }
         }
+
         emit(updates)
     }.catch {
         emit(emptyList())
@@ -181,7 +194,7 @@ class RuStoreRepository(
                 val response = service.getDownloadLink(request)
                 if (response.code == "OK" && response.body != null) {
                     clearRuStore404(request.appId.toString())
-                    response.body.downloadUrls.firstOrNull()?.url ?: ""
+                    response.body.downloadUrls.firstOrNull()?.url?.ruStoreApkUrl() ?: ""
                 } else {
                     Log.w("RuStoreRepository", "Download link response not OK for appId=$appId")
                     ""
@@ -204,6 +217,39 @@ class RuStoreRepository(
     }
 
     private data class AttemptResult<R>(val value: R?, val hitRateLimit: Boolean)
+
+    private suspend fun <T, R> processAppsWithRateLimiting(
+        items: List<T>,
+        processor: suspend (T, () -> Unit) -> R?
+    ): List<R> = coroutineScope {
+        val results = mutableListOf<R>()
+        val batchSize = if (shouldUseParallelBatches()) 2 else 1
+        val batches = items.chunked(batchSize)
+
+        batches.forEachIndexed { index, batch ->
+            val chunkRateLimitHit = AtomicBoolean(false)
+
+            val batchResults = batch.map { item ->
+                async(Dispatchers.IO) {
+                    processor(item) {
+                        chunkRateLimitHit.set(true)
+                        increaseDelay()
+                        lastRateLimitTimestamp = SystemClock.elapsedRealtime()
+                    }
+                }
+            }.awaitAll()
+
+            results.addAll(batchResults.filterNotNull())
+
+            if (chunkRateLimitHit.get()) {
+                delay(currentBatchDelayMs)
+            } else {
+                decreaseDelay()
+            }
+        }
+
+        results
+    }
 
     private suspend fun <R> retryOnRateLimit(
         maxRetries: Int = MAX_RATE_LIMIT_RETRIES,
@@ -271,17 +317,24 @@ class RuStoreRepository(
     private fun markRuStore404(identifier: Any) {
         val packageName = identifier.toString()
         val now = System.currentTimeMillis()
-        updateRuStore404Packages { list ->
-            val without = list.filterNot { it.packageName == packageName }
-            without + RuStore404Entry(packageName, now)
+        updateRuStore404Packages { it + RuStore404Entry(packageName, now) }
+    }
+
+    private fun clearRuStore404(identifier: Any) {
+        val packageName = identifier.toString()
+        updateRuStore404Packages { current ->
+            current.filterNot { it.packageName == packageName }
         }
     }
 
-    private fun clearRuStore404(packageName: String) {
-        updateRuStore404Packages { list ->
-            val filtered = list.filterNot { it.packageName == packageName }
-            if (filtered.size == list.size) list else filtered
-        }
+    private fun filterAlpha(version: String) = when {
+        prefs.ignoreAlpha.get() && version.contains("alpha", true) -> false
+        else -> true
+    }
+
+    private fun filterBeta(version: String) = when {
+        prefs.ignoreBeta.get() && version.contains("beta", true) -> false
+        else -> true
     }
 
     @Synchronized

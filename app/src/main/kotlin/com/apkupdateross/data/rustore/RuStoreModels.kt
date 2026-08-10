@@ -1,6 +1,7 @@
 package com.apkupdateross.data.rustore
 
 import android.net.Uri
+import android.os.Build
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
@@ -11,6 +12,34 @@ import com.google.gson.annotations.SerializedName
 data class RuStoreApiResponse<T>(
     val code: String = "",
     val body: T? = null
+)
+
+// Batch request for checking multiple apps at once
+data class RuStoreBatchRequest(
+    val content: List<RuStoreBatchEntry>
+)
+
+data class RuStoreBatchEntry(
+    val packageName: String,
+    val versionCode: Long
+)
+
+// Batch response body
+data class RuStoreBatchBody(
+    val content: List<RuStoreBatchApp> = emptyList()
+)
+
+// Batch response - NOT wrapped in RuStoreApiResponse
+data class RuStoreBatchResponse(
+    val body: RuStoreBatchBody = RuStoreBatchBody()
+)
+
+data class RuStoreBatchApp(
+    val appId: Long = 0L,
+    val packageName: String = "",
+    val appName: String = "",
+    val updatedAt: String = "",
+    val versionCode: Long = 0L
 )
 
 // App details from /applicationData/overallInfo/{packageName}
@@ -50,11 +79,8 @@ data class RuStoreSearchApp(
 // Download link request body for /applicationData/v2/download-link
 data class RuStoreDownloadRequest(
     val appId: Long,
-    val firstInstall: Boolean = true,
-    val supportedAbis: List<String> = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86", "armeabi"),
-    val sdkVersion: Int = 21,
-    val withoutSplits: Boolean = true,
-    val signatureFingerprint: String? = null
+    val sdkVersion: Int = Build.VERSION.SDK_INT,
+    val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList()
 )
 
 // Download link response body
@@ -66,6 +92,10 @@ data class RuStoreDownloadUrl(
     val url: String = "",
     val type: String = ""
 )
+
+// Extension to convert RuStore .zip URLs to .apk URLs
+fun String.ruStoreApkUrl(): String =
+    if (endsWith(".zip", ignoreCase = true)) dropLast(4) + ".apk" else this
 
 // Extension to convert RuStoreAppDetails to AppUpdate
 fun RuStoreAppDetails.toAppUpdate(

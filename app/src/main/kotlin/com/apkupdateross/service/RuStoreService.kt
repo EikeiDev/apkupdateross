@@ -3,6 +3,9 @@ package com.apkupdateross.service
 import com.apkupdateross.data.rustore.RuStoreApiResponse
 import com.apkupdateross.data.rustore.RuStoreAppDetails
 import com.apkupdateross.data.rustore.RuStoreDownloadBody
+import com.apkupdateross.data.rustore.RuStoreBatchBody
+import com.apkupdateross.data.rustore.RuStoreBatchRequest
+import com.apkupdateross.data.rustore.RuStoreBatchResponse
 import com.apkupdateross.data.rustore.RuStoreDownloadRequest
 import com.apkupdateross.data.rustore.RuStoreSearchBody
 import retrofit2.http.Body
@@ -17,6 +20,9 @@ interface RuStoreService {
     suspend fun getAppDetails(
         @Path("packageName") packageName: String
     ): RuStoreApiResponse<RuStoreAppDetails>
+
+    @POST("applicationData/newApps")
+    suspend fun getBatchUpdates(@Body request: RuStoreBatchRequest): RuStoreBatchResponse
 
     @POST("applicationData/v2/download-link")
     suspend fun getDownloadLink(

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.util.Log
 import com.apkupdateross.data.ui.AppInstallStatus
+import com.apkupdateross.util.getIntentExtra
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -21,7 +22,7 @@ class InstallReceiver : BroadcastReceiver(), KoinComponent {
 
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                val confirmationIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                val confirmationIntent = intent.getIntentExtra()
                 if (confirmationIntent != null) {
                     confirmationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(confirmationIntent)

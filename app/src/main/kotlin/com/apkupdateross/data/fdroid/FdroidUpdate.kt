@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.Source
 
 data class FdroidUpdate(
@@ -26,5 +27,10 @@ fun FdroidUpdate.toAppUpdate(current: AppInstalled?, source: Source, url: String
     Link.Url("$url${apk.apkName}"),
     sourceUrl = "${url}packages/${app.packageName}/",
     releaseUrl = "${url}packages/${app.packageName}/",
-    whatsNew = if (current != null) app.localized["en-US"]?.whatsNew.orEmpty() else app.localized["en-US"]?.summary.orEmpty()
+    whatsNew = if (current != null) app.localized["en-US"]?.whatsNew.orEmpty() else app.localized["en-US"]?.summary.orEmpty(),
+    releaseType = if ((app.suggestedVersionCode.toLongOrNull() ?: Long.MAX_VALUE) < apk.versionCode) {
+        ReleaseType.PreRelease
+    } else {
+        ReleaseType.from(apk.versionName)
+    }
 )

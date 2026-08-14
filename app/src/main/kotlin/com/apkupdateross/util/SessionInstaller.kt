@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES
-import androidx.core.content.ContextCompat.startActivity
 import android.util.Log
 import com.apkupdateross.BuildConfig
 import com.apkupdateross.data.ui.AppInstallProgress
@@ -46,9 +45,7 @@ class SessionInstaller(
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setAppPackageName(packageName)
 
-        if (Build.VERSION.SDK_INT >= 24) {
-            params.setOriginatingUid(android.os.Process.myUid())
-        }
+        params.setOriginatingUid(android.os.Process.myUid())
 
         if (Build.VERSION.SDK_INT >= 31) {
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
@@ -135,7 +132,7 @@ class SessionInstaller(
                 val uri = Uri.parse("package:${BuildConfig.APPLICATION_ID}")
                 val intent = Intent(ACTION_MANAGE_UNKNOWN_APP_SOURCES, uri)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(context, intent, null)
+                context.startActivity(intent)
                 return false
             }
         }

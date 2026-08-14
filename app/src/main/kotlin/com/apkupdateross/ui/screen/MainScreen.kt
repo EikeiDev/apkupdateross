@@ -84,10 +84,10 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	}
 
 	// Check intent when cold starting from notification
-	checkNotificationIntent(mainViewModel, updatesViewModel, navController, launcher)
+	CheckNotificationIntent(mainViewModel, updatesViewModel, navController, launcher)
 
 	// Check notification intent when hot starting
-	intentListener(mainViewModel, updatesViewModel, navController, launcher)
+	IntentListener(mainViewModel, updatesViewModel, navController, launcher)
 
 	// Theme
 	val theme = koinInject<Themer>().flow().collectAsStateWithLifecycle().value
@@ -134,7 +134,7 @@ fun <T> Flow<T>.CollectAsEffect(
 }
 
 @Composable
-fun intentListener(
+fun IntentListener(
 	mainViewModel: MainViewModel,
 	updatesViewModel: UpdatesViewModel,
 	navController: NavController,
@@ -151,7 +151,7 @@ fun intentListener(
 }
 
 @Composable
-fun checkNotificationIntent(
+fun CheckNotificationIntent(
 	mainViewModel: MainViewModel,
 	updatesViewModel: UpdatesViewModel,
 	navController: NavController,

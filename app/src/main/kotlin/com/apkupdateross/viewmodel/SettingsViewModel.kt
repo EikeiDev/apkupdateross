@@ -141,8 +141,6 @@ class SettingsViewModel(
 	fun setUsePlay(b: Boolean) = prefs.usePlay.put(b)
 	fun getUseRuStore() = prefs.useRuStore.get()
 	fun setUseRuStore(b: Boolean) = prefs.useRuStore.put(b)
-	fun getAndroidTvUi() = prefs.androidTvUi.get()
-	fun setAndroidTvUi(b: Boolean) = prefs.androidTvUi.put(b)
 	fun getEnableAlarm() = prefs.enableAlarm.get()
 	fun getGithubToken() = prefs.githubToken.get()
 	fun setGithubToken(token: String) = prefs.githubToken.put(token.trim())
@@ -218,7 +216,7 @@ class SettingsViewModel(
         val current = prefs.fdroidRepos.get()
         val repo = current.find { it.id == id }
         if (repo?.isDefault == true) {
-            snackBar.snackBar(viewModelScope, TextSnack("Cannot remove default repository"))
+            snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.settings_fdroid_repo_default_remove_error)))
             return
         }
         val updated = current.filterNot { it.id == id }

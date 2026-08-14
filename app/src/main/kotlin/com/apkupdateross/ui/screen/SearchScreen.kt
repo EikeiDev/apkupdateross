@@ -159,7 +159,7 @@ fun SearchText(viewModel: SearchViewModel) = Box {
             .focusRequester(focusRequester),
         placeholder = { Text(stringResource(R.string.tab_search)) },
         leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = "Search")
+            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.tab_search))
         },
         trailingIcon = {
             if (value.isNotEmpty()) {
@@ -167,7 +167,7 @@ fun SearchText(viewModel: SearchViewModel) = Box {
                     value = ""
                     viewModel.search("") 
                 }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear))
                 }
             } else {
                 SearchFilterAction(viewModel)

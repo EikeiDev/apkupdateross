@@ -47,7 +47,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.EmptyGrid
 import com.apkupdateross.ui.component.GridItem
-import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.RefreshIcon
@@ -76,7 +75,6 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import com.apkupdateross.data.ui.Source
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,7 +135,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 			}
 		}
 		PullToRefreshBox(
-			isRefreshing = isRefreshing,
+			isRefreshing = isRefreshing && state is UpdatesUiState.Loading,
 			onRefresh = { viewModel.refresh() },
 			modifier = Modifier.fillMaxSize()
 		) {
@@ -222,7 +220,7 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 					isSearchMode = false
 					viewModel.setFilterQuery("")
 				}) {
-					Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+					Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
 				}
 			}
 		},
@@ -245,7 +243,7 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 					trailingIcon = {
 						if (query.isNotEmpty()) {
 							IconButton(onClick = { viewModel.setFilterQuery("") }) {
-								Icon(Icons.Default.Close, contentDescription = "Clear")
+								Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear))
 							}
 						}
 					}
@@ -261,7 +259,7 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 		actions = {
 			if (!isSearchMode) {
 				IconButton(onClick = { isSearchMode = true }) {
-					Icon(Icons.Default.Search, contentDescription = "Search")
+					Icon(Icons.Default.Search, contentDescription = stringResource(R.string.tab_search))
 				}
 			}
 			IconButton(onClick = { viewModel.refresh() }) {
@@ -360,7 +358,7 @@ fun SwipeToIgnoreBox(
 			) {
 				Icon(
 					Icons.Default.Delete,
-					contentDescription = "Ignore",
+					contentDescription = stringResource(R.string.ignore_cd),
 					tint = MaterialTheme.colorScheme.onErrorContainer
 				)
 			}

@@ -7,12 +7,14 @@ import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.PlaySource
+import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.getPackageNames
 import com.apkupdateross.data.ui.getVersion
 import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.play.NativeDeviceInfoProvider
 import com.apkupdateross.util.play.PlayHttpClient
+import com.apkupdateross.util.play.PlayLocales
 import com.aurora.gplayapi.data.models.App
 import com.aurora.gplayapi.data.models.AuthData
 import com.aurora.gplayapi.data.models.File
@@ -23,7 +25,6 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Locale
 
 
 class PlayRepository(
@@ -42,16 +43,16 @@ class PlayRepository(
         val properties = NativeDeviceInfoProvider(context).getNativeDeviceProperties()
         val playResponse = playHttpClient.postAuth(AUTH_URL, gson.toJson(properties).toByteArray())
         if (playResponse.isSuccessful) {
-            val authData = gson.fromJson(String(playResponse.responseBytes), AuthData::class.java)
+            val authData = gson.fromJson(String(playResponse.responseBytes), AuthData::class.java).withDeviceLocale()
             prefs.playAuthData.put(authData)
             prefs.playProfileVersion.put(DEVICE_PROFILE_VERSION)
-            return authData.withDeviceLocale()
+            return authData
         }
         throw IllegalStateException("Auth not successful.")
     }
 
     private fun auth(): AuthData {
-        val savedData = prefs.playAuthData.get()
+        val savedData = prefs.playAuthData.get().withDeviceLocale()
         if (savedData.email.isEmpty()) {
             return refreshAuth()
         }
@@ -82,7 +83,7 @@ class PlayRepository(
     }
 
     private fun AuthData.withDeviceLocale() = apply {
-        runCatching { locale = Locale.getDefault() }
+        runCatching { locale = PlayLocales.preferredLocale(context) }
             .onFailure { Log.e("PlayRepository", "Could not set session locale.", it) }
     }
 
@@ -193,6 +194,10 @@ fun App.toAppUpdate(
     Uri.parse(iconArtwork.url),
     Link.Play { getInstallFiles(this) },
     whatsNew = changes,
+    releaseType = when {
+        earlyAccess || testingProgram?.isSubscribed == true -> ReleaseType.Beta
+        else -> ReleaseType.from(versionName)
+    },
     isPaid = !isFree,
     sourceUrl = "https://play.google.com/store/apps/details?id=$packageName",
     releaseUrl = "https://play.google.com/store/apps/details?id=$packageName"

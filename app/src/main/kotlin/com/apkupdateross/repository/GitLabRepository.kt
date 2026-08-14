@@ -12,6 +12,7 @@ import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GitLabSource
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitLabService
@@ -59,21 +60,23 @@ class GitLabRepository(
             .filter { Version(filterVersionTag(it.tag_name)) > Version(currentVersion) }
 
         if (releases.isNotEmpty()) {
+            val release = releases[0]
             val app = apps?.getApp(packageName)
             emit(listOf(
                 AppUpdate(
                 name = repo,
                 packageName = packageName,
-                version = releases[0].tag_name,
+                version = release.tag_name,
                 oldVersion = app?.version ?: "?",
-                versionCode = releases[0].tag_name.versionCodeFromTag(),
+                versionCode = release.tag_name.versionCodeFromTag(),
                 oldVersionCode = app?.versionCode ?: 0L,
                 source = GitLabSource,
-                link = Link.Url(getApkUrl(packageName, releases[0])),
-                whatsNew = releases[0].description,
-                iconUri = if (apps == null) Uri.parse(releases[0].author.avatar_url) else Uri.EMPTY,
+                link = Link.Url(getApkUrl(packageName, release)),
+                whatsNew = release.description,
+                releaseType = ReleaseType.from(release.tag_name),
+                iconUri = if (apps == null) Uri.parse(release.author.avatar_url) else Uri.EMPTY,
                 sourceUrl = "https://gitlab.com/$user/$repo",
-                releaseUrl = "https://gitlab.com/$user/$repo/-/releases/${releases[0].tag_name}"
+                releaseUrl = "https://gitlab.com/$user/$repo/-/releases/${release.tag_name}"
             )))
         } else {
             emit(emptyList())

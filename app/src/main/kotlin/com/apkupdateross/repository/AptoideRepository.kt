@@ -12,13 +12,11 @@ import com.apkupdateross.data.aptoide.ListSearchAppsRequest
 import com.apkupdateross.data.aptoide.toAppUpdate
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.getApp
-import com.apkupdateross.data.ui.getVersion
 import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.data.ui.toApksData
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.AptoideService
 import com.apkupdateross.util.randomUUID
-import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 
@@ -90,7 +88,7 @@ class AptoideRepository(
 
     private fun computeFilters(context: Context): String {
         val filters = "maxSdk=${getSdkVer()}&maxScreen=${getScreenSize()}&maxGles=" +
-                "${getGlEs(context)}&myCPU=${getAbis()}&leanback=${hasLeanback(context)}" +
+                "${getGlEs(context)}&myCPU=${getAbis()}&leanback=0" +
                 "&myDensity=${getDensityDpi()}"
 
         return Base64.encodeToString(
@@ -113,8 +111,6 @@ class AptoideRepository(
     }
 
     private fun getAbis() = Build.SUPPORTED_ABIS.joinToString(separator = ",")
-
-    private fun hasLeanback(context: Context): String = "1"
 
     private fun getDensityDpi(): Int {
         val dpi = Resources.getSystem().displayMetrics.densityDpi

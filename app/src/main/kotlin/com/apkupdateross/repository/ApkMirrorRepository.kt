@@ -1,6 +1,5 @@
 package com.apkupdateross.repository
 
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -31,8 +30,7 @@ private const val USER_AGENT = "APKUpdater-v3.0.3"
 
 class ApkMirrorRepository(
     private val service: ApkMirrorService,
-    private val prefs: Prefs,
-    packageManager: PackageManager
+    private val prefs: Prefs
 ) {
 
     private val arch = when {
@@ -117,10 +115,13 @@ class ApkMirrorRepository(
                 .filter { filterArch(it) }
                 .filter { it.versionCode > apps.getVersionCode(data.pname) }
                 .filter { filterMinApi(it) }
-                .filter { filterAndroidTv(it) }
+                .filter { filterPhoneApk(it) }
                 .filter { filterWearOS(it) }
                 .maxByOrNull { it.versionCode }
-                ?.toAppUpdate(apps.getApp(data.pname)!!, data.release, data.app.link)
+                ?.let { apk ->
+                    val installed = apps.getApp(data.pname) ?: return@mapNotNull null
+                    apk.toAppUpdate(installed, data.release, data.app.link)
+                }
         }
 
     private fun filterSignature(apk: AppExistsResponseApk, signature: String?) = when {
@@ -137,10 +138,9 @@ class ApkMirrorRepository(
         else -> false
     }
 
-    private fun filterAndroidTv(apk: AppExistsResponseApk): Boolean {
-        return (apk.capabilities?.contains("leanback_standalone").orFalse()
-                || apk.capabilities?.contains("leanback").orFalse())
-    }
+    private fun filterPhoneApk(apk: AppExistsResponseApk): Boolean =
+        !apk.capabilities?.contains("leanback_standalone").orFalse()
+                && !apk.capabilities?.contains("leanback").orFalse()
 
     private fun filterWearOS(apk: AppExistsResponseApk): Boolean {
         // For the moment filter out all standalone Wear OS apps

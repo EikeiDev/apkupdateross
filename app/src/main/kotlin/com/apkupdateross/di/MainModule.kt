@@ -151,11 +151,11 @@ val mainModule = module {
 		Downloader(client, apkPureClient, auroraClient, dir)
 	}
 
-	single { ApkMirrorRepository(get(), get(), androidContext().packageManager) }
+	single { ApkMirrorRepository(get(), get()) }
 
 	single { AppsRepository(get(), get()) }
 
-	single { GitHubRepository(get(), get(), get()) }
+	single { GitHubRepository(get(), get(), get(), get()) }
 
 	single { GitLabRepository(get(), get()) }
 
@@ -192,7 +192,7 @@ val mainModule = module {
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 
-	single { Prefs(get(), true) }
+	single { Prefs(get()) }
 
 	single { UpdatesNotification(get()) }
 
@@ -212,7 +212,7 @@ val mainModule = module {
 
 	single { InstallLog() }
 
-	single { PlayHttpClient(get()) }
+	single { PlayHttpClient(androidContext(), get()) }
 
 	viewModel { MainViewModel(get(), get()) }
 

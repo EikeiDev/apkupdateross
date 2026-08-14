@@ -4,6 +4,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import com.apkupdateross.BuildConfig
+import com.apkupdateross.R
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.github.GitHubApp
@@ -14,11 +15,13 @@ import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GitHubSource
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.data.snack.TextSnack
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitHubService
 import com.apkupdateross.util.SnackBar
+import com.apkupdateross.util.Stringer
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
 import com.apkupdateross.util.versionCodeFromTag
@@ -35,7 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GitHubRepository(
     private val service: GitHubService,
     private val prefs: Prefs,
-    private val snackBar: SnackBar
+    private val snackBar: SnackBar,
+    private val stringer: Stringer
 ) {
     private val rateLimitShown = AtomicBoolean(false)
 
@@ -106,7 +110,8 @@ class GitHubRepository(
                     link = Link.Url(assetUrl),
                     sourceUrl = sourceUrl,
                     releaseUrl = "$sourceUrl/releases/tag/${release.tag_name}",
-                    whatsNew = release.body
+                    whatsNew = release.body,
+                    releaseType = ReleaseType.from(raw, release.name, release.prerelease)
                 )))
             } else {
                 emit(listOf())
@@ -119,7 +124,7 @@ class GitHubRepository(
             e.response()?.headers()?.get("X-RateLimit-Remaining") == "0" &&
             !rateLimitShown.getAndSet(true)
         ) {
-            snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+            snackBar.snackBar(message = TextSnack(stringer.get(R.string.github_rate_limit_exceeded)))
             throw e
         } else if (e is HttpException && e.code() == 404) {
             emit(emptyList())
@@ -146,20 +151,22 @@ class GitHubRepository(
         }
 
         if (releases.isNotEmpty() && Version(filterVersionTag(releases[0].tag_name)) > Version(currentVersion)) {
+            val release = releases[0]
             val app = apps?.getApp(packageName)
             emit(listOf(AppUpdate(
                 name = repo,
                 packageName = packageName,
-                version = releases[0].tag_name,
+                version = release.tag_name,
                 oldVersion = app?.version ?: "?",
-                versionCode = releases[0].tag_name.takeIf { it.isNotBlank() }?.versionCodeFromTag() ?: releases[0].name.versionCodeFromTag(),
+                versionCode = release.tag_name.takeIf { it.isNotBlank() }?.versionCodeFromTag() ?: release.name.versionCodeFromTag(),
                 oldVersionCode = app?.versionCode ?: 0L,
                 source = GitHubSource,
-                link = findApkAssetArch(releases[0].assets, extra).let { Link.Url(it.browser_download_url, it.size) },
-                whatsNew = releases[0].body,
-                iconUri = if (apps == null) Uri.parse(releases[0].author.avatar_url) else Uri.EMPTY,
+                link = findApkAssetArch(release.assets, extra).let { Link.Url(it.browser_download_url, it.size) },
+                whatsNew = release.body,
+                releaseType = ReleaseType.from(release.tag_name, release.name, release.prerelease),
+                iconUri = if (apps == null) Uri.parse(release.author.avatar_url) else Uri.EMPTY,
                 sourceUrl = "https://github.com/$user/$repo",
-                releaseUrl = "https://github.com/$user/$repo/releases/tag/${releases[0].tag_name}"
+                releaseUrl = "https://github.com/$user/$repo/releases/tag/${release.tag_name}"
             )))
         } else {
             emit(emptyList())
@@ -169,7 +176,7 @@ class GitHubRepository(
             e.response()?.headers()?.get("X-RateLimit-Remaining") == "0" &&
             !rateLimitShown.getAndSet(true)
         ) {
-            snackBar.snackBar(message = TextSnack("GitHub: API rate limit exceeded. Try again later."))
+            snackBar.snackBar(message = TextSnack(stringer.get(R.string.github_rate_limit_exceeded)))
             throw e
         } else if (e is HttpException && e.code() == 404) {
             emit(emptyList())

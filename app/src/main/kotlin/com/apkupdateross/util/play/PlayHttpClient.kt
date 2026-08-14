@@ -1,7 +1,9 @@
 package com.apkupdateross.util.play
 
+import android.content.Context
 import android.util.Log
 import com.aurora.gplayapi.data.models.PlayResponse
+import com.aurora.gplayapi.network.IHttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,18 +17,20 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import com.aurora.gplayapi.network.IHttpClient
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 
 class PlayHttpClient(
+    private val context: Context,
     cache: Cache
 ) : IHttpClient {
 
     companion object {
         private const val POST = "POST"
         private const val GET = "GET"
+        private const val ACCEPT_LANGUAGE = "Accept-Language"
+        private const val USER_LANGUAGES = "X-DFE-UserLanguages"
     }
 
     private val _responseCode = MutableStateFlow(100)
@@ -45,7 +49,7 @@ class PlayHttpClient(
     fun post(url: String, headers: Map<String, String>, requestBody: RequestBody): PlayResponse {
         val request = Request.Builder()
             .url(url)
-            .headers(headers.toHeaders())
+            .headers(localizedHeaders(headers).toHeaders())
             .method(POST, requestBody)
             .build()
         return processRequest(request)
@@ -59,7 +63,7 @@ class PlayHttpClient(
     ): PlayResponse {
         val request = Request.Builder()
             .url(buildUrl(url, params))
-            .headers(headers.toHeaders())
+            .headers(localizedHeaders(headers).toHeaders())
             .method(POST, "".toRequestBody(null))
             .build()
         return processRequest(request)
@@ -98,7 +102,7 @@ class PlayHttpClient(
     ): PlayResponse {
         val request = Request.Builder()
             .url(buildUrl(url, params))
-            .headers(headers.toHeaders())
+            .headers(localizedHeaders(headers).toHeaders())
             .method(GET, null)
             .build()
         return processRequest(request)
@@ -121,7 +125,7 @@ class PlayHttpClient(
     ): PlayResponse {
         val request = Request.Builder()
             .url(url + paramString)
-            .headers(headers.toHeaders())
+            .headers(localizedHeaders(headers).toHeaders())
             .method(GET, null)
             .build()
         return processRequest(request)
@@ -132,7 +136,9 @@ class PlayHttpClient(
         _responseCode.value = 0
 
         val call = okHttpClient.newCall(request)
-        return buildPlayResponse(call.execute())
+        return call.execute().use { response ->
+            buildPlayResponse(response)
+        }
     }
 
     private fun buildUrl(url: String, params: Map<String, String>): HttpUrl {
@@ -143,14 +149,18 @@ class PlayHttpClient(
         return urlBuilder.build()
     }
 
+    private fun localizedHeaders(headers: Map<String, String>): Map<String, String> =
+        headers.toMutableMap().apply {
+            this[ACCEPT_LANGUAGE] = PlayLocales.acceptLanguageHeader(context)
+            this[USER_LANGUAGES] = PlayLocales.userLanguagesHeader(context)
+        }
+
     private fun buildPlayResponse(response: Response): PlayResponse {
         return PlayResponse().apply {
             isSuccessful = response.isSuccessful
             code = response.code
 
-            if (response.body != null) {
-                responseBytes = response.body!!.bytes()
-            }
+            response.body?.let { responseBytes = it.bytes() }
 
             if (!isSuccessful) {
                 errorString = response.message

@@ -166,7 +166,7 @@ fun filterVersionTag(version: String) = version
 	.replace(Regex("^\\D*"), "")
 
 fun Float.to2f() = String
-	.format("%.2f", this)
+	.format(Locale.ROOT, "%.2f", this)
 	.replace('.', DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator)
 
 fun Long.formatSize(context: Context): String = android.text.format.Formatter.formatShortFileSize(context, this)

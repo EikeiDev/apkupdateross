@@ -184,7 +184,7 @@ class SearchViewModel(
                         is Link.Url -> saveStream(update, link.link)
                         is Link.Xapk -> saveStream(update, link.link)
                         is Link.Play -> savePlayFiles(update, link)
-                        else -> snackBar.snackBar(viewModelScope, TextSnack("Сохранение не поддерживается для этого источника"))
+                        else -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_not_supported_for_source)))
                     }
                 }.onFailure {
                     if (it !is CancellationException) {

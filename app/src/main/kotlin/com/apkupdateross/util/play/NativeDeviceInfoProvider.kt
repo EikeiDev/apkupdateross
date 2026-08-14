@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.os.Build
-import android.text.TextUtils
 import java.util.Locale
 import java.util.Properties
 
@@ -109,32 +108,8 @@ class NativeDeviceInfoProvider(context: Context) : ContextWrapper(context) {
 
     private fun getLocales(): List<String> {
         val locales = LinkedHashSet<String>()
-        locales.addAll(getDeviceLocales())
-        applicationContext.assets.locales.forEach { locale ->
-            if (!TextUtils.isEmpty(locale)) locales.add(locale.replace("-", "_"))
-        }
+        locales.addAll(PlayLocales.deviceLanguageTags(applicationContext))
         return locales.toList()
-    }
-
-    private fun getDeviceLocales(): List<String> {
-        val configured = mutableListOf<Locale>()
-        val config = applicationContext.resources.configuration
-        if (Build.VERSION.SDK_INT >= 24) {
-            val list = config.locales
-            for (i in 0 until list.size()) configured.add(list[i])
-        } else {
-            @Suppress("DEPRECATION")
-            config.locale?.let { configured.add(it) }
-        }
-        if (configured.isEmpty()) configured.add(Locale.getDefault())
-
-        val out = LinkedHashSet<String>()
-        configured.forEach { locale ->
-            val tag = locale.toString()
-            if (tag.isNotEmpty()) out.add(tag)
-            if (locale.language.isNotEmpty()) out.add(locale.language)
-        }
-        return out.toList()
     }
 
     private fun getSharedLibraries(): List<String> {
@@ -163,7 +138,7 @@ class NativeDeviceInfoProvider(context: Context) : ContextWrapper(context) {
 }
 
 private fun isHuawei(): Boolean {
-    return Build.MANUFACTURER.lowercase(Locale.getDefault()).contains("huawei")
-            || Build.HARDWARE.lowercase(Locale.getDefault()).contains("kirin")
-            || Build.HARDWARE.lowercase(Locale.getDefault()).contains("hi3")
+    return Build.MANUFACTURER.lowercase(Locale.ROOT).contains("huawei")
+            || Build.HARDWARE.lowercase(Locale.ROOT).contains("kirin")
+            || Build.HARDWARE.lowercase(Locale.ROOT).contains("hi3")
 }

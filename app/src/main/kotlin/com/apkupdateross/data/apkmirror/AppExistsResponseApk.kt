@@ -4,6 +4,7 @@ import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.ReleaseType
 import com.google.gson.annotations.SerializedName
 
 private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
@@ -39,7 +40,8 @@ fun AppExistsResponseApk.toAppUpdate(
 	link = Link.Url(link.ensureApkMirrorUrl()),
 	sourceUrl = appLink.ensureApkMirrorUrl(),
 	releaseUrl = release.link.ensureApkMirrorUrl(),
-	whatsNew = release.whatsNew.orEmpty()
+	whatsNew = release.whatsNew.orEmpty(),
+	releaseType = ReleaseType.from(release.version, release.link)
 )
 
 private fun String?.ensureApkMirrorUrl(): String {

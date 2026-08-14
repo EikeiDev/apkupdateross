@@ -48,7 +48,6 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider as Divider
@@ -99,6 +98,7 @@ import java.text.DateFormat
 import java.util.Date
 import org.koin.androidx.compose.koinViewModel
 import java.util.Calendar
+import java.util.Locale
 
 
 @Composable
@@ -110,7 +110,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 	val fdroidRepos = viewModel.fdroidRepos.collectAsStateWithLifecycle().value
 	var dialogRepo by remember { mutableStateOf<CustomGitRepo?>(null) }
 	var dialogFdroidRepo by remember { mutableStateOf<FdroidRepo?>(null) }
-	var dialogAlphaList by remember { mutableStateOf(false) }
 	var dialogIgnoredUpdates by remember { mutableStateOf(false) }
 
 	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -403,7 +402,7 @@ fun Settings(
 								IconButton(onClick = { githubTokenVisible = !githubTokenVisible }) {
 									Icon(
 										painter = painterResource(if (githubTokenVisible) R.drawable.ic_visible else R.drawable.ic_visible_off),
-										contentDescription = if (githubTokenVisible) "Hide password" else "Show password",
+										contentDescription = stringResource(if (githubTokenVisible) R.string.hide_password else R.string.show_password),
 										modifier = Modifier.size(24.dp)
 									)
 								}
@@ -451,7 +450,7 @@ fun Settings(
 								IconButton(onClick = { gitlabTokenVisible = !gitlabTokenVisible }) {
 									Icon(
 										painter = painterResource(if (gitlabTokenVisible) R.drawable.ic_visible else R.drawable.ic_visible_off),
-										contentDescription = if (gitlabTokenVisible) "Hide password" else "Show password",
+										contentDescription = stringResource(if (gitlabTokenVisible) R.string.hide_password else R.string.show_password),
 										modifier = Modifier.size(24.dp)
 									)
 								}
@@ -781,7 +780,7 @@ private fun CustomRepoDialog(
 		dismissButton = {
 			TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_custom_repo_cancel)) }
 		},
-		title = { Text(stringResource(R.string.settings_custom_repos_add)) },
+		title = { Text(stringResource(if (repo.user.isBlank() && repo.repo.isBlank() && repo.packageName.isBlank()) R.string.settings_custom_repos_add else R.string.settings_custom_repos_edit)) },
 		text = {
 			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 				OutlinedTextField(
@@ -838,7 +837,7 @@ private fun providerIcon(provider: GitProvider) = when (provider) {
 
 private fun formatDuration(durationMs: Long): String {
 	val seconds = durationMs / 1000.0
-	return String.format("%.1f s", seconds)
+	return String.format(Locale.ROOT, "%.1f s", seconds)
 }
 
 private fun formatTimestamp(timestamp: Long): String =
@@ -937,9 +936,9 @@ private fun FdroidReposSection(
 			.padding(start = 16.dp, end = 8.dp, top = 12.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		Text("F-Droid Repositories", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+		Text(stringResource(R.string.settings_fdroid_repos), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
 		IconButton(onClick = onAdd) {
-			Icon(Icons.Filled.Add, contentDescription = "Add Repository")
+			Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.settings_custom_repos_add))
 		}
 	}
 	repos.forEach { repo ->
@@ -985,7 +984,7 @@ private fun FdroidRepoCard(
 							shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
 						) {
 							Text(
-								"Default",
+								stringResource(R.string.settings_fdroid_repo_default),
 								Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
 								style = MaterialTheme.typography.labelSmall,
 								color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1023,32 +1022,32 @@ private fun FdroidRepoDialog(
 				}
 				onSave(repo.copy(name = name, url = url))
 			}) {
-				Text("Save")
+				Text(stringResource(R.string.settings_custom_repo_save))
 			}
 		},
 		dismissButton = {
-			TextButton(onClick = onDismiss) { Text("Cancel") }
+			TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_custom_repo_cancel)) }
 		},
-		title = { Text(if (repo.name.isEmpty()) "Add Repository" else "Edit Repository") },
+		title = { Text(stringResource(if (repo.name.isBlank() && repo.url.isBlank()) R.string.settings_custom_repos_add else R.string.settings_custom_repos_edit)) },
 		text = {
 			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 				OutlinedTextField(
 					value = name,
 					onValueChange = { name = it; showError = false },
-					label = { Text("Name") },
+					label = { Text(stringResource(R.string.settings_fdroid_repo_name)) },
 					singleLine = true,
 					modifier = Modifier.fillMaxWidth()
 				)
 				OutlinedTextField(
 					value = url,
 					onValueChange = { url = it; showError = false },
-					label = { Text("URL") },
+					label = { Text(stringResource(R.string.settings_fdroid_repo_url)) },
 					singleLine = true,
 					modifier = Modifier.fillMaxWidth()
 				)
 				if (showError) {
 					Text(
-						text = "Name and URL are required",
+						text = stringResource(R.string.settings_fdroid_repo_error_required),
 						color = MaterialTheme.colorScheme.error,
 						style = MaterialTheme.typography.bodySmall
 					)
@@ -1129,7 +1128,7 @@ fun IgnoredUpdatesDialog(
 		},
 		confirmButton = {
 			TextButton(onClick = onDismiss) {
-				Text("OK")
+				Text(stringResource(R.string.ok))
 			}
 		},
 		dismissButton = {
@@ -1146,4 +1145,3 @@ fun IgnoredUpdatesDialog(
 		}
 	)
 }
-

@@ -170,11 +170,11 @@ fun AppsTopBar(
 				viewModel.onSearchQueryChange("")
 				onSearchToggle(false) 
 			}) {
-				Icon(Icons.Filled.Close, contentDescription = "Close Search")
+				Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close_search))
 			}
 		} else {
 			IconButton(onClick = { onSearchToggle(true) }) {
-				Icon(Icons.Filled.Search, contentDescription = "Search")
+				Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.tab_search))
 			}
 			IconButton(onClick = { viewModel.onSystemClick() }) {
 				ExcludeSystemIcon(excludeSystem)
@@ -188,4 +188,3 @@ fun AppsTopBar(
 		}
 	}
 )
-

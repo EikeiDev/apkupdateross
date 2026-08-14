@@ -1,6 +1,5 @@
 <resources>
 
-    <string name="app_name" translatable="false">APKUpdater OSS</string>
     <string name="tab_apps">Приложения</string>
     <string name="tab_search">Поиск</string>
     <string name="tab_updates">Обновления</string>
@@ -43,21 +42,13 @@
     <string name="install_mode_root">Root</string>
     <string name="install_mode_shizuku">Shizuku</string>
     <string name="shizuku_not_running">Shizuku не запущен.</string>
-    <string name="source_apkmirror" translatable="false">ApkMirror</string>
-    <string name="source_fdroid" translatable="false">F-Droid</string>
-    <string name="source_aptoide" translatable="false">Aptoide</string>
-    <string name="source_github" translatable="false">GitHub</string>
     <string name="github_token_label">Токен GitHub (personal access token)</string>
     <string name="github_token_check">Проверить</string>
     <string name="github_token_empty">Сначала введите токен GitHub.</string>
     <string name="github_token_ok">Токен GitHub выглядит валидным.</string>
     <string name="github_token_invalid">Токен GitHub неверный.</string>
     <string name="github_token_unknown">Проверка токена не удалась (%1$d).</string>
-    <string name="source_gitlab" translatable="false">GitLab</string>
     <string name="gitlab_token_label">Токен API GitLab (необязательно)</string>
-    <string name="source_apkpure" translatable="false">APKPure</string>
-    <string name="source_play" translatable="false">Google Play</string>
-    <string name="source_rustore" translatable="false">RuStore</string>
 
     <string name="about">О нас</string>
     <string name="frequency">Интервал</string>
@@ -109,7 +100,7 @@
     <string name="settings_import">Импорт настроек</string>
     <string name="export_success">Настройки успешно экспортированы</string>
     <string name="export_failed">Ошибка экспорта настроек</string>
-    <string name="import_success">Успешно. Перезапуск приложения...</string>
+    <string name="import_success">Успешно. Перезапуск приложения&#8230;</string>
     <string name="import_failed">Не удалось импортировать настройки из файла</string>
     <string name="refresh_metrics">Обновить метрики</string>
     <string name="notifications_status_on">Уведомления включены</string>
@@ -128,14 +119,31 @@
     <string name="open">Открыть</string>
     <string name="download_success">Сохранено в Download/APKUpdaterOSS: %1$s</string>
     <string name="download_failure">Ошибка сохранения %1$s</string>
+    <string name="download_failure_cant_download">Не удалось скачать файл.</string>
+    <string name="link_not_available">Ссылка недоступна.</string>
+
+    <string name="settings_custom_repos_edit">Редактировать репозиторий</string>
+    <string name="settings_fdroid_repos">Репозитории F-Droid</string>
+    <string name="settings_fdroid_repo_default">По умолчанию</string>
+    <string name="settings_fdroid_repo_name">Название</string>
+    <string name="settings_fdroid_repo_url">URL</string>
+    <string name="settings_fdroid_repo_error_required">Укажите название и URL.</string>
+    <string name="settings_fdroid_repo_default_remove_error">Нельзя удалить репозиторий по умолчанию.</string>
+    <string name="show_password">Показать пароль</string>
+    <string name="hide_password">Скрыть пароль</string>
+    <string name="expand">Развернуть</string>
+    <string name="back">Назад</string>
+    <string name="clear">Очистить</string>
+    <string name="close_search">Закрыть поиск</string>
+    <string name="ok">ОК</string>
+    <string name="github_rate_limit_exceeded">GitHub: превышен лимит API. Попробуйте позже.</string>
+    <string name="download_not_supported_for_source">Сохранение не поддерживается для этого источника.</string>
 
     // Notifications
     <string name="notification_channel_name">Обновления</string>
     <string name="notification_channel_description">Канал для уведомлений об обновлениях.</string>
-    <string name="notification_channel_id" translatable="false">updateChannel</string>
     <string name="notification_update_title">Обновления</string>
     <plurals name="notification_update_description">
-        <item quantity="zero">Обновления не найдены.</item>
         <item quantity="one">Найдено %1$d обновлений.</item>
         <item quantity="other">Найдено %1$d обновлений.</item>
         <item quantity="few">Найдено %1$d обновлений.</item>
@@ -152,9 +160,7 @@
     <string name="ignored_toast">%1$s скрыто</string>
     <string name="undo">ОТМЕНА</string>
     <string name="github">GitHub</string>
-    <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
     <string name="donate">Поддержать разработчика</string>
-    <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
     <string name="checking_updates">Проверка обновлений…</string>
     <string name="settings_network">Сеть</string>
     <string name="settings_global_timeout">Глобальный таймаут (сек)</string>

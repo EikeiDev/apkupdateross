@@ -11,8 +11,7 @@ import com.kryptoprefs.preferences.KryptoPrefs
 
 
 class Prefs(
-	prefs: KryptoPrefs,
-	isAndroidTv: Boolean
+	prefs: KryptoPrefs
 ): KryptoContext(prefs) {
 	val ignoredApps = json("ignoredApps", emptyList<String>(), true)
 	val ignoredVersions = json("ignoredVersions", emptyList<Int>(), true)
@@ -49,7 +48,6 @@ class Prefs(
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)
-	val androidTvUi = boolean("androidTvUi", defValue = true, backed = true)
 	val installMode = int("installMode", defValue = 0, backed = true)
 	val theme = int("theme", defValue = 0, backed = true)
 	val lastTab = string("lastTab", defValue = Screen.Updates.route, backed = true)
@@ -102,4 +100,3 @@ class Prefs(
 	}
 
 }
-

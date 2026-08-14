@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,12 +36,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -55,6 +58,7 @@ import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.Source
 import com.apkupdateross.util.getAppName
 import com.apkupdateross.util.to2f
@@ -72,25 +76,42 @@ fun CommonItem(
     uri: Uri? = null,
     single: Boolean = false,
     source: Source? = null,
-    compactMode: Boolean = false
-) = Row(Modifier.fillMaxWidth()) {
-    Box(Modifier.size(if (compactMode) 48.dp else 80.dp).padding(end = if (compactMode) 8.dp else 12.dp)) {
-        if (uri == null) {
-            LoadingImageApp(packageName, Modifier.fillMaxSize())
-        } else {
-            LoadingImage(uri, Modifier.fillMaxSize())
+    compactMode: Boolean = false,
+    releaseType: ReleaseType? = null
+) = Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    val iconSlotWidth = when {
+        releaseType == null && compactMode -> 48.dp
+        releaseType == null -> 80.dp
+        compactMode -> 72.dp
+        else -> 92.dp
+    }
+    val iconSize = if (compactMode) 40.dp else 68.dp
+
+    Column(
+        modifier = Modifier
+            .width(iconSlotWidth)
+            .padding(end = if (compactMode) 8.dp else 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(if (compactMode) 4.dp else 6.dp)
+    ) {
+        Box(Modifier.size(iconSize)) {
+            if (uri == null) {
+                LoadingImageApp(packageName, Modifier.fillMaxSize())
+            } else {
+                LoadingImage(uri, Modifier.fillMaxSize())
+            }
         }
+        releaseType?.let { ReleaseTypeChip(it, compactMode) }
     }
     Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
         LargeTitle(name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName })
         MediumText(packageName)
         
-        if (oldVersion != null && !single) {
-            ScrollableText {
-                MediumText("$oldVersion -> ${version.ifBlank { "?" }}")
-            }
+        val previousVersion = oldVersion?.takeIf { it.isNotBlank() }
+        if (previousVersion != null && !single) {
+            VersionRow("$previousVersion -> ${version.ifBlank { "?" }}")
         } else if (version.isNotBlank()) {
-            MediumText(version)
+            VersionRow(version)
         }
         
         if (oldVersionCode != null && !single) {
@@ -99,6 +120,41 @@ fun CommonItem(
         } else if (versionCode > 0L) {
             MediumText(versionCode.toString())
         }
+    }
+}
+
+@Composable
+private fun VersionRow(text: String) = Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically
+) {
+    MediumText(text, Modifier.weight(1f))
+}
+
+@Composable
+private fun ReleaseTypeChip(type: ReleaseType, compactMode: Boolean = false) {
+    val container = when (type) {
+        ReleaseType.Stable -> Color(0xFF2E7D32)
+        ReleaseType.Beta -> Color(0xFF1565C0)
+        ReleaseType.Alpha -> Color(0xFFE65100)
+        ReleaseType.PreRelease -> Color(0xFFC62828)
+    }
+
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+        color = container,
+        contentColor = Color.White
+    ) {
+        Text(
+            text = stringResource(type.labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(
+                horizontal = if (compactMode) 5.dp else 7.dp,
+                vertical = if (compactMode) 2.dp else 3.dp
+            )
+        )
     }
 }
 
@@ -153,7 +209,7 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(if (expanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
-                        contentDescription = "Expand"
+                        contentDescription = stringResource(R.string.expand)
                     )
                 }
             }
@@ -161,7 +217,7 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                     
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -244,12 +300,21 @@ fun UpdateItem(
             // Always visible top row
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, compactMode = compactMode)
+                    CommonItem(
+                        app.packageName,
+                        app.name,
+                        app.version,
+                        app.oldVersion,
+                        app.versionCode,
+                        app.oldVersionCode,
+                        compactMode = compactMode,
+                        releaseType = app.releaseType
+                    )
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(if (expanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
-                        contentDescription = "Expand"
+                        contentDescription = stringResource(R.string.expand)
                     )
                 }
                 if (!app.isPaid) InstallButton(app, { onInstall(app) }, { onCancel(app) })
@@ -258,7 +323,7 @@ fun UpdateItem(
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                     
                     WhatsNew(app.whatsNew, app.source)
                     
@@ -358,12 +423,22 @@ fun SearchItem(
             // Always visible top row
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    CommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, app.iconUri, true, compactMode = compactMode)
+                    CommonItem(
+                        app.packageName,
+                        app.name,
+                        app.version,
+                        app.oldVersion,
+                        app.versionCode,
+                        app.oldVersionCode,
+                        app.iconUri,
+                        true,
+                        compactMode = compactMode
+                    )
                 }
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(if (expanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
-                        contentDescription = "Expand"
+                        contentDescription = stringResource(R.string.expand)
                     )
                 }
                 if (!app.isPaid) InstallButton(app, { onInstall(app) }, { onCancel(app) })
@@ -372,7 +447,7 @@ fun SearchItem(
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                     
                     WhatsNew(app.whatsNew, app.source)
                     
@@ -488,11 +563,12 @@ fun GridItem(
     onUpdateClick: ((AppUpdate) -> Unit)? = null
 ) {
     var activeUpdate by remember(updates) { mutableStateOf(updates.firstOrNull()) }
-    val currentVersion = activeUpdate?.version ?: version
-    val currentSource = activeUpdate?.source ?: source
-    val currentOnIgnore = if (activeUpdate != null && onUpdateIgnore != null) ({ onUpdateIgnore(activeUpdate!!.id) }) else onIgnore
-    val currentOnOpenPage = if (activeUpdate != null && onUpdateOpenPage != null) ({ onUpdateOpenPage(activeUpdate!!) }) else onOpenPage
-    val currentOnClick = if (activeUpdate != null && onUpdateClick != null) ({ onUpdateClick(activeUpdate!!) }) else onClick
+    val selectedUpdate = activeUpdate
+    val currentVersion = selectedUpdate?.version ?: version
+    val currentSource = selectedUpdate?.source ?: source
+    val currentOnIgnore = if (selectedUpdate != null && onUpdateIgnore != null) ({ onUpdateIgnore(selectedUpdate.id) }) else onIgnore
+    val currentOnOpenPage = if (selectedUpdate != null && onUpdateOpenPage != null) ({ onUpdateOpenPage(selectedUpdate) }) else onOpenPage
+    val currentOnClick = if (selectedUpdate != null && onUpdateClick != null) ({ onUpdateClick(selectedUpdate) }) else onClick
 
     Card(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
@@ -562,7 +638,7 @@ fun GridItem(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Select Source",
+                                    contentDescription = stringResource(R.string.search_filter_button),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
@@ -597,7 +673,7 @@ fun GridItem(
                         painter = androidx.compose.ui.res.painterResource(
                             if (isIgnored) R.drawable.ic_visible else R.drawable.ic_visible_off
                         ),
-                        contentDescription = "Ignore",
+                        contentDescription = stringResource(if (isIgnored) R.string.unignore_cd else R.string.ignore_cd),
                         modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -8,8 +8,11 @@ import java.io.File
 import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 
 class Downloader(
@@ -23,6 +26,7 @@ class Downloader(
 
     private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
     private val cancelledIds = ConcurrentSkipListSet<Int>()
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private fun registerCall(id: Int, call: Call): Call {
         if (cancelledIds.contains(id)) {
@@ -64,9 +68,12 @@ class Downloader(
         val call = registerCall(id, c.newCall(downloadRequest(url)))
         val response = call.execute()
         if (response.isSuccessful) {
-            response.body?.let {
-                return DownloadResult(it.byteStream(), it.contentLength())
+            val body = response.body
+            if (body != null) {
+                return DownloadResult(body.byteStream(), body.contentLength())
             }
+            response.close()
+            Log.e("Downloader", "Download failed with an empty response body")
         } else {
             response.close()
             Log.e("Downloader", "Download failed with error code: ${response.code}")
@@ -95,8 +102,8 @@ class Downloader(
         cleanup(id)
         // Auto-remove from cancelledIds after 5 seconds to prevent memory leak
         // and allow future re-downloads of the same ID.
-        kotlinx.coroutines.GlobalScope.launch {
-            kotlinx.coroutines.delay(5000)
+        cleanupScope.launch {
+            delay(5000)
             cancelledIds.remove(id)
         }
     }

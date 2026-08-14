@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.util.InstallLog
 import java.io.File
@@ -28,6 +29,7 @@ class DownloadStorage(private val context: Context) {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private suspend fun saveScoped(fileName: String, mimeType: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
         val resolver = context.contentResolver
         val contentValues = ContentValues().apply {

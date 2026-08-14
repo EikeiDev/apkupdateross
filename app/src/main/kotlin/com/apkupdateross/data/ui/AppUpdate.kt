@@ -15,6 +15,7 @@ data class AppUpdate(
 	val sourceUrl: String = "",
 	val releaseUrl: String = "",
 	val whatsNew: String = "",
+	val releaseType: ReleaseType = ReleaseType.from(version),
 	val isPaid: Boolean = false,
 	val isInstalling: Boolean = false,
 	val isDownloading: Boolean = false,
@@ -22,7 +23,6 @@ data class AppUpdate(
 	val progress: Long = 0L,
 	val id: Int = "${source.name}.$packageName.$versionCode.$version".hashCode()
 )
-
 
 fun List<AppUpdate>.indexOf(id: Int) = indexOfFirst { it.id == id }
 

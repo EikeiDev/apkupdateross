@@ -8,27 +8,37 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.core.util.Consumer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -99,6 +109,7 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 		Scaffold(
 			snackbarHost = { SnackbarHost(snackBarHostState) },
 			bottomBar = { BottomBar(mainViewModel, navController) },
+			containerColor = MaterialTheme.colorScheme.background,
 			contentWindowInsets = WindowInsets(0)
 		) { padding ->
 			NavHost(navController, padding, mainViewModel, appsViewModel, updatesViewModel, searchViewModel, settingsViewModel)
@@ -164,12 +175,34 @@ fun CheckNotificationIntent(
 }
 
 @Composable
-fun BottomBar(mainViewModel: MainViewModel, navController: NavController) = androidx.compose.material3.NavigationBar {
+fun BottomBar(mainViewModel: MainViewModel, navController: NavController) = Box(
+	modifier = Modifier
+		.fillMaxWidth()
+		.navigationBarsPadding()
+		.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 10.dp)
+) {
 	val badges = koinInject<Badger>().flow().collectAsStateWithLifecycle().value
-	mainViewModel.screens.forEach { screen ->
-		val state = navController.currentBackStackEntryAsState().value
-		val selected = state?.destination?.route  == screen.route
-		BottomBarItem(mainViewModel, navController, screen, selected, badges[screen.route].orEmpty())
+	Surface(
+		modifier = Modifier.fillMaxWidth(),
+		shape = MaterialTheme.shapes.medium,
+		color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+		tonalElevation = 6.dp,
+		shadowElevation = 8.dp,
+		border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+	) {
+		NavigationBar(
+			modifier = Modifier
+				.fillMaxWidth()
+				.height(72.dp),
+			containerColor = Color.Transparent,
+			tonalElevation = 0.dp
+		) {
+			mainViewModel.screens.forEach { screen ->
+				val state = navController.currentBackStackEntryAsState().value
+				val selected = state?.destination?.route  == screen.route
+				BottomBarItem(mainViewModel, navController, screen, selected, badges[screen.route].orEmpty())
+			}
+		}
 	}
 }
 
@@ -194,6 +227,13 @@ fun RowScope.BottomBarItem(
 		)
 	},
 	selected = selected,
+	colors = NavigationBarItemDefaults.colors(
+		selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+		selectedTextColor = MaterialTheme.colorScheme.primary,
+		indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+		unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+		unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+	),
 	onClick = { mainViewModel.navigateTo(navController, screen.route) }
 )
 

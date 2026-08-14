@@ -1,11 +1,13 @@
 package com.apkupdateross.ui.screen
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
@@ -58,7 +60,6 @@ import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.SearchItem
-import com.apkupdateross.ui.theme.statusBarColor
 import com.apkupdateross.viewmodel.SearchViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -72,7 +73,11 @@ fun SearchScreen(
     val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
     val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
 
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         SearchTopBar(viewModel)
         state.onError {
             DefaultErrorScreen()
@@ -135,7 +140,7 @@ fun SearchScreenSuccess(
 @Composable
 fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
     title = { SearchText(viewModel) },
-    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor())
+    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
 )
 
 @Composable
@@ -175,7 +180,7 @@ fun SearchText(viewModel: SearchViewModel) = Box {
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Color.Transparent,
             unfocusedBorderColor = Color.Transparent,

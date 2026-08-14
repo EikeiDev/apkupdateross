@@ -1,16 +1,14 @@
 package com.apkupdateross.ui.screen
 
-import android.Manifest
 import android.content.Intent
-import android.os.Build
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,9 +42,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.AssistChip
@@ -68,7 +64,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -91,7 +86,6 @@ import com.apkupdateross.ui.component.SliderSetting
 import com.apkupdateross.ui.component.SourceIcon
 import com.apkupdateross.ui.component.SettingsIcon
 import com.apkupdateross.ui.component.SwitchSetting
-import com.apkupdateross.ui.theme.statusBarColor
 import com.apkupdateross.viewmodel.SettingsViewModel
 import com.apkupdateross.viewmodel.UpdateMetrics
 import java.text.DateFormat
@@ -102,7 +96,11 @@ import java.util.Locale
 
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
+fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column(
+	Modifier
+		.fillMaxSize()
+		.background(MaterialTheme.colorScheme.background)
+) {
 	val uiState = viewModel.state.collectAsStateWithLifecycle().value
 	val ruStoreCacheCount = viewModel.ruStore404Count.collectAsStateWithLifecycle().value
 	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
@@ -176,19 +174,18 @@ fun About() = Column(
 ) {
 	Spacer(Modifier.height(48.dp))
 
-	// Hero section with glowing icon
-	Box(contentAlignment = Alignment.Center) {
-		Surface(
-			modifier = Modifier.size(130.dp),
-			shape = CircleShape,
-			color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-		) {}
-		Surface(
-			modifier = Modifier.size(110.dp),
-			shape = CircleShape,
-			color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-		) {}
-		LoadingImageApp(BuildConfig.APPLICATION_ID, Modifier.size(90.dp))
+	Surface(
+		modifier = Modifier.size(112.dp),
+		shape = MaterialTheme.shapes.medium,
+		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+		border = androidx.compose.foundation.BorderStroke(
+			1.dp,
+			MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+		)
+	) {
+		Box(contentAlignment = Alignment.Center) {
+			LoadingImageApp(BuildConfig.APPLICATION_ID, Modifier.size(82.dp))
+		}
 	}
 
 	Spacer(Modifier.height(32.dp))
@@ -246,7 +243,7 @@ fun About() = Column(
 
 	// Footer
 	Text(
-		text = "Copyright © ${Calendar.getInstance().get(Calendar.YEAR)}",
+		text = "Copyright (c) ${Calendar.getInstance().get(Calendar.YEAR)}",
 		style = MaterialTheme.typography.labelMedium,
 		color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
 	)
@@ -277,7 +274,7 @@ private fun SocialButton(
 		modifier = Modifier
 			.fillMaxWidth(0.7f)
 			.height(56.dp),
-		shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+		shape = MaterialTheme.shapes.medium,
 		colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
 			containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
 		)
@@ -335,7 +332,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_ui), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -365,7 +362,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_sources), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -527,7 +524,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_options), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -552,7 +549,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_network), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -578,7 +575,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -616,7 +613,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_utils), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -629,7 +626,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_backup_title), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column {
@@ -645,7 +642,7 @@ fun Settings(
 	item {
 		LargeTitle(stringResource(R.string.settings_metrics), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
 		ElevatedCard(
-			shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+			shape = MaterialTheme.shapes.medium,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 		) {
 			Column(Modifier.padding(vertical = 8.dp)) {
@@ -901,8 +898,8 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsTopBar(viewModel: SettingsViewModel) = TopAppBar(
-	title = { Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.titleLarge) },
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+	title = { Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineSmall) },
+	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
 	actions = {
 		IconButton(onClick = { viewModel.setAbout() }) {
 			Icon(painterResource(R.drawable.ic_info), stringResource(R.string.about))
@@ -913,8 +910,8 @@ fun SettingsTopBar(viewModel: SettingsViewModel) = TopAppBar(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutTopBar(viewModel: SettingsViewModel) = TopAppBar(
-	title = { Text(stringResource(R.string.about), style = MaterialTheme.typography.titleLarge) },
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+	title = { Text(stringResource(R.string.about), style = MaterialTheme.typography.headlineSmall) },
+	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
 	actions = {
 		IconButton(onClick = { viewModel.setSettings() }) {
 			Icon(Icons.Default.Settings, stringResource(R.string.tab_settings))

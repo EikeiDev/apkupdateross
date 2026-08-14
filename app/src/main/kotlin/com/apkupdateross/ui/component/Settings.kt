@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -42,8 +43,8 @@ import com.apkupdateross.R
 
 @Composable
 fun SettingsIcon(@DrawableRes icon: Int, contentDescription: String, modifier: Modifier = Modifier) = androidx.compose.material3.Surface(
-    shape = androidx.compose.foundation.shape.CircleShape,
-    color = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer,
+    shape = androidx.compose.material3.MaterialTheme.shapes.medium,
+    color = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
     modifier = modifier.size(40.dp)
 ) {
     Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -51,7 +52,7 @@ fun SettingsIcon(@DrawableRes icon: Int, contentDescription: String, modifier: M
             painterResource(id = icon),
             contentDescription = contentDescription,
             modifier = Modifier.size(24.dp),
-            tint = androidx.compose.material3.MaterialTheme.colorScheme.onSecondaryContainer
+            tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 }
@@ -132,7 +133,7 @@ fun SwitchSetting(
     isExpanded: Boolean = false,
     subtitle: String? = null,
     enabled: Boolean = true
-) = Row(Modifier.fillMaxWidth().height(if (subtitle != null) 88.dp else 72.dp).clickable(enabled = enabled) {
+) = Row(Modifier.fillMaxWidth().heightIn(min = if (subtitle != null) 88.dp else 72.dp).clickable(enabled = enabled) {
     if (onClick != null) onClick() else {
         val next = !getValue()
         setValue(next)
@@ -176,7 +177,7 @@ fun ButtonSetting(
 ) = Row(
     Modifier
         .fillMaxWidth()
-        .height(72.dp)
+        .heightIn(min = 72.dp)
         .clickable { onClick() }
         .padding(horizontal = 16.dp)
 ) {

@@ -1,5 +1,6 @@
 package com.apkupdateross.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,7 +44,6 @@ import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.InstalledItem
 import com.apkupdateross.ui.component.LoadingGrid
-import com.apkupdateross.ui.theme.statusBarColor
 import com.apkupdateross.viewmodel.AppsViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -74,7 +74,11 @@ fun AppsScreen(
 
 	var isSearchActive by remember { mutableStateOf(false) }
 
-	Column {
+	Column(
+		modifier = Modifier
+			.fillMaxSize()
+			.background(MaterialTheme.colorScheme.background)
+	) {
 		AppsTopBar(viewModel, excludeSystem, excludeAppStore, excludeDisabled, isSearchActive, searchQuery, onSearchToggle = { isSearchActive = it })
 		PullToRefreshBox(
 			isRefreshing = state is AppsUiState.Loading,
@@ -160,10 +164,10 @@ fun AppsTopBar(
 				}
 			}
 		} else {
-			Text(stringResource(R.string.tab_apps), style = MaterialTheme.typography.titleLarge)
+			Text(stringResource(R.string.tab_apps), style = MaterialTheme.typography.headlineSmall)
 		}
 	},
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
 	actions = {
 		if (isSearchActive) {
 			IconButton(onClick = { 

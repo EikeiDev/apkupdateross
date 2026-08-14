@@ -51,7 +51,6 @@ import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.RefreshIcon
 import com.apkupdateross.ui.component.UpdateItem
-import com.apkupdateross.ui.theme.statusBarColor
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.viewmodel.UpdatesViewModel
 import androidx.compose.material3.SwipeToDismissBox
@@ -90,7 +89,11 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 		if (state is UpdatesUiState.Loading) viewModel.refresh()
 	}
 
-	Column {
+	Column(
+		modifier = Modifier
+			.fillMaxSize()
+			.background(MaterialTheme.colorScheme.background)
+	) {
 		UpdatesTopBar(viewModel)
 		SelfUpdateDialog(
 			update = selfUpdate,
@@ -135,7 +138,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 			}
 		}
 		PullToRefreshBox(
-			isRefreshing = isRefreshing && state is UpdatesUiState.Loading,
+			isRefreshing = isRefreshing,
 			onRefresh = { viewModel.refresh() },
 			modifier = Modifier.fillMaxSize()
 		) {
@@ -236,8 +239,11 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 					placeholder = { Text(stringResource(R.string.filter_updates)) },
 					colors = OutlinedTextFieldDefaults.colors(
 						focusedBorderColor = Color.Transparent,
-						unfocusedBorderColor = Color.Transparent
+						unfocusedBorderColor = Color.Transparent,
+						focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
+						unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
 					),
+					shape = MaterialTheme.shapes.medium,
 					maxLines = 1,
 					singleLine = true,
 					trailingIcon = {
@@ -252,10 +258,10 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 					focusRequester.requestFocus()
 				}
 			} else {
-				Text(stringResource(R.string.tab_updates), style = MaterialTheme.typography.titleLarge)
+				Text(stringResource(R.string.tab_updates), style = MaterialTheme.typography.headlineSmall)
 			}
 		},
-		colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
+		colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
 		actions = {
 			if (!isSearchMode) {
 				IconButton(onClick = { isSearchMode = true }) {
@@ -288,7 +294,7 @@ fun Grid(
 			val update = grouped.primary
 			SwipeToIgnoreBox(
 				onIgnore = { viewModel.ignoreVersion(update.id) },
-				shape = androidx.compose.foundation.shape.RoundedCornerShape(if (compactMode) 12.dp else 16.dp)
+				shape = MaterialTheme.shapes.medium
 			) {
 				if (compactMode) {
 					GridItem(
@@ -325,7 +331,7 @@ fun Grid(
 @Composable
 fun SwipeToIgnoreBox(
 	onIgnore: () -> Unit,
-	shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+	shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
 	content: @Composable () -> Unit
 ) {
 	val dismissState = rememberSwipeToDismissBoxState(

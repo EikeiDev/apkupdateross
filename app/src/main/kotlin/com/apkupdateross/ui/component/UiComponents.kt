@@ -1,6 +1,7 @@
 package com.apkupdateross.ui.component
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -16,10 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,6 +43,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -46,7 +51,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import com.apkupdateross.R
@@ -77,7 +84,8 @@ fun CommonItem(
     single: Boolean = false,
     source: Source? = null,
     compactMode: Boolean = false,
-    releaseType: ReleaseType? = null
+    releaseType: ReleaseType? = null,
+    showVersionInfo: Boolean = true
 ) = Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
     val iconSlotWidth = when {
         releaseType == null && compactMode -> 48.dp
@@ -106,29 +114,128 @@ fun CommonItem(
     Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
         LargeTitle(name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName })
         MediumText(packageName)
-        
-        val previousVersion = oldVersion?.takeIf { it.isNotBlank() }
-        if (previousVersion != null && !single) {
-            VersionRow("$previousVersion -> ${version.ifBlank { "?" }}")
-        } else if (version.isNotBlank()) {
-            VersionRow(version)
-        }
-        
-        if (oldVersionCode != null && !single) {
-            val code = if (versionCode == 0L) "?" else versionCode.toString()
-            MediumText("$oldVersionCode -> $code")
-        } else if (versionCode > 0L) {
-            MediumText(versionCode.toString())
+
+        if (showVersionInfo) {
+            VersionInfo(
+                version = version,
+                oldVersion = oldVersion,
+                versionCode = versionCode,
+                oldVersionCode = oldVersionCode,
+                single = single,
+                source = source
+            )
         }
     }
 }
 
 @Composable
-private fun VersionRow(text: String) = Row(
+private fun VersionInfo(
+    version: String,
+    oldVersion: String?,
+    versionCode: Long,
+    oldVersionCode: Long?,
+    single: Boolean,
+    source: Source? = null,
+    modifier: Modifier = Modifier
+) = Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(2.dp)
+) {
+    val previousVersion = oldVersion?.takeIf { it.isNotBlank() }
+    if (previousVersion != null && !single) {
+        VersionCompareRow(previousVersion, version.ifBlank { "?" })
+    } else if (version.isNotBlank()) {
+        VersionLine(version)
+    }
+
+    if (oldVersionCode != null && !single) {
+        val code = if (versionCode == 0L) "?" else versionCode.toString()
+        VersionCompareRow(oldVersionCode.toString(), code)
+    } else if (versionCode > 0L) {
+        VersionLine(versionCode.toString())
+    }
+}
+
+@Composable
+private fun VersionCompareRow(
+    oldValue: String,
+    newValue: String
+) = Row(
     modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically
 ) {
-    MediumText(text, Modifier.weight(1f))
+    VersionValueChip(
+        text = oldValue,
+        highlighted = false,
+        modifier = Modifier.weight(1f)
+    )
+    Text(
+        text = "->",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.widthIn(min = 24.dp).padding(horizontal = 4.dp)
+    )
+    VersionValueChip(
+        text = newValue,
+        highlighted = true,
+        modifier = Modifier.weight(1f)
+    )
+}
+
+@Composable
+private fun VersionLine(text: String, modifier: Modifier = Modifier) = ScrollableText(modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip
+    )
+}
+
+@Composable
+private fun VersionValueChip(
+    text: String,
+    highlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (highlighted) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.62f)
+    }
+    val contentColor = if (highlighted) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val containerColor = if (highlighted) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = containerColor,
+        contentColor = contentColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        ScrollableText(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip
+            )
+        }
+    }
 }
 
 @Composable
@@ -166,7 +273,13 @@ fun InstallButton(
 ) = androidx.compose.material3.FilledTonalIconButton(
     modifier = Modifier,
     onClick = { if (app.isInstalling) onCancel(app) else onInstall(app.packageName) },
-    enabled = !app.isDownloading
+    enabled = !app.isDownloading,
+    colors = IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 ) {
     if (app.isInstalling) {
         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
@@ -185,7 +298,11 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
     val context = LocalContext.current
 
     Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (app.ignored) 0.5f else 1f)
@@ -217,7 +334,7 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -291,7 +408,11 @@ fun UpdateItem(
     val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
     Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded }
@@ -307,8 +428,10 @@ fun UpdateItem(
                         app.oldVersion,
                         app.versionCode,
                         app.oldVersionCode,
+                        source = app.source,
                         compactMode = compactMode,
-                        releaseType = app.releaseType
+                        releaseType = app.releaseType,
+                        showVersionInfo = false
                     )
                 }
                 IconButton(onClick = { expanded = !expanded }) {
@@ -319,11 +442,21 @@ fun UpdateItem(
                 }
                 if (!app.isPaid) InstallButton(app, { onInstall(app) }, { onCancel(app) })
             }
+
+            VersionInfo(
+                version = app.version,
+                oldVersion = app.oldVersion,
+                versionCode = app.versionCode,
+                oldVersionCode = app.oldVersionCode,
+                single = false,
+                source = app.source,
+                modifier = Modifier.padding(top = if (compactMode) 6.dp else 8.dp)
+            )
             
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     
                     WhatsNew(app.whatsNew, app.source)
                     
@@ -414,7 +547,11 @@ fun SearchItem(
     val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
     Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded }
@@ -432,6 +569,7 @@ fun SearchItem(
                         app.oldVersionCode,
                         app.iconUri,
                         true,
+                        source = app.source,
                         compactMode = compactMode
                     )
                 }
@@ -447,7 +585,7 @@ fun SearchItem(
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     
                     WhatsNew(app.whatsNew, app.source)
                     
@@ -535,7 +673,7 @@ fun SourceSelector(
             androidx.compose.material3.Surface(
                 onClick = { onSelect(update) },
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(32.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -571,7 +709,11 @@ fun GridItem(
     val currentOnClick = if (selectedUpdate != null && onUpdateClick != null) ({ onUpdateClick(selectedUpdate) }) else onClick
 
     Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isIgnored) 0.5f else 1f)
@@ -601,8 +743,8 @@ fun GridItem(
                 )
                 
                 androidx.compose.material3.Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
                     modifier = Modifier.alpha(0.8f)
                 ) {
                     var showDropdown by remember { mutableStateOf(false) }
@@ -623,7 +765,7 @@ fun GridItem(
                             Text(
                                 text = currentVersion,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -640,7 +782,7 @@ fun GridItem(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = stringResource(R.string.search_filter_button),
                                     modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
                             }
 

@@ -47,10 +47,12 @@ fun SmallText(text: String, modifier: Modifier = Modifier, color: Color = Color.
 fun MediumText(
     text: String,
     modifier: Modifier = Modifier,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) = Text(
     text = text,
     style = MaterialTheme.typography.bodyMedium,
+    color = color,
     maxLines = maxLines,
     modifier = modifier,
     overflow = TextOverflow.Ellipsis
@@ -69,8 +71,8 @@ fun MediumTitle(text: String, modifier: Modifier = Modifier) = Text(
 @Composable
 fun LargeTitle(text: String, modifier: Modifier = Modifier) = Text(
     text = text,
-    style = MaterialTheme.typography.titleLarge,
-    fontWeight = FontWeight.Bold,
+    style = MaterialTheme.typography.titleMedium,
+    fontWeight = FontWeight.SemiBold,
     maxLines = 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
@@ -106,13 +108,15 @@ fun ScrollableText(
         LaunchedEffect(outer.value) { effect(state) }
     }
     
-    Row(Modifier.onSizeChanged { outer.value = it }) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .onSizeChanged { outer.value = it }
+    ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
                 .horizontalScroll(state)
-                .onSizeChanged { inner.value = it }
-                .then(modifier),
+                .onSizeChanged { inner.value = it },
             content = content
         )
     }

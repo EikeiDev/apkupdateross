@@ -23,6 +23,7 @@ class SearchRepository(
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
     private val ruStoreRepository: RuStoreRepository,
+    private val huaweiRepository: HuaweiRepository,
     private val prefs: Prefs
 ) {
 
@@ -91,6 +92,9 @@ class SearchRepository(
         }
         if (filters.shouldInclude(SearchSourceFilter.RUSTORE)) {
             sources += ruStoreRepository.search(text)
+        }
+        if (filters.shouldInclude(SearchSourceFilter.HUAWEI) && prefs.useHuawei.get()) {
+            sources += huaweiRepository.search(text)
         }
 
         return sources

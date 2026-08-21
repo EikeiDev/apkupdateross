@@ -15,6 +15,7 @@
     <string name="exclude_disabled_apps">Исключить отключенные приложения</string>
     <string name="include_disabled_apps">Включить отключенные приложения</string>
     <string name="install_cd">Установить приложение</string>
+    <string name="update_all">Обновить всё</string>
     <string name="root_install_not_supported">Root установка этого приложения не поддерживается.</string>
     <string name="app_cd">Значок приложения</string>
     <string name="install_success">%1$s установлено.</string>
@@ -23,6 +24,28 @@
     // Settings
     <string name="play_text_animations">Проигрывать анимации текста</string>
     <string name="settings_sources">Источники</string>
+    <string name="settings_category_sources_subtitle">Магазины, репозитории и аккаунты источников</string>
+    <string name="settings_category_updates_subtitle">Фильтры, расписание, уведомления и статистика</string>
+    <string name="settings_category_install">Установка</string>
+    <string name="settings_category_install_subtitle">Режим установки: обычный, Root или Shizuku</string>
+    <string name="settings_category_interface_subtitle">Тема, анимации, компактный вид и колонки</string>
+    <string name="settings_category_network_subtitle">Таймауты подключения для источников обновлений</string>
+    <string name="settings_category_data_logs">Данные и логи</string>
+    <string name="settings_category_data_logs_subtitle">Бэкап, восстановление, списки и логи</string>
+    <string name="settings_category_about_subtitle">Версия, ссылки проекта и авторы</string>
+    <string name="settings_sources_code_hosting">Git-источники</string>
+    <string name="settings_sources_app_stores">Магазины приложений</string>
+    <string name="settings_updates_release_filters">Фильтры релизов</string>
+    <string name="settings_updates_schedule">Расписание</string>
+    <string name="settings_updates_ignored">Скрытые обновления</string>
+    <string name="settings_install_mode_section">Режим установки</string>
+    <string name="settings_interface_behavior">Поведение</string>
+    <string name="settings_interface_layout">Макет</string>
+    <string name="settings_portrait_columns">Колонки в портрете</string>
+    <string name="settings_landscape_columns">Колонки в альбоме</string>
+    <string name="settings_network_timeouts">Таймауты</string>
+    <string name="settings_data_logs_actions">Логи и списки</string>
+    <string name="settings_data_backup">Бэкап</string>
     <string name="settings_ui">Интерфейс</string>
     <string name="settings_compact_view">Компактный режим</string>
     <string name="settings_alarm">Расписание автообновлений</string>
@@ -56,6 +79,14 @@
     <string name="theme_system">Система</string>
     <string name="theme_dark">Тёмная</string>
     <string name="theme_light">Светлая</string>
+    <string name="theme_custom">Своя</string>
+    <string name="theme_custom_accent">Акцент</string>
+    <string name="theme_custom_background">Фон</string>
+    <string name="theme_custom_surface">Карточки</string>
+    <string name="theme_custom_navigation">Нижняя панель</string>
+    <string name="theme_custom_reset">Сбросить свою тему</string>
+    <string name="theme_custom_preview">Предпросмотр</string>
+    <string name="theme_custom_invalid">Формат: #RRGGBB</string>
 
     <string name="copy_to_clipboard">Копировать в буфер обмена</string>
     <string name="copy_app_list">Скопировать список приложений</string>
@@ -91,6 +122,10 @@
     <string name="search_filter_gitlab">GitLab</string>
     <string name="search_filter_play">Google Play</string>
     <string name="search_filter_rustore">RuStore</string>
+    <string name="search_filter_huawei">AppGallery</string>
+    <string name="source_huawei" translatable="false">AppGallery</string>
+    <string name="settings_huawei_region">Регион AppGallery</string>
+    <string name="huawei_region_auto">Авто</string>
     <string name="metric_last_check_duration">Длительность последней проверки</string>
     <string name="metric_last_check_time">Время последней проверки</string>
     <string name="metric_last_check_sources">Источник(и)</string>
@@ -120,6 +155,7 @@
     <string name="download_success">Сохранено в Download/APKUpdaterOSS: %1$s</string>
     <string name="download_failure">Ошибка сохранения %1$s</string>
     <string name="download_failure_cant_download">Не удалось скачать файл.</string>
+    <string name="download_unavailable_for_source">Прямая загрузка APK недоступна для этого источника.</string>
     <string name="link_not_available">Ссылка недоступна.</string>
 
     <string name="settings_custom_repos_edit">Редактировать репозиторий</string>

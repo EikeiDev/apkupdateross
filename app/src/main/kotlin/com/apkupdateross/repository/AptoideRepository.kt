@@ -32,7 +32,7 @@ class AptoideRepository(
         private fun getProduct() = Build.PRODUCT.replace(";", " ")
         private fun getModel() = Build.MODEL.replace(";", " ")
         private fun getRelease() = Build.VERSION.RELEASE.replace(";", " ")
-        private fun getArch() = System.getProperty("os.arch")
+        private fun getArch() = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
     }
 
     private val query: String by lazy {

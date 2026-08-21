@@ -1,9 +1,11 @@
 package com.apkupdateross.ui.screen
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,6 +16,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -23,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -37,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
@@ -80,10 +85,13 @@ import androidx.compose.animation.shrinkVertically
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
 	val state by viewModel.state.collectAsStateWithLifecycle()
 	val isRefreshing = viewModel.isRefreshing.collectAsStateWithLifecycle().value
+	val isInstallingAll = viewModel.isInstallingAll.collectAsStateWithLifecycle().value
 	val selfUpdate = viewModel.selfUpdate.collectAsStateWithLifecycle().value
 	val loadingSources by viewModel.loadingSources.collectAsStateWithLifecycle()
 	val failedSources by viewModel.failedSources.collectAsStateWithLifecycle()
 	val uriHandler = LocalUriHandler.current
+	val visibleUpdates = (state as? UpdatesUiState.Success)?.updates.orEmpty()
+	val installAllCount = viewModel.installAllCount(visibleUpdates)
 
 	LaunchedEffect(Unit) {
 		if (state is UpdatesUiState.Loading) viewModel.refresh()
@@ -150,7 +158,14 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 				when {
 					it.updates.isEmpty() && isRefreshing -> EmptyGrid(text = stringResource(R.string.checking_updates))
 					it.updates.isEmpty() -> EmptyGrid(text = stringResource(R.string.updates_empty))
-					else -> Grid(viewModel, it.updates, uriHandler)
+					else -> Grid(
+						viewModel = viewModel,
+						updates = it.updates,
+						handler = uriHandler,
+						installAllCount = installAllCount,
+						isInstallingAll = isInstallingAll,
+						onInstallAll = { viewModel.installAll(visibleUpdates) }
+					)
 				}
 			}
 		}
@@ -279,7 +294,10 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 fun Grid(
 	viewModel: UpdatesViewModel,
 	updates: List<GroupedAppUpdate>,
-	handler: UriHandler
+	handler: UriHandler,
+	installAllCount: Int,
+	isInstallingAll: Boolean,
+	onInstallAll: () -> Unit
 ) {
 	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
 	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
@@ -290,6 +308,15 @@ fun Grid(
 		portraitColumns = portraitColumns,
 		landscapeColumns = landscapeColumns
 	) {
+		if (installAllCount > 0 || isInstallingAll) {
+			item(span = { GridItemSpan(maxLineSpan) }) {
+				InstallAllButton(
+					count = installAllCount,
+					isInstalling = isInstallingAll,
+					onClick = onInstallAll
+				)
+			}
+		}
 		items(updates, key = { it.packageName }) { grouped ->
 			val update = grouped.primary
 			SwipeToIgnoreBox(
@@ -324,6 +351,37 @@ fun Grid(
 				}
 			}
 		}
+	}
+}
+
+@Composable
+private fun InstallAllButton(
+	count: Int,
+	isInstalling: Boolean,
+	onClick: () -> Unit
+) {
+	FilledTonalButton(
+		onClick = onClick,
+		enabled = count > 0 && !isInstalling,
+		modifier = Modifier.fillMaxWidth()
+	) {
+		if (isInstalling) {
+			CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+		} else {
+			Icon(
+				painter = painterResource(R.drawable.ic_install),
+				contentDescription = null,
+				modifier = Modifier.size(18.dp)
+			)
+		}
+		Spacer(Modifier.width(8.dp))
+		Text(
+			text = if (count > 0) {
+				"${stringResource(R.string.update_all)} ($count)"
+			} else {
+				stringResource(R.string.update_all)
+			}
+		)
 	}
 }
 

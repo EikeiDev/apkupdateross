@@ -273,7 +273,7 @@ fun InstallButton(
 ) = androidx.compose.material3.FilledTonalIconButton(
     modifier = Modifier,
     onClick = { if (app.isInstalling) onCancel(app) else onInstall(app.packageName) },
-    enabled = !app.isDownloading,
+    enabled = !app.isDownloading && (app.link !is Link.Empty || app.isInstalling),
     colors = IconButtonDefaults.filledTonalIconButtonColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -459,9 +459,13 @@ fun UpdateItem(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     
                     WhatsNew(app.whatsNew, app.source)
+
+                    if (app.link is Link.Empty) {
+                        DownloadUnavailableNotice()
+                    }
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Empty
+                        val canDownload = app.link !is Link.Empty
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             IgnoreVersionButton(app, onIgnoreVersion)
                             
@@ -588,9 +592,13 @@ fun SearchItem(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     
                     WhatsNew(app.whatsNew, app.source)
+
+                    if (app.link is Link.Empty) {
+                        DownloadUnavailableNotice()
+                    }
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val canDownload = app.link !is com.apkupdateross.data.ui.Link.Empty
+                        val canDownload = app.link !is Link.Empty
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             FilledTonalIconButton(
                                 onClick = { onOpenPage(app) },
@@ -823,6 +831,16 @@ fun GridItem(
             }
         }
     }
+}
+
+@Composable
+private fun DownloadUnavailableNotice() {
+    Text(
+        text = stringResource(R.string.download_unavailable_for_source),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+    )
 }
 
 @Composable

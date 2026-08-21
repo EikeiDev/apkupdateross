@@ -6,6 +6,7 @@ import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.PlaySource
@@ -67,8 +68,10 @@ class UpdatesViewModel(
 	private val _filterQuery = MutableStateFlow("")
 	private val _isInitialLoading = MutableStateFlow(true)
 	private val _isRefreshing = MutableStateFlow(false)
+	private val _isInstallingAll = MutableStateFlow(false)
 	private val _selfUpdate = MutableStateFlow<AppUpdate?>(null)
 	private var snoozedSelfUpdateVersionCode: Long? = null
+	private var installAllJob: Job? = null
 	val useCompactView = prefs.useCompactViewFlow
 	val portraitColumns = prefs.portraitColumnsFlow
 	val landscapeColumns = prefs.landscapeColumnsFlow
@@ -135,6 +138,7 @@ class UpdatesViewModel(
 	}
 
 	val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+	val isInstallingAll: StateFlow<Boolean> = _isInstallingAll.asStateFlow()
 	val selfUpdate: StateFlow<AppUpdate?> = _selfUpdate.asStateFlow()
 	val filterQuery: StateFlow<String> = _filterQuery.asStateFlow()
 
@@ -220,6 +224,40 @@ class UpdatesViewModel(
 		prefs.setIgnoredVersions(ignored.distinct(), ignoredInfos.distinctBy { it.id })
 	}
 
+	fun installAllCount(groups: List<GroupedAppUpdate>): Int =
+		bulkInstallTargets(groups, prefs.installMode.get()).size
+
+	fun installAll(groups: List<GroupedAppUpdate>): Job? {
+		if (installAllJob?.isActive == true) return installAllJob
+
+		val installMode = prefs.installMode.get()
+		val targets = bulkInstallTargets(groups, installMode)
+		if (targets.isEmpty()) return null
+
+		if (installMode == 0 && !installer.checkPermission()) return null
+		if (installMode == 2 && !installer.isShizukuAvailable()) {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.shizuku_not_running)))
+			return null
+		}
+
+		installAllJob = viewModelScope.launch(Dispatchers.IO) {
+			_isInstallingAll.value = true
+			try {
+				for (target in targets) {
+					if (!isActive) break
+
+					val update = _updates.value.firstOrNull { it.id == target.id }
+					if (update == null || !update.canBulkInstall(installMode)) continue
+
+					startBulkInstall(update, installMode)?.join()
+				}
+			} finally {
+				_isInstallingAll.value = false
+			}
+		}
+		return installAllJob
+	}
+
 	override fun cancelInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
 		activeJobs.remove(id)?.cancel()
 		_updates.value = _updates.value.toMutableList()
@@ -245,7 +283,7 @@ class UpdatesViewModel(
 	override fun downloadAndRootInstall(update: AppUpdate): Job =
 		trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
 			_updates.value = _updates.value.toMutableList().setIsInstalling(update.id, true)
-			downloadAndRootInstall(update.id, update.link)
+			downloadAndRootInstall(update.id, update.packageName, update.link)
 		})
 
 	override fun downloadAndInstall(update: AppUpdate): Job =
@@ -261,6 +299,28 @@ class UpdatesViewModel(
 			_updates.value = _updates.value.toMutableList().setIsInstalling(update.id, true)
 			downloadAndShizukuInstall(update.id, update.packageName, update.link)
 		})
+
+	private fun bulkInstallTargets(groups: List<GroupedAppUpdate>, installMode: Int): List<AppUpdate> =
+		groups
+			.mapNotNull { group -> group.updates.firstOrNull { it.canBulkInstall(installMode) } }
+			.sortedWith(
+				compareBy<AppUpdate> { it.packageName == BuildConfig.APPLICATION_ID }
+					.thenBy { it.name.lowercase() }
+			)
+
+	private fun AppUpdate.canBulkInstall(installMode: Int): Boolean = when {
+		isPaid || isInstalling || isDownloading -> false
+		source == ApkMirrorSource -> false
+		link is Link.Empty -> false
+		installMode == 1 && link is Link.Play -> false
+		else -> true
+	}
+
+	private fun startBulkInstall(update: AppUpdate, installMode: Int): Job? = when (installMode) {
+		2 -> downloadAndShizukuInstall(update)
+		1 -> downloadAndRootInstall(update)
+		else -> downloadAndInstall(update)
+	}
 
 	private fun groupUpdates(updates: List<AppUpdate>): List<GroupedAppUpdate> {
 		val ignoredVersions = try { prefs.ignoredVersions.get() } catch (e: Exception) { emptyList() }

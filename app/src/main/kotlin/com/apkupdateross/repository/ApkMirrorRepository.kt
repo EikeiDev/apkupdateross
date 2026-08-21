@@ -17,6 +17,7 @@ import com.apkupdateross.data.ui.getSignature
 import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.ApkMirrorService
+import com.apkupdateross.util.AbiMatcher
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.orFalse
 import kotlinx.coroutines.flow.catch
@@ -32,14 +33,6 @@ class ApkMirrorRepository(
     private val service: ApkMirrorService,
     private val prefs: Prefs
 ) {
-
-    private val arch = when {
-        Build.SUPPORTED_ABIS.contains("x86") -> "x86"
-        Build.SUPPORTED_ABIS.contains("x86_64") -> "x86"
-        Build.SUPPORTED_ABIS.contains("armeabi-v7a") -> "arm"
-        Build.SUPPORTED_ABIS.contains("arm64-v8a") -> "arm"
-        else -> "arm"
-    }
 
     private val api = Build.VERSION.SDK_INT
 
@@ -132,9 +125,7 @@ class ApkMirrorRepository(
 
     private fun filterArch(app: AppExistsResponseApk) = when {
         app.arches.isEmpty() -> true
-        app.arches.contains("universal") || app.arches.contains("noarch") -> true
-        app.arches.find { a -> Build.SUPPORTED_ABIS.contains(a) } != null -> true
-        app.arches.find { a -> a.contains(arch) } != null -> true
+        AbiMatcher.isCompatible(app.arches, Build.SUPPORTED_ABIS.toList()) -> true
         else -> false
     }
 

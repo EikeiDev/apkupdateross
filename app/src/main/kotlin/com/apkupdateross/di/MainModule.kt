@@ -14,6 +14,7 @@ import com.apkupdateross.repository.AptoideRepository
 import com.apkupdateross.repository.FdroidRepository
 import com.apkupdateross.repository.GitHubRepository
 import com.apkupdateross.repository.GitLabRepository
+import com.apkupdateross.repository.HuaweiRepository
 import com.apkupdateross.repository.PlayRepository
 import com.apkupdateross.repository.RuStoreRepository
 import com.apkupdateross.repository.SearchRepository
@@ -165,11 +166,12 @@ val mainModule = module {
 
 	single {
 		// RuStore's backapi rejects requests without this header (HTTP 400 since mid-2026).
-		// The value is the RuStore app's version code; bump it if the API starts rejecting it again.
+		// The value must stay in the short app-code range accepted by backapi; long APK
+		// manifest versionCodes are rejected by some endpoints with HTTP 419.
 		val ruStoreClient = get<OkHttpClient>().newBuilder()
 			.addInterceptor { chain ->
 				val request = chain.request().newBuilder()
-					.header("ruStoreVerCode", "1105002")
+					.header("ruStoreVerCode", "12000")
 					.build()
 				chain.proceed(request)
 			}
@@ -184,11 +186,13 @@ val mainModule = module {
 
 	single { RuStoreRepository(get(), get()) }
 
+	single { HuaweiRepository(get(), get(), get()) }
+
 	single { PlayRepository(get(), get(), get(), get()) }
 
-	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 

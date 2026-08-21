@@ -20,6 +20,7 @@ import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.data.snack.TextSnack
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitHubService
+import com.apkupdateross.util.AbiMatcher
 import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.Stringer
 import com.apkupdateross.util.combine
@@ -147,12 +148,13 @@ class GitHubRepository(
             // TODO: Find a better way to do this
             r.filter { it.name.contains("CI-Release-3.x")}
         } else {
-            r.filter { filterPreRelease(it) }.filter { findApkAsset(it.assets).isNotEmpty() }
+            r.filter { filterPreRelease(it) }.filter { findApkAssetArch(it.assets, extra) != null }
         }
 
         if (releases.isNotEmpty() && Version(filterVersionTag(releases[0].tag_name)) > Version(currentVersion)) {
             val release = releases[0]
             val app = apps?.getApp(packageName)
+            val apkAsset = findApkAssetArch(release.assets, extra) ?: return@flow emit(emptyList())
             emit(listOf(AppUpdate(
                 name = repo,
                 packageName = packageName,
@@ -161,7 +163,7 @@ class GitHubRepository(
                 versionCode = release.tag_name.takeIf { it.isNotBlank() }?.versionCodeFromTag() ?: release.name.versionCodeFromTag(),
                 oldVersionCode = app?.versionCode ?: 0L,
                 source = GitHubSource,
-                link = findApkAssetArch(release.assets, extra).let { Link.Url(it.browser_download_url, it.size) },
+                link = Link.Url(apkAsset.browser_download_url, apkAsset.size),
                 whatsNew = release.body,
                 releaseType = ReleaseType.from(release.tag_name, release.name, release.prerelease),
                 iconUri = if (apps == null) Uri.parse(release.author.avatar_url) else Uri.EMPTY,
@@ -193,58 +195,31 @@ class GitHubRepository(
 
     private fun findApkAsset(assets: List<GitHubReleaseAsset>) = assets
         .filter { it.browser_download_url.endsWith(".apk", true) }
-        .maxByOrNull { it.size }
+        .let {
+            AbiMatcher.selectCompatible(
+                items = it,
+                supportedAbis = Build.SUPPORTED_ABIS.toList(),
+                nameSelector = GitHubReleaseAsset::browser_download_url,
+                sizeSelector = GitHubReleaseAsset::size
+            )
+        }
         ?.browser_download_url
         .orEmpty()
 
     private fun findApkAssetArch(
         assets: List<GitHubReleaseAsset>,
         extra: Regex?
-    ): GitHubReleaseAsset {
+    ): GitHubReleaseAsset? {
         val apks = assets
             .filter { it.browser_download_url.endsWith(".apk", true) }
             .filter { filterExtra(it, extra) }
 
-        when {
-            apks.isEmpty() -> return GitHubReleaseAsset(0L, "")
-            apks.size == 1 -> return apks.first()
-            else -> {
-                // Try to match exact arch
-                Build.SUPPORTED_ABIS.forEach { arch ->
-                    apks.forEach { apk ->
-                        if (apk.browser_download_url.contains(arch, true)) {
-                            return apk
-                        }
-                    }
-                }
-                // Try to match arm64
-                if (Build.SUPPORTED_ABIS.contains("arm64-v8a")) {
-                    apks.forEach { apk ->
-                        if (apk.browser_download_url.contains("arm64", true)) {
-                            return apk
-                        }
-                    }
-                }
-                // Try to match x64
-                if (Build.SUPPORTED_ABIS.contains("x86_64")) {
-                    apks.forEach { apk ->
-                        if (apk.browser_download_url.contains("x64", true)) {
-                            return apk
-                        }
-                    }
-                }
-                // Try to match arm
-                if (Build.SUPPORTED_ABIS.contains("armeabi-v7a")) {
-                    apks.forEach { apk ->
-                        if (apk.browser_download_url.contains("arm", true)) {
-                            return apk
-                        }
-                    }
-                }
-                // If no match, return biggest apk in the hope it's universal
-                return apks.maxByOrNull { it.size } ?: GitHubReleaseAsset(0L, "")
-            }
-        }
+        return AbiMatcher.selectCompatible(
+            items = apks,
+            supportedAbis = Build.SUPPORTED_ABIS.toList(),
+            nameSelector = GitHubReleaseAsset::browser_download_url,
+            sizeSelector = GitHubReleaseAsset::size
+        )
     }
 
     private fun filterExtra(asset: GitHubReleaseAsset, extra: Regex?) = when(extra) {

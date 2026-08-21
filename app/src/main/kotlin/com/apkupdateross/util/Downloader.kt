@@ -23,6 +23,7 @@ class Downloader(
 ) {
 
     data class DownloadResult(val stream: InputStream, val contentLength: Long)
+    data class FileDownloadResult(val file: File, val contentLength: Long)
 
     private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
     private val cancelledIds = ConcurrentSkipListSet<Int>()
@@ -81,6 +82,36 @@ class Downloader(
         return null
     }.getOrElse {
         Log.e("Downloader", "Error downloading", it)
+        null
+    }
+
+    fun downloadFileWithSize(id: Int, url: String): FileDownloadResult? = runCatching {
+        val file = File(dir, "cache_${id}_${randomUUID()}")
+        val c = when {
+            url.contains("apkpure") -> apkPureClient
+            url.contains("aurora") -> auroraClient
+            else -> client
+        }
+        val call = registerCall(id, c.newCall(downloadRequest(url)))
+        call.execute().use { response ->
+            if (response.isSuccessful) {
+                val body = response.body
+                if (body != null) {
+                    val contentLength = body.contentLength()
+                    file.outputStream().use { output ->
+                        body.byteStream().use { input -> input.copyTo(output) }
+                    }
+                    return FileDownloadResult(file, contentLength)
+                }
+                Log.e("Downloader", "Download failed with an empty response body")
+            } else {
+                Log.e("Downloader", "Download failed with error code: ${response.code}")
+            }
+        }
+        if (file.exists()) file.delete()
+        null
+    }.getOrElse {
+        Log.e("Downloader", "Error downloading file", it)
         null
     }
 

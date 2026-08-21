@@ -11,6 +11,10 @@ import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppInstallStatus
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.hasValidationMetadata
+import com.apkupdateross.data.ui.totalSize
+import com.apkupdateross.data.ui.validationPackageName
+import com.apkupdateross.data.ui.validationSize
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
@@ -78,10 +82,22 @@ abstract class InstallViewModel(
         block(it)
     }.launchIn(viewModelScope)
 
-    protected fun downloadAndRootInstall(id: Int, link: Link) = runCatching {
+    protected fun downloadAndRootInstall(id: Int, packageName: String, link: Link) = runCatching {
         when (link) {
             is Link.Url -> {
-                if (installer.rootInstall(downloader.download(id, link.link))) {
+                val file = if (link.hasValidationMetadata()) {
+                    val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
+                    installer.validateApkFile(
+                        result.file,
+                        link.validationPackageName(packageName),
+                        link.sha256,
+                        link.validationSize()
+                    )
+                    result.file
+                } else {
+                    downloader.download(id, link.link)
+                }
+                if (installer.rootInstall(file)) {
                     finishInstall(id)
                 } else {
                     cancelInstall(id)
@@ -117,7 +133,7 @@ abstract class InstallViewModel(
             return@runCatching
         }
         when (link) {
-            Link.Empty -> Log.e("InstallViewModel", "downloadAndShizukuInstall: Unsupported.")
+            Link.Empty -> throw Exception(stringer.get(R.string.download_not_supported_for_source))
             is Link.Play -> {
                 val files = link.getInstallFiles()
                 val total = files.sumOf { it.size }
@@ -127,10 +143,23 @@ abstract class InstallViewModel(
                 finishInstall(id)
             }
             is Link.Url -> {
-                val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                val total = if (link.size > 0) link.size else result.contentLength
-                installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                installer.shizukuInstall(id, packageName, result.stream, total)
+                if (link.hasValidationMetadata()) {
+                    val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
+                    installer.validateApkFile(
+                        result.file,
+                        link.validationPackageName(packageName),
+                        link.sha256,
+                        link.validationSize()
+                    )
+                    val total = link.totalSize(result.contentLength, result.file.length())
+                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                    installer.shizukuInstall(id, packageName, result.file.inputStream(), total)
+                } else {
+                    val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
+                    val total = link.totalSize(result.contentLength)
+                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                    installer.shizukuInstall(id, packageName, result.stream, total)
+                }
                 finishInstall(id)
             }
             is Link.Xapk -> {
@@ -150,7 +179,7 @@ abstract class InstallViewModel(
 
     protected suspend fun downloadAndInstall(id: Int, packageName: String, link: Link) = runCatching {
         when (link) {
-            Link.Empty -> { Log.e("InstallViewModel", "downloadAndInstall: Unsupported.")}
+            Link.Empty -> throw Exception(stringer.get(R.string.download_not_supported_for_source))
             is Link.Play -> {
                 val files = link.getInstallFiles()
                 val total = files.sumOf { it.size }
@@ -159,10 +188,23 @@ abstract class InstallViewModel(
                 installer.playInstall(id, packageName, streams, total)
             }
             is Link.Url -> {
-                val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                val total = if (link.size > 0) link.size else result.contentLength
-                installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                installer.install(id, packageName, result.stream, total)
+                if (link.hasValidationMetadata()) {
+                    val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
+                    installer.validateApkFile(
+                        result.file,
+                        link.validationPackageName(packageName),
+                        link.sha256,
+                        link.validationSize()
+                    )
+                    val total = link.totalSize(result.contentLength, result.file.length())
+                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                    installer.install(id, packageName, result.file.inputStream(), total)
+                } else {
+                    val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
+                    val total = link.totalSize(result.contentLength)
+                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                    installer.install(id, packageName, result.stream, total)
+                }
             }
             is Link.Xapk -> {
                 val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")

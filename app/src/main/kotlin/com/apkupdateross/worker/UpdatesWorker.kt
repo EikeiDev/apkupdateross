@@ -21,6 +21,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.hasValidationMetadata
+import com.apkupdateross.data.ui.totalSize
+import com.apkupdateross.data.ui.validationPackageName
+import com.apkupdateross.data.ui.validationSize
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.SessionInstaller
 import kotlinx.coroutines.withTimeoutOrNull
@@ -127,16 +131,41 @@ class UpdatesWorker(
                     true
                 }
                 is Link.Url -> {
-                    val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
                     if (mode == 1) {
-                        val file = java.io.File(applicationContext.cacheDir, "${java.util.UUID.randomUUID()}.apk")
-                        result.stream.use { input -> file.outputStream().use { output -> input.copyTo(output) } }
+                        val file = if (link.hasValidationMetadata()) {
+                            val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                            installer.validateApkFile(
+                                result.file,
+                                link.validationPackageName(update.packageName),
+                                link.sha256,
+                                link.validationSize()
+                            )
+                            result.file
+                        } else {
+                            val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                            java.io.File(applicationContext.cacheDir, "${java.util.UUID.randomUUID()}.apk").also { file ->
+                                result.stream.use { input -> file.outputStream().use { output -> input.copyTo(output) } }
+                            }
+                        }
                         val success = installer.rootInstall(file)
                         downloader.cleanup(update.id)
                         success
                     } else {
-                        val total = if (link.size > 0) link.size else result.contentLength
-                        installer.shizukuInstall(update.id, update.packageName, result.stream, total)
+                        if (link.hasValidationMetadata()) {
+                            val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                            installer.validateApkFile(
+                                result.file,
+                                link.validationPackageName(update.packageName),
+                                link.sha256,
+                                link.validationSize()
+                            )
+                            val total = link.totalSize(result.contentLength, result.file.length())
+                            installer.shizukuInstall(update.id, update.packageName, result.file.inputStream(), total)
+                        } else {
+                            val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                            val total = link.totalSize(result.contentLength)
+                            installer.shizukuInstall(update.id, update.packageName, result.stream, total)
+                        }
                         downloader.cleanup(update.id)
                         true
                     }

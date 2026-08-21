@@ -16,6 +16,7 @@ import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitLabService
+import com.apkupdateross.util.AbiMatcher
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
 import com.apkupdateross.util.versionCodeFromTag
@@ -62,6 +63,7 @@ class GitLabRepository(
         if (releases.isNotEmpty()) {
             val release = releases[0]
             val app = apps?.getApp(packageName)
+            val apkUrl = getApkUrl(release) ?: return@flow emit(emptyList())
             emit(listOf(
                 AppUpdate(
                 name = repo,
@@ -71,7 +73,7 @@ class GitLabRepository(
                 versionCode = release.tag_name.versionCodeFromTag(),
                 oldVersionCode = app?.versionCode ?: 0L,
                 source = GitLabSource,
-                link = Link.Url(getApkUrl(packageName, release)),
+                link = Link.Url(apkUrl),
                 whatsNew = release.description,
                 releaseType = ReleaseType.from(release.tag_name),
                 iconUri = if (apps == null) Uri.parse(release.author.avatar_url) else Uri.EMPTY,
@@ -112,29 +114,16 @@ class GitLabRepository(
         Log.e("GitLabRepository", "Error searching.", it)
     }
 
-    private fun getApkUrl(
-        packageName: String,
-        release: GitLabRelease
-    ): String {
+    private fun getApkUrl(release: GitLabRelease): String? {
         val apks = (release.assets.sources.map { it.url } + release.assets.links.map { it.url })
             .filter { it.endsWith(".apk", true) }
 
-        if (apks.isEmpty()) return ""
-        if (apks.size == 1) return apks.first()
-
-        Build.SUPPORTED_ABIS.forEach { arch ->
-            apks.find { it.contains(arch, true) }?.let { return it }
-        }
-        if (Build.SUPPORTED_ABIS.contains("arm64-v8a")) {
-            apks.find { it.contains("arm64", true) }?.let { return it }
-        }
-        if (Build.SUPPORTED_ABIS.contains("x86_64")) {
-            apks.find { it.contains("x64", true) }?.let { return it }
-        }
-        if (Build.SUPPORTED_ABIS.contains("armeabi-v7a")) {
-            apks.find { it.contains("arm", true) }?.let { return it }
-        }
-        return apks.maxByOrNull { it.length } ?: apks.first()
+        return AbiMatcher.selectCompatible(
+            items = apks,
+            supportedAbis = Build.SUPPORTED_ABIS.toList(),
+            nameSelector = { it },
+            sizeSelector = { it.length.toLong() }
+        )
     }
 
     private fun loadGitLabApps(): List<GitLabApp> {

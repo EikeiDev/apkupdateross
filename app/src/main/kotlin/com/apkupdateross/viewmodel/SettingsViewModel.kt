@@ -14,7 +14,12 @@ import java.net.URL
 import com.apkupdateross.data.ui.SettingsUiState
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.AppsRepository
-import com.apkupdateross.ui.theme.isDarkTheme
+import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_ACCENT
+import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_BACKGROUND
+import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_NAVIGATION
+import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_SURFACE
+import com.apkupdateross.ui.theme.THEME_MODE_CUSTOM
+import com.apkupdateross.ui.theme.normalizeHexColor
 import com.apkupdateross.util.Clipboard
 import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.Stringer
@@ -107,9 +112,9 @@ class SettingsViewModel(
 		}
 	}
 
-	fun setPortraitColumns(n: Int) = prefs.portraitColumns.put(n)
+	fun setPortraitColumns(n: Int) = prefs.setPortraitColumns(n)
 	fun getPortraitColumns() = prefs.portraitColumns.get()
-	fun setLandscapeColumns(n: Int) = prefs.landscapeColumns.put(n)
+	fun setLandscapeColumns(n: Int) = prefs.setLandscapeColumns(n)
 	fun getLandscapeColumns() = prefs.landscapeColumns.get()
 	fun setGlobalTimeoutSec(n: Int) = prefs.globalTimeoutSec.put(n.coerceIn(10, 120))
 	fun getGlobalTimeoutSec() = prefs.globalTimeoutSec.get()
@@ -141,6 +146,14 @@ class SettingsViewModel(
 	fun setUsePlay(b: Boolean) = prefs.usePlay.put(b)
 	fun getUseRuStore() = prefs.useRuStore.get()
 	fun setUseRuStore(b: Boolean) = prefs.useRuStore.put(b)
+	fun getUseHuawei() = prefs.useHuawei.get()
+	fun setUseHuawei(b: Boolean) = prefs.useHuawei.put(b)
+	fun getHuaweiRegion() = HUAWEI_REGIONS.indexOf(prefs.huaweiRegion.get()).takeIf { it >= 0 } ?: 0
+	fun setHuaweiRegion(index: Int) {
+		val region = HUAWEI_REGIONS.getOrElse(index) { HUAWEI_REGIONS.first() }
+		prefs.huaweiRegion.put(region)
+		prefs.huaweiCachedRegion.put("")
+	}
 	fun getEnableAlarm() = prefs.enableAlarm.get()
 	fun getGithubToken() = prefs.githubToken.get()
 	fun setGithubToken(token: String) = prefs.githubToken.put(token.trim())
@@ -150,15 +163,39 @@ class SettingsViewModel(
 	fun getInstallMode() = prefs.installMode.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
-    fun getTheme() = prefs.theme.get()
+    fun getTheme() = prefs.theme.get().coerceIn(0, THEME_MODE_CUSTOM)
 	fun getUseCompactView() = prefs.useCompactView.get()
 
 	fun setUseCompactView(b: Boolean) = prefs.setUseCompactView(b)
 
     fun setTheme(theme: Int) {
-        prefs.theme.put(theme)
-        themer.setTheme(isDarkTheme(theme))
+        prefs.theme.put(theme.coerceIn(0, THEME_MODE_CUSTOM))
+        themer.refresh()
     }
+
+	fun getCustomThemeAccent() = prefs.customThemeAccent.get()
+	fun getCustomThemeBackground() = prefs.customThemeBackground.get()
+	fun getCustomThemeSurface() = prefs.customThemeSurface.get()
+	fun getCustomThemeNavigation() = prefs.customThemeNavigation.get()
+
+	fun setCustomThemeAccent(value: String) = setCustomThemeColor(value) { prefs.customThemeAccent.put(it) }
+	fun setCustomThemeBackground(value: String) = setCustomThemeColor(value) { prefs.customThemeBackground.put(it) }
+	fun setCustomThemeSurface(value: String) = setCustomThemeColor(value) { prefs.customThemeSurface.put(it) }
+	fun setCustomThemeNavigation(value: String) = setCustomThemeColor(value) { prefs.customThemeNavigation.put(it) }
+
+	fun resetCustomTheme() {
+		prefs.customThemeAccent.put(DEFAULT_CUSTOM_ACCENT)
+		prefs.customThemeBackground.put(DEFAULT_CUSTOM_BACKGROUND)
+		prefs.customThemeSurface.put(DEFAULT_CUSTOM_SURFACE)
+		prefs.customThemeNavigation.put(DEFAULT_CUSTOM_NAVIGATION)
+		themer.refresh()
+	}
+
+	private fun setCustomThemeColor(value: String, put: (String) -> Unit) {
+		val normalized = normalizeHexColor(value) ?: return
+		put(normalized)
+		themer.refresh()
+	}
 
 	fun removeIgnoredUpdateInfo(packageName: String) {
 		val infos = prefs.ignoredUpdateInfos.get().toMutableList()
@@ -282,6 +319,7 @@ class SettingsViewModel(
 
 	companion object {
 		private const val SHIZUKU_PERMISSION_REQUEST_CODE = 100
+		private val HUAWEI_REGIONS = listOf("AUTO", "RU", "UA", "DE", "GB")
 	}
 
 	fun setAlarmFrequency(frequency: Int) {

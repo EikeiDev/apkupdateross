@@ -11,7 +11,11 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -86,34 +90,123 @@ private val ApkTypography = Typography(
 	labelLarge = DefaultTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
 )
 
+const val THEME_MODE_SYSTEM = 0
+const val THEME_MODE_DARK = 1
+const val THEME_MODE_LIGHT = 2
+const val THEME_MODE_CUSTOM = 3
+
+const val DEFAULT_CUSTOM_ACCENT = "#74D7B2"
+const val DEFAULT_CUSTOM_BACKGROUND = "#101312"
+const val DEFAULT_CUSTOM_SURFACE = "#151917"
+const val DEFAULT_CUSTOM_NAVIGATION = "#15231D"
+
+data class CustomThemeColors(
+	val accentHex: String = DEFAULT_CUSTOM_ACCENT,
+	val backgroundHex: String = DEFAULT_CUSTOM_BACKGROUND,
+	val surfaceHex: String = DEFAULT_CUSTOM_SURFACE,
+	val navigationHex: String = DEFAULT_CUSTOM_NAVIGATION
+)
+
+data class AppThemeState(
+	val mode: Int,
+	val darkTheme: Boolean,
+	val customColors: CustomThemeColors = CustomThemeColors()
+)
+
+data class AppExtraColors(
+	val navigationBar: Color? = null
+)
+
+val LocalAppExtraColors = staticCompositionLocalOf { AppExtraColors() }
 
 @Composable
 fun AppTheme(
-	darkTheme: Boolean,
+	theme: AppThemeState,
 	dynamicColor: Boolean = false,
 	content: @Composable () -> Unit
 ) {
 	val colorScheme = when {
+		theme.mode == THEME_MODE_CUSTOM -> customColorScheme(theme.customColors)
 		dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
 			val context = LocalContext.current
-			if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+			if (theme.darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
 		}
-		darkTheme -> ApkDarkColors
+		theme.darkTheme -> ApkDarkColors
 		else -> ApkLightColors
 	}
+	val extraColors = if (theme.mode == THEME_MODE_CUSTOM) {
+		AppExtraColors(
+			navigationBar = colorFromHex(
+				theme.customColors.navigationHex,
+				colorScheme.surfaceColorAtElevation(6.dp)
+			)
+		)
+	} else {
+		AppExtraColors()
+	}
 
-	MaterialTheme(
-		colorScheme = colorScheme,
-		typography = ApkTypography,
-		shapes = ApkShapes,
-		content = content
-	)
+	CompositionLocalProvider(LocalAppExtraColors provides extraColors) {
+		MaterialTheme(
+			colorScheme = colorScheme,
+			typography = ApkTypography,
+			shapes = ApkShapes,
+			content = content
+		)
+	}
 }
 
 fun ColorScheme.statusBarColor() = surfaceColorAtElevation(2.dp)
 
-fun isDarkTheme(theme: Int): Boolean {
-	if (theme == 1) return true
-	if (theme == 2) return false
+fun isDarkTheme(theme: Int, customColors: CustomThemeColors = CustomThemeColors()): Boolean {
+	if (theme == THEME_MODE_DARK) return true
+	if (theme == THEME_MODE_LIGHT) return false
+	if (theme == THEME_MODE_CUSTOM) {
+		return colorFromHex(customColors.backgroundHex, Color(0xFF101312)).luminance() < 0.5f
+	}
 	return isDark()
 }
+
+fun normalizeHexColor(value: String): String? {
+	val raw = value.trim().removePrefix("#")
+	if (raw.length != 6 || raw.any { it !in '0'..'9' && it !in 'a'..'f' && it !in 'A'..'F' }) {
+		return null
+	}
+	return "#${raw.uppercase()}"
+}
+
+fun colorFromHex(value: String, fallback: Color): Color {
+	val normalized = normalizeHexColor(value) ?: return fallback
+	val raw = normalized.removePrefix("#").toLong(16)
+	return Color(0xFF000000 or raw)
+}
+
+private fun customColorScheme(colors: CustomThemeColors): ColorScheme {
+	val accent = colorFromHex(colors.accentHex, Color(0xFF74D7B2))
+	val background = colorFromHex(colors.backgroundHex, Color(0xFF101312))
+	val surface = colorFromHex(colors.surfaceHex, Color(0xFF151917))
+	val dark = background.luminance() < 0.5f
+	val base = if (dark) ApkDarkColors else ApkLightColors
+	val onBackground = contentColorFor(background)
+	val onSurface = contentColorFor(surface)
+	val primaryContainer = if (dark) lerp(accent, Color.Black, 0.55f) else lerp(accent, Color.White, 0.72f)
+	val surfaceVariant = lerp(surface, onSurface, if (dark) 0.12f else 0.08f)
+
+	return base.copy(
+		primary = accent,
+		onPrimary = contentColorFor(accent),
+		primaryContainer = primaryContainer,
+		onPrimaryContainer = contentColorFor(primaryContainer),
+		background = background,
+		onBackground = onBackground,
+		surface = surface,
+		onSurface = onSurface,
+		surfaceVariant = surfaceVariant,
+		onSurfaceVariant = lerp(onSurface, surface, 0.18f),
+		outline = lerp(onSurface, surface, 0.45f),
+		outlineVariant = lerp(onSurface, surface, 0.72f),
+		surfaceTint = accent
+	)
+}
+
+private fun contentColorFor(background: Color): Color =
+	if (background.luminance() > 0.45f) Color(0xFF111418) else Color.White

@@ -72,7 +72,13 @@ class SearchViewModel(
     private fun loadSavedFilters(): Set<SearchSourceFilter> {
         val saved = prefs.searchFilters.get()
         val mapped = saved.mapNotNull { runCatching { SearchSourceFilter.valueOf(it) }.getOrNull() }.toSet()
-        return mapped.ifEmpty { SearchSourceFilter.defaultSelection }
+        val filters = mapped.ifEmpty { SearchSourceFilter.defaultSelection }
+        if (prefs.searchFiltersHuaweiMigrated.get()) return filters
+
+        val migrated = filters + SearchSourceFilter.HUAWEI
+        prefs.searchFiltersHuaweiMigrated.put(true)
+        if (migrated != filters) saveFilters(migrated)
+        return migrated
     }
 
     private fun saveFilters(filters: Set<SearchSourceFilter>) {
@@ -158,7 +164,7 @@ class SearchViewModel(
     override fun downloadAndRootInstall(update: AppUpdate): Job =
         trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {
             _state.value = SearchUiState.Success(_state.value.mutableUpdates().setIsInstalling(update.id, true))
-            downloadAndRootInstall(update.id, update.link)
+            downloadAndRootInstall(update.id, update.packageName, update.link)
         })
 
     override fun downloadAndInstall(update: AppUpdate): Job =

@@ -50,6 +50,7 @@ import androidx.navigation.compose.rememberNavController
 import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.ui.component.BadgeText
 import com.apkupdateross.ui.theme.AppTheme
+import com.apkupdateross.ui.theme.LocalAppExtraColors
 import com.apkupdateross.util.Badger
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.SnackBar
@@ -182,10 +183,11 @@ fun BottomBar(mainViewModel: MainViewModel, navController: NavController) = Box(
 		.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 10.dp)
 ) {
 	val badges = koinInject<Badger>().flow().collectAsStateWithLifecycle().value
+	val extraColors = LocalAppExtraColors.current
 	Surface(
 		modifier = Modifier.fillMaxWidth(),
 		shape = MaterialTheme.shapes.medium,
-		color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+		color = extraColors.navigationBar ?: MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
 		tonalElevation = 6.dp,
 		shadowElevation = 8.dp,
 		border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))

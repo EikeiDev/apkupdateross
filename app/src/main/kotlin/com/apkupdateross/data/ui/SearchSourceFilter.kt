@@ -11,7 +11,8 @@ enum class SearchSourceFilter(@StringRes val labelRes: Int) {
     GITHUB(R.string.search_filter_github),
     GITLAB(R.string.search_filter_gitlab),
     PLAY(R.string.search_filter_play),
-    RUSTORE(R.string.search_filter_rustore)
+    RUSTORE(R.string.search_filter_rustore),
+    HUAWEI(R.string.search_filter_huawei)
     ;
 
     companion object {

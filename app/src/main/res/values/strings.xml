@@ -16,6 +16,7 @@
     <string name="exclude_disabled_apps">Exclude Disabled Apps</string>
     <string name="include_disabled_apps">Include Disabled Apps</string>
     <string name="install_cd">Install App</string>
+    <string name="update_all">Update all</string>
     <string name="app_cd">App Icon</string>
     <string name="install_success">%1$s installed.</string>
     <string name="install_failure">%1$s failed to install.</string>
@@ -24,6 +25,28 @@
     // Settings
     <string name="play_text_animations">Play Text Animations</string>
     <string name="settings_sources">Sources</string>
+    <string name="settings_category_sources_subtitle">Stores, repositories, and source accounts</string>
+    <string name="settings_category_updates_subtitle">Filters, schedule, notifications, and metrics</string>
+    <string name="settings_category_install">Install</string>
+    <string name="settings_category_install_subtitle">Session, Root, and Shizuku install mode</string>
+    <string name="settings_category_interface_subtitle">Theme, animation, compact view, and columns</string>
+    <string name="settings_category_network_subtitle">Connection timeouts for update sources</string>
+    <string name="settings_category_data_logs">Data &amp; logs</string>
+    <string name="settings_category_data_logs_subtitle">Backup, restore, copied lists, and logs</string>
+    <string name="settings_category_about_subtitle">Version, project links, and credits</string>
+    <string name="settings_sources_code_hosting">Code hosting</string>
+    <string name="settings_sources_app_stores">App stores</string>
+    <string name="settings_updates_release_filters">Release filters</string>
+    <string name="settings_updates_schedule">Schedule</string>
+    <string name="settings_updates_ignored">Ignored updates</string>
+    <string name="settings_install_mode_section">Install mode</string>
+    <string name="settings_interface_behavior">Behavior</string>
+    <string name="settings_interface_layout">Layout</string>
+    <string name="settings_portrait_columns">Portrait columns</string>
+    <string name="settings_landscape_columns">Landscape columns</string>
+    <string name="settings_network_timeouts">Timeouts</string>
+    <string name="settings_data_logs_actions">Logs and lists</string>
+    <string name="settings_data_backup">Backup</string>
     <string name="settings_ui">UI</string>
     <string name="settings_compact_view">Compact mode</string>
     <string name="settings_alarm">Auto-update schedule</string>
@@ -58,6 +81,9 @@
     <string name="source_apkpure" translatable="false">APKPure</string>
     <string name="source_play" translatable="false">Google Play</string>
     <string name="source_rustore" translatable="false">RuStore</string>
+    <string name="source_huawei" translatable="false">AppGallery</string>
+    <string name="settings_huawei_region">AppGallery region</string>
+    <string name="huawei_region_auto">Auto</string>
 
     <string name="about">About</string>
     <string name="frequency">Repeat</string>
@@ -65,6 +91,14 @@
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_accent">Accent</string>
+    <string name="theme_custom_background">Background</string>
+    <string name="theme_custom_surface">Cards</string>
+    <string name="theme_custom_navigation">Bottom bar</string>
+    <string name="theme_custom_reset">Reset custom theme</string>
+    <string name="theme_custom_preview">Preview</string>
+    <string name="theme_custom_invalid">Use #RRGGBB</string>
 
     <string name="copy_to_clipboard">Copy to clipboard</string>
     <string name="copy_app_list">Copy App List</string>
@@ -115,6 +149,7 @@
     <string name="search_filter_gitlab">GitLab</string>
     <string name="search_filter_play">Google Play</string>
     <string name="search_filter_rustore">RuStore</string>
+    <string name="search_filter_huawei">AppGallery</string>
     <string name="metric_last_check_duration">Last check duration</string>
     <string name="metric_last_check_time">Last check time</string>
     <string name="metric_last_check_sources">Sources checked</string>
@@ -146,6 +181,7 @@
     <string name="download_success">Saved to Download/APKUpdaterOSS: %1$s</string>
     <string name="download_failure">Failed to save %1$s</string>
     <string name="download_failure_cant_download">Could not download file.</string>
+    <string name="download_unavailable_for_source">Direct APK download is not available for this source.</string>
     <string name="link_not_available">Link not available.</string>
     <string name="release_type_stable" translatable="false">Stable</string>
     <string name="release_type_beta" translatable="false">Beta</string>

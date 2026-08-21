@@ -30,6 +30,7 @@ import com.apkupdateross.data.ui.ApkPureSource
 import com.apkupdateross.data.ui.GitLabSource
 import com.apkupdateross.data.ui.PlaySource
 import com.apkupdateross.data.ui.RuStoreSource
+import com.apkupdateross.data.ui.HuaweiSource
 
 
 class UpdatesRepository(
@@ -42,6 +43,7 @@ class UpdatesRepository(
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
     private val ruStoreRepository: RuStoreRepository,
+    private val huaweiRepository: HuaweiRepository,
     private val prefs: Prefs
 ) {
 
@@ -95,6 +97,7 @@ class UpdatesRepository(
                 if (prefs.useGitLab.get()) sources.add(gitLabRepository.updates(filtered).trackLoading(GitLabSource))
                 if (prefs.usePlay.get()) sources.add(playRepository.updates(filtered).trackLoading(PlaySource))
                 if (prefs.useRuStore.get()) sources.add(ruStoreRepository.updates(filtered).trackLoading(RuStoreSource))
+                if (prefs.useHuawei.get()) sources.add(huaweiRepository.updates(filtered).trackLoading(HuaweiSource))
 
                 val startElapsed = SystemClock.elapsedRealtime()
                 val activeSources = sources.size

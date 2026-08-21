@@ -12,6 +12,7 @@ import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.FdroidService
+import com.apkupdateross.util.AbiMatcher
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -27,7 +28,6 @@ class FdroidRepository(
     private val source: Source,
     private val prefs: Prefs
 ) {
-    private val arch = Build.SUPPORTED_ABIS.toSet()
     private val api = Build.VERSION.SDK_INT
 
     private val cacheMutex = Mutex()
@@ -102,7 +102,7 @@ class FdroidRepository(
 
     private fun filterArch(update: FdroidUpdate) = when {
         update.apk.nativecode.isEmpty() -> true
-        update.apk.nativecode.intersect(arch).isNotEmpty() -> true
+        AbiMatcher.isCompatible(update.apk.nativecode, Build.SUPPORTED_ABIS.toList()) -> true
         else -> false
     }
 

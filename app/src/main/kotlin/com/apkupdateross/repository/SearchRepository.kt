@@ -20,6 +20,8 @@ class SearchRepository(
     private val aptoideRepository: AptoideRepository,
     private val gitHubRepository: GitHubRepository,
     private val apkPureRepository: ApkPureRepository,
+    private val apkComboRepository: ApkComboRepository,
+    private val uptodownRepository: UptodownRepository,
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
     private val ruStoreRepository: RuStoreRepository,
@@ -80,6 +82,12 @@ class SearchRepository(
         }
         if (filters.shouldInclude(SearchSourceFilter.APKPURE)) {
             sources += apkPureRepository.search(text)
+        }
+        if (filters.shouldInclude(SearchSourceFilter.APKCOMBO) && prefs.useApkCombo.get()) {
+            sources += apkComboRepository.search(text)
+        }
+        if (filters.shouldInclude(SearchSourceFilter.UPTODOWN) && prefs.useUptodown.get()) {
+            sources += uptodownRepository.search(text)
         }
         if (filters.shouldInclude(SearchSourceFilter.GITHUB)) {
             sources += gitHubRepository.search(text)

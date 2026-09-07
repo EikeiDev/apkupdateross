@@ -37,7 +37,10 @@ fun AppExistsResponseApk.toAppUpdate(
 	oldVersionCode = app.versionCode,
 	source = ApkMirrorSource,
 	iconUri = app.iconUri,
-	link = Link.Url(link.ensureApkMirrorUrl()),
+	link = Link.Url(
+		link = link.ensureApkMirrorUrl(),
+		expectedPackageName = app.packageName
+	),
 	sourceUrl = appLink.ensureApkMirrorUrl(),
 	releaseUrl = release.link.ensureApkMirrorUrl(),
 	whatsNew = release.whatsNew.orEmpty(),

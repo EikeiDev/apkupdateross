@@ -108,22 +108,24 @@ fun SegmentedButtonSetting(
     getValue: () -> Int,
     setValue: (Int) -> Unit,
     @DrawableRes icon: Int = R.drawable.ic_system,
-    enabledItems: List<Boolean> = options.map { true }
+    enabledItems: List<Boolean> = options.map { true },
+    enabled: Boolean = true
 ) = Box(Modifier.fillMaxWidth()) {
     var position by remember { mutableIntStateOf(getValue()) }
     var expanded by remember { mutableStateOf(false) }
     val selectedText = options.getOrElse(position) { options.firstOrNull().orEmpty() }
+    val alpha = if (enabled) 1f else 0.5f
 
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
-            .clickable { expanded = true }
+            .clickable(enabled = enabled) { expanded = true }
             .padding(horizontal = 16.dp),
         verticalAlignment = CenterVertically
     ) {
-        SettingsIcon(icon, text, Modifier.padding(end = 16.dp))
-        Column(Modifier.weight(1f)) {
+        SettingsIcon(icon, text, Modifier.padding(end = 16.dp).alpha(alpha))
+        Column(Modifier.weight(1f).alpha(alpha)) {
             Text(text, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
             Text(
                 selectedText,
@@ -133,7 +135,7 @@ fun SegmentedButtonSetting(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box {
+        Box(Modifier.alpha(alpha)) {
             Surface(
                 modifier = Modifier.widthIn(min = 104.dp, max = 156.dp),
                 shape = androidx.compose.material3.MaterialTheme.shapes.small,
@@ -160,7 +162,7 @@ fun SegmentedButtonSetting(
             }
 
             DropdownMenu(
-                expanded = expanded,
+                expanded = expanded && enabled,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier.widthIn(min = 156.dp)
             ) {
@@ -173,7 +175,7 @@ fun SegmentedButtonSetting(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        enabled = enabledItems.getOrElse(index) { true },
+                        enabled = enabled && enabledItems.getOrElse(index) { true },
                         onClick = {
                             position = index
                             setValue(position)

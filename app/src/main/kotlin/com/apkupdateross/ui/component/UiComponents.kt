@@ -71,6 +71,9 @@ import com.apkupdateross.util.getAppName
 import com.apkupdateross.util.to2f
 import com.apkupdateross.util.toAnnotatedString
 
+private val ActionButtonSize = 40.dp
+private val ActionIconSize = 20.dp
+private val ActionProgressSize = 20.dp
 
 @Composable
 fun CommonItem(
@@ -266,12 +269,30 @@ private fun ReleaseTypeChip(type: ReleaseType, compactMode: Boolean = false) {
 }
 
 @Composable
+private fun RoundActionButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable BoxScope.() -> Unit
+) = FilledTonalIconButton(
+    modifier = modifier.size(ActionButtonSize),
+    onClick = onClick,
+    enabled = enabled
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
+
+@Composable
 fun InstallButton(
     app: AppUpdate,
     onInstall: (String) -> Unit,
     onCancel: (AppUpdate) -> Unit = {}
-) = androidx.compose.material3.FilledTonalIconButton(
-    modifier = Modifier,
+) = FilledTonalIconButton(
+    modifier = Modifier.size(ActionButtonSize),
     onClick = { if (app.isInstalling) onCancel(app) else onInstall(app.packageName) },
     enabled = !app.isDownloading && (app.link !is Link.Empty || app.isInstalling),
     colors = IconButtonDefaults.filledTonalIconButtonColors(
@@ -282,12 +303,12 @@ fun InstallButton(
     )
 ) {
     if (app.isInstalling) {
-        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
     } else {
         androidx.compose.material3.Icon(
             painter = androidx.compose.ui.res.painterResource(R.drawable.ic_install),
             contentDescription = stringResource(R.string.install_cd),
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(ActionIconSize)
         )
     }
 }
@@ -343,7 +364,7 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             // Open App Button
-                            FilledTonalIconButton(
+                            RoundActionButton(
                                 onClick = {
                                     val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
                                     if (intent != null) {
@@ -354,18 +375,18 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
                                     contentDescription = stringResource(R.string.open),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(ActionIconSize)
                                 )
                             }
 
                             // Ignore Button
-                            FilledTonalIconButton(
+                            RoundActionButton(
                                 onClick = { onIgnore(app.packageName) }
                             ) {
                                 Icon(
                                     if (app.ignored) androidx.compose.ui.res.painterResource(R.drawable.ic_visible) else androidx.compose.ui.res.painterResource(R.drawable.ic_visible_off),
                                     stringResource(if (app.ignored) R.string.unignore_cd else R.string.ignore_cd),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(ActionIconSize)
                                 )
                             }
                         }
@@ -381,7 +402,7 @@ fun IgnoreVersionButton(
     app: AppUpdate,
     onIgnoreVersion: (Int) -> Unit,
     modifier: Modifier = Modifier
-) = androidx.compose.material3.FilledTonalIconButton(
+) = RoundActionButton(
     modifier = modifier,
     onClick = { onIgnoreVersion(app.id) },
     enabled = !app.isInstalling
@@ -389,7 +410,7 @@ fun IgnoreVersionButton(
     androidx.compose.material3.Icon(
 		androidx.compose.ui.res.painterResource(R.drawable.ic_visible_off),
 		stringResource(R.string.ignore_cd),
-		modifier = Modifier.size(24.dp)
+		modifier = Modifier.size(ActionIconSize)
 	)
 }
 
@@ -466,30 +487,30 @@ fun UpdateItem(
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         val canDownload = app.link !is Link.Empty
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             IgnoreVersionButton(app, onIgnoreVersion)
                             
-                            FilledTonalIconButton(
+                            RoundActionButton(
                                 onClick = { onOpenPage(app) },
                                 enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
                             ) {
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
                                     contentDescription = stringResource(R.string.open),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(ActionIconSize)
                                 )
                             }
-                            FilledTonalIconButton(
+                            RoundActionButton(
                                 onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
                                 enabled = canDownload && !app.isInstalling && !app.isPaid
                             ) {
                                 if (app.isDownloading) {
-                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
                                 } else {
                                     Icon(
                                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
                                         contentDescription = stringResource(R.string.download),
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(ActionIconSize)
                                     )
                                 }
                             }
@@ -599,28 +620,28 @@ fun SearchItem(
                     
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         val canDownload = app.link !is Link.Empty
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            FilledTonalIconButton(
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RoundActionButton(
                                 onClick = { onOpenPage(app) },
                                 enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
                             ) {
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
                                     contentDescription = stringResource(R.string.open),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(ActionIconSize)
                                 )
                             }
-                            FilledTonalIconButton(
+                            RoundActionButton(
                                 onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
                                 enabled = canDownload && !app.isInstalling && !app.isPaid
                             ) {
                                 if (app.isDownloading) {
-                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
                                 } else {
                                     Icon(
                                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
                                         contentDescription = stringResource(R.string.download),
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(ActionIconSize)
                                     )
                                 }
                             }

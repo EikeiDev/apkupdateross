@@ -1,5 +1,6 @@
 package com.apkupdateross.ui.screen
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -53,8 +55,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GroupedAppUpdate
+import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
+import com.apkupdateross.ui.activity.UptodownDownloadActivity
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
@@ -97,6 +101,7 @@ fun SearchScreenSuccess(
     landscapeColumns: Int,
     viewModel: SearchViewModel
 ) = Column {
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val updates = state.updates
 
@@ -114,16 +119,16 @@ fun SearchScreenSuccess(
                     version = update.version,
                     uri = update.iconUri,
                     source = update.source,
-                    onClick = { viewModel.install(update, uriHandler) },
+                    onClick = { installSearchUpdate(context, viewModel, update, uriHandler) },
                     updates = grouped.updates,
                     onUpdateOpenPage = { viewModel.openSourcePage(it, uriHandler) },
-                    onUpdateClick = { viewModel.install(it, uriHandler) }
+                    onUpdateClick = { installSearchUpdate(context, viewModel, it, uriHandler) }
                 )
             } else {
                 SearchItem(grouped, compactMode, {
-                    viewModel.install(it, uriHandler)
+                    installSearchUpdate(context, viewModel, it, uriHandler)
                 }, { viewModel.cancel(it) },
-                    onDownload = { viewModel.downloadToStorage(it) },
+                    onDownload = { downloadSearchUpdate(context, viewModel, it) },
                     onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
                 )
             }
@@ -133,6 +138,31 @@ fun SearchScreenSuccess(
     if (updates.isEmpty()) {
         Spacer(modifier = Modifier.height(16.dp))
         SearchNoResultsBanner()
+    }
+}
+
+private fun installSearchUpdate(
+    context: Context,
+    viewModel: SearchViewModel,
+    update: AppUpdate,
+    handler: androidx.compose.ui.platform.UriHandler
+) {
+    if (update.link is Link.BrowserDownload) {
+        context.startActivity(UptodownDownloadActivity.intent(context, update, UptodownDownloadActivity.Mode.Install))
+    } else {
+        viewModel.install(update, handler)
+    }
+}
+
+private fun downloadSearchUpdate(
+    context: Context,
+    viewModel: SearchViewModel,
+    update: AppUpdate
+) {
+    if (update.link is Link.BrowserDownload) {
+        context.startActivity(UptodownDownloadActivity.intent(context, update, UptodownDownloadActivity.Mode.Save))
+    } else {
+        viewModel.downloadToStorage(update)
     }
 }
 

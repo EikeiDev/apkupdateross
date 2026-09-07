@@ -6,6 +6,7 @@ import com.apkupdateross.R
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.snack.TextSnack
+import com.apkupdateross.data.ui.SwipeIgnoreDirection
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
@@ -63,6 +64,7 @@ class SettingsViewModel(
     val fdroidRepos = _fdroidRepos.asStateFlow()
     val ignoredUpdateInfos = prefs.ignoredUpdateInfosFlow
 	val useCompactView = prefs.useCompactViewFlow
+	val swipeIgnoreEnabled = prefs.swipeIgnoreEnabledFlow
 	
 	private val _installModeFlow = MutableStateFlow(prefs.installMode.get())
 	val installModeFlow = _installModeFlow.asStateFlow()
@@ -142,6 +144,10 @@ class SettingsViewModel(
 	fun setUseAptoide(b: Boolean) = prefs.useAptoide.put(b)
 	fun getUseApkPure() = prefs.useApkPure.get()
 	fun setUseApkPure(b: Boolean) = prefs.useApkPure.put(b)
+	fun getUseApkCombo() = prefs.useApkCombo.get()
+	fun setUseApkCombo(b: Boolean) = prefs.useApkCombo.put(b)
+	fun getUseUptodown() = prefs.useUptodown.get()
+	fun setUseUptodown(b: Boolean) = prefs.useUptodown.put(b)
 	fun getUsePlay() = prefs.usePlay.get()
 	fun setUsePlay(b: Boolean) = prefs.usePlay.put(b)
 	fun getUseRuStore() = prefs.useRuStore.get()
@@ -164,6 +170,8 @@ class SettingsViewModel(
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
     fun getTheme() = prefs.theme.get().coerceIn(0, THEME_MODE_CUSTOM)
+	fun getSwipeIgnoreEnabled() = prefs.swipeIgnoreEnabled.get()
+	fun getSwipeIgnoreDirection() = SwipeIgnoreDirection.fromIndex(prefs.swipeIgnoreDirection.get()).ordinal
 	fun getUseCompactView() = prefs.useCompactView.get()
 
 	fun setUseCompactView(b: Boolean) = prefs.setUseCompactView(b)
@@ -172,6 +180,14 @@ class SettingsViewModel(
         prefs.theme.put(theme.coerceIn(0, THEME_MODE_CUSTOM))
         themer.refresh()
     }
+
+	fun setSwipeIgnoreEnabled(enabled: Boolean) {
+		prefs.setSwipeIgnoreEnabled(enabled)
+	}
+
+	fun setSwipeIgnoreDirection(index: Int) {
+		prefs.setSwipeIgnoreDirection(SwipeIgnoreDirection.fromIndex(index))
+	}
 
 	fun getCustomThemeAccent() = prefs.customThemeAccent.get()
 	fun getCustomThemeBackground() = prefs.customThemeBackground.get()

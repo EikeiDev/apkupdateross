@@ -29,7 +29,7 @@
     <string name="settings_category_updates_subtitle">Filters, schedule, notifications, and metrics</string>
     <string name="settings_category_install">Install</string>
     <string name="settings_category_install_subtitle">Session, Root, and Shizuku install mode</string>
-    <string name="settings_category_interface_subtitle">Theme, animation, compact view, and columns</string>
+    <string name="settings_category_interface_subtitle">Theme, gestures, animation, compact view, and columns</string>
     <string name="settings_category_network_subtitle">Connection timeouts for update sources</string>
     <string name="settings_category_data_logs">Data &amp; logs</string>
     <string name="settings_category_data_logs_subtitle">Backup, restore, copied lists, and logs</string>
@@ -79,6 +79,8 @@
     <string name="source_gitlab" translatable="false">GitLab</string>
     <string name="gitlab_token_label">GitLab API token (optional)</string>
     <string name="source_apkpure" translatable="false">APKPure</string>
+    <string name="source_apkcombo" translatable="false">APKCombo</string>
+    <string name="source_uptodown" translatable="false">Uptodown</string>
     <string name="source_play" translatable="false">Google Play</string>
     <string name="source_rustore" translatable="false">RuStore</string>
     <string name="source_huawei" translatable="false">AppGallery</string>
@@ -99,6 +101,11 @@
     <string name="theme_custom_reset">Reset custom theme</string>
     <string name="theme_custom_preview">Preview</string>
     <string name="theme_custom_invalid">Use #RRGGBB</string>
+    <string name="settings_swipe_controls">Enable swipe controls</string>
+    <string name="settings_swipe_hide_direction">Swipe hide direction</string>
+    <string name="swipe_direction_right">Right</string>
+    <string name="swipe_direction_left">Left</string>
+    <string name="swipe_direction_both">Both</string>
 
     <string name="copy_to_clipboard">Copy to clipboard</string>
     <string name="copy_app_list">Copy App List</string>
@@ -145,6 +152,8 @@
     <string name="search_filter_fdroid">F-Droid</string>
     <string name="search_filter_aptoide">Aptoide</string>
     <string name="search_filter_apkpure">APKPure</string>
+    <string name="search_filter_apkcombo">APKCombo</string>
+    <string name="search_filter_uptodown">Uptodown</string>
     <string name="search_filter_github">GitHub</string>
     <string name="search_filter_gitlab">GitLab</string>
     <string name="search_filter_play">Google Play</string>
@@ -169,7 +178,7 @@
     <string name="notifications_open_settings">Open notification settings</string>
     <string name="notification_no_updates_title">All caught up</string>
     <string name="notification_no_updates_message">No updates were found this time.</string>
-    <string name="self_update_title">APKUpdater update available</string>
+    <string name="self_update_title">APKUpdater OSS update available</string>
     <string name="self_update_message">Version %1$s (%2$d) is available. Install now?</string>
     <string name="self_update_whats_new">What\'s new</string>
     <string name="self_update_button_later">Later</string>
@@ -182,6 +191,16 @@
     <string name="download_failure">Failed to save %1$s</string>
     <string name="download_failure_cant_download">Could not download file.</string>
     <string name="download_unavailable_for_source">Direct APK download is not available for this source.</string>
+    <string name="browser_download_required">This source requires an interactive browser download.</string>
+    <string name="uptodown_download_title">Uptodown download</string>
+    <string name="uptodown_download_hint">APKUpdater OSS will start the Uptodown download. Complete the check if it appears.</string>
+    <string name="uptodown_download_preparing">Preparing download&#8230;</string>
+    <string name="uptodown_download_downloading">Downloading&#8230;</string>
+    <string name="uptodown_download_installing">Installing&#8230;</string>
+    <string name="uptodown_download_saving">Saving&#8230;</string>
+    <string name="uptodown_download_invalid_url">Uptodown returned an untrusted download link.</string>
+    <string name="uptodown_download_failed">Uptodown download failed.</string>
+    <string name="uptodown_download_saved">Saved to Downloads/APKUpdaterOSS.</string>
     <string name="link_not_available">Link not available.</string>
     <string name="release_type_stable" translatable="false">Stable</string>
     <string name="release_type_beta" translatable="false">Beta</string>
@@ -208,6 +227,12 @@
     <string name="clear_all">Clear all</string>
 
     <string name="ignored_toast">%1$s ignored</string>
+    <string name="ignore_update_title">Hide this update?</string>
+    <string name="ignore_update_message">This update will be hidden from the Updates list. You can restore hidden updates from Settings.</string>
+    <string name="hide_update">Hide update</string>
+    <string name="ignore_app_title">Hide updates for this app?</string>
+    <string name="ignore_app_message">This app will be ignored when checking for updates. You can restore it from the Apps tab or Settings.</string>
+    <string name="hide_app_updates">Hide updates</string>
     <string name="undo">UNDO</string>
     <string name="github">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>

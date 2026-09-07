@@ -3,6 +3,7 @@ package com.apkupdateross.prefs
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.data.ui.SearchSourceFilter
+import com.apkupdateross.data.ui.SwipeIgnoreDirection
 import com.aurora.gplayapi.data.models.AuthData
 import com.kryptoprefs.context.KryptoContext
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,8 @@ class Prefs(
 	val useIzzy = boolean("useIzzy", defValue = true, backed = true)
 	val useAptoide = boolean("useAptoide", defValue = true, backed = true)
 	val useApkPure = boolean("useApkPure", defValue = true, backed = true)
+	val useApkCombo = boolean("useApkCombo", defValue = false, backed = true)
+	val useUptodown = boolean("useUptodown", defValue = false, backed = true)
 	val usePlay = boolean("usePlay", defValue = true, backed = true)
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
 	val useHuawei = boolean("useHuawei", defValue = false, backed = true)
@@ -49,11 +52,15 @@ class Prefs(
 	val playProfileVersion = int("playProfileVersion", 0, true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val searchFiltersHuaweiMigrated = boolean("searchFiltersHuaweiMigrated", defValue = false, backed = true)
+	val searchFiltersApkComboMigrated = boolean("searchFiltersApkComboMigrated", defValue = false, backed = true)
+	val searchFiltersUptodownMigrated = boolean("searchFiltersUptodownMigrated", defValue = false, backed = true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)
 	val installMode = int("installMode", defValue = 0, backed = true)
 	val theme = int("theme", defValue = 0, backed = true)
+	val swipeIgnoreEnabled = boolean("swipeIgnoreEnabled", defValue = true, backed = true)
+	val swipeIgnoreDirection = int("swipeIgnoreDirection", defValue = SwipeIgnoreDirection.Default.ordinal, backed = true)
 	val customThemeAccent = string("customThemeAccent", defValue = "#74D7B2", backed = true)
 	val customThemeBackground = string("customThemeBackground", defValue = "#101312", backed = true)
 	val customThemeSurface = string("customThemeSurface", defValue = "#151917", backed = true)
@@ -85,6 +92,12 @@ class Prefs(
 	private val _landscapeColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(landscapeColumns.get())
 	val landscapeColumnsFlow = _landscapeColumnsFlow.asStateFlow()
 
+	private val _swipeIgnoreEnabledFlow = kotlinx.coroutines.flow.MutableStateFlow(swipeIgnoreEnabled.get())
+	val swipeIgnoreEnabledFlow = _swipeIgnoreEnabledFlow.asStateFlow()
+
+	private val _swipeIgnoreDirectionFlow = kotlinx.coroutines.flow.MutableStateFlow(SwipeIgnoreDirection.fromIndex(swipeIgnoreDirection.get()))
+	val swipeIgnoreDirectionFlow = _swipeIgnoreDirectionFlow.asStateFlow()
+
 	fun setUseCompactView(b: Boolean) {
 		useCompactView.put(b)
 		_useCompactViewFlow.value = b
@@ -98,6 +111,16 @@ class Prefs(
 	fun setLandscapeColumns(i: Int) {
 		landscapeColumns.put(i)
 		_landscapeColumnsFlow.value = i
+	}
+
+	fun setSwipeIgnoreEnabled(enabled: Boolean) {
+		swipeIgnoreEnabled.put(enabled)
+		_swipeIgnoreEnabledFlow.value = enabled
+	}
+
+	fun setSwipeIgnoreDirection(direction: SwipeIgnoreDirection) {
+		swipeIgnoreDirection.put(direction.ordinal)
+		_swipeIgnoreDirectionFlow.value = direction
 	}
 
 	fun setIgnoredVersions(list: List<Int>, infos: List<com.apkupdateross.data.ui.IgnoredUpdateInfo>) {

@@ -27,6 +27,8 @@ class AppsViewModel(
 	val useCompactView = prefs.useCompactViewFlow
 	val portraitColumns = prefs.portraitColumnsFlow
 	val landscapeColumns = prefs.landscapeColumnsFlow
+	val swipeIgnoreEnabled = prefs.swipeIgnoreEnabledFlow
+	val swipeIgnoreDirection = prefs.swipeIgnoreDirectionFlow
 	private val _state = MutableStateFlow<AppsUiState>(buildLoadingState())
 	val state: StateFlow<AppsUiState> = _state.asStateFlow()
 

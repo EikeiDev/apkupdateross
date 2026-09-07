@@ -118,12 +118,16 @@
     <string name="search_filter_fdroid">F-Droid</string>
     <string name="search_filter_aptoide">Aptoide</string>
     <string name="search_filter_apkpure">APKPure</string>
+    <string name="search_filter_apkcombo">APKCombo</string>
+    <string name="search_filter_uptodown">Uptodown</string>
     <string name="search_filter_github">GitHub</string>
     <string name="search_filter_gitlab">GitLab</string>
     <string name="search_filter_play">Google Play</string>
     <string name="search_filter_rustore">RuStore</string>
     <string name="search_filter_huawei">AppGallery</string>
     <string name="source_huawei" translatable="false">AppGallery</string>
+    <string name="source_apkcombo" translatable="false">APKCombo</string>
+    <string name="source_uptodown" translatable="false">Uptodown</string>
     <string name="settings_huawei_region">Регион AppGallery</string>
     <string name="huawei_region_auto">Авто</string>
     <string name="metric_last_check_duration">Длительность последней проверки</string>
@@ -144,7 +148,7 @@
     <string name="notifications_open_settings">Открыть настройки уведомлений</string>
     <string name="notification_no_updates_title">Все актуально</string>
     <string name="notification_no_updates_message">В этот раз обновления не найдены.</string>
-    <string name="self_update_title">Доступно обновление APKUpdater</string>
+    <string name="self_update_title">Доступно обновление APKUpdater OSS</string>
     <string name="self_update_message">Доступна версия %1$s (%2$d). Установить сейчас?</string>
     <string name="self_update_whats_new">Что нового</string>
     <string name="self_update_button_later">Позже</string>
@@ -156,6 +160,15 @@
     <string name="download_failure">Ошибка сохранения %1$s</string>
     <string name="download_failure_cant_download">Не удалось скачать файл.</string>
     <string name="download_unavailable_for_source">Прямая загрузка APK недоступна для этого источника.</string>
+    <string name="browser_download_required">Для этого источника нужна интерактивная загрузка через браузер.</string>
+    <string name="uptodown_download_title">Загрузка Uptodown</string>
+    <string name="uptodown_download_hint">APKUpdater OSS сам запустит загрузку Uptodown. Если появится проверка, пройдите ее.</string>
+    <string name="uptodown_download_downloading">Скачивание&#8230;</string>
+    <string name="uptodown_download_installing">Установка&#8230;</string>
+    <string name="uptodown_download_saving">Сохранение&#8230;</string>
+    <string name="uptodown_download_invalid_url">Uptodown вернул недоверенную ссылку для загрузки.</string>
+    <string name="uptodown_download_failed">Не удалось скачать файл с Uptodown.</string>
+    <string name="uptodown_download_saved">Сохранено в Downloads/APKUpdaterOSS.</string>
     <string name="link_not_available">Ссылка недоступна.</string>
 
     <string name="settings_custom_repos_edit">Редактировать репозиторий</string>
@@ -194,6 +207,8 @@
     <string name="clear_all">Очистить все</string>
 
     <string name="ignored_toast">%1$s скрыто</string>
+    <string name="ignore_update_title">&#x0421;&#x043A;&#x0440;&#x044B;&#x0442;&#x044C; &#x044D;&#x0442;&#x043E; &#x043E;&#x0431;&#x043D;&#x043E;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x0435;?</string>
+    <string name="ignore_update_message">&#x042D;&#x0442;&#x043E; &#x043E;&#x0431;&#x043D;&#x043E;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x0435; &#x0431;&#x0443;&#x0434;&#x0435;&#x0442; &#x0441;&#x043A;&#x0440;&#x044B;&#x0442;&#x043E; &#x0438;&#x0437; &#x0441;&#x043F;&#x0438;&#x0441;&#x043A;&#x0430;. &#x0412;&#x0435;&#x0440;&#x043D;&#x0443;&#x0442;&#x044C; &#x0435;&#x0433;&#x043E; &#x043C;&#x043E;&#x0436;&#x043D;&#x043E; &#x0432; &#x043D;&#x0430;&#x0441;&#x0442;&#x0440;&#x043E;&#x0439;&#x043A;&#x0430;&#x0445;.</string>
     <string name="undo">ОТМЕНА</string>
     <string name="github">GitHub</string>
     <string name="donate">Поддержать разработчика</string>
@@ -201,4 +216,14 @@
     <string name="settings_network">Сеть</string>
     <string name="settings_global_timeout">Глобальный таймаут (сек)</string>
     <string name="settings_play_timeout">Таймаут Play Store (сек)</string>
+    <string name="settings_swipe_controls">&#x0412;&#x043A;&#x043B;&#x044E;&#x0447;&#x0438;&#x0442;&#x044C; &#x0443;&#x043F;&#x0440;&#x0430;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x0435; &#x0441;&#x0432;&#x0430;&#x0439;&#x043F;&#x043E;&#x043C;</string>
+    <string name="settings_swipe_hide_direction">&#x041D;&#x0430;&#x043F;&#x0440;&#x0430;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x0435; &#x0441;&#x0432;&#x0430;&#x0439;&#x043F;&#x0430;</string>
+    <string name="swipe_direction_right">&#x0412;&#x043F;&#x0440;&#x0430;&#x0432;&#x043E;</string>
+    <string name="swipe_direction_left">&#x0412;&#x043B;&#x0435;&#x0432;&#x043E;</string>
+    <string name="swipe_direction_both">&#x0412; &#x043E;&#x0431;&#x0435; &#x0441;&#x0442;&#x043E;&#x0440;&#x043E;&#x043D;&#x044B;</string>
+    <string name="uptodown_download_preparing">&#x041F;&#x043E;&#x0434;&#x0433;&#x043E;&#x0442;&#x043E;&#x0432;&#x043A;&#x0430; &#x0437;&#x0430;&#x0433;&#x0440;&#x0443;&#x0437;&#x043A;&#x0438;&#8230;</string>
+    <string name="hide_update">&#x0421;&#x043A;&#x0440;&#x044B;&#x0442;&#x044C;</string>
+    <string name="ignore_app_title">&#x0421;&#x043A;&#x0440;&#x044B;&#x0442;&#x044C; &#x043E;&#x0431;&#x043D;&#x043E;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x044F; &#x0434;&#x043B;&#x044F; &#x044D;&#x0442;&#x043E;&#x0433;&#x043E; &#x043F;&#x0440;&#x0438;&#x043B;&#x043E;&#x0436;&#x0435;&#x043D;&#x0438;&#x044F;?</string>
+    <string name="ignore_app_message">&#x041F;&#x0440;&#x0438;&#x043B;&#x043E;&#x0436;&#x0435;&#x043D;&#x0438;&#x0435; &#x0431;&#x0443;&#x0434;&#x0435;&#x0442; &#x0438;&#x0433;&#x043D;&#x043E;&#x0440;&#x0438;&#x0440;&#x043E;&#x0432;&#x0430;&#x0442;&#x044C;&#x0441;&#x044F; &#x043F;&#x0440;&#x0438; &#x043F;&#x0440;&#x043E;&#x0432;&#x0435;&#x0440;&#x043A;&#x0435; &#x043E;&#x0431;&#x043D;&#x043E;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x0439;. &#x0412;&#x0435;&#x0440;&#x043D;&#x0443;&#x0442;&#x044C; &#x0435;&#x0433;&#x043E; &#x043C;&#x043E;&#x0436;&#x043D;&#x043E; &#x043D;&#x0430; &#x0432;&#x043A;&#x043B;&#x0430;&#x0434;&#x043A;&#x0435; &#x00AB;&#x041F;&#x0440;&#x0438;&#x043B;&#x043E;&#x0436;&#x0435;&#x043D;&#x0438;&#x044F;&#x00BB; &#x0438;&#x043B;&#x0438; &#x0432; &#x043D;&#x0430;&#x0441;&#x0442;&#x0440;&#x043E;&#x0439;&#x043A;&#x0430;&#x0445;.</string>
+    <string name="hide_app_updates">&#x0421;&#x043A;&#x0440;&#x044B;&#x0442;&#x044C; &#x043E;&#x0431;&#x043D;&#x043E;&#x0432;&#x043B;&#x0435;&#x043D;&#x0438;&#x044F;</string>
 </resources>

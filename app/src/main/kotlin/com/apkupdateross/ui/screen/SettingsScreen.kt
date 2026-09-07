@@ -84,6 +84,7 @@ import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.git.parseRepoUrl
 import com.apkupdateross.data.ui.SettingsUiState
+import com.apkupdateross.data.ui.SwipeIgnoreDirection
 import com.apkupdateross.ui.component.ButtonSetting
 import com.apkupdateross.ui.component.LargeTitle
 import com.apkupdateross.ui.component.LoadingImageApp
@@ -498,6 +499,7 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 	item {
 		SettingsGroup(R.string.settings_interface_behavior) {
 			val currentTheme = viewModel.getTheme()
+			val swipeIgnoreEnabled by viewModel.swipeIgnoreEnabled.collectAsStateWithLifecycle()
 			SegmentedButtonSetting(
 				stringResource(R.string.theme),
 				listOf(
@@ -514,6 +516,23 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 				Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 				CustomThemeSettings(viewModel)
 			}
+			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			SwitchSetting(
+				{ viewModel.getSwipeIgnoreEnabled() },
+				{ viewModel.setSwipeIgnoreEnabled(it) },
+				stringResource(R.string.settings_swipe_controls),
+				R.drawable.ic_disabled
+			)
+			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			SegmentedButtonSetting(
+				stringResource(R.string.settings_swipe_hide_direction),
+				SwipeIgnoreDirection.entries.map { stringResource(it.labelRes) },
+				{ viewModel.getSwipeIgnoreDirection() },
+				{ viewModel.setSwipeIgnoreDirection(it) },
+				R.drawable.ic_disabled,
+				enabled = swipeIgnoreEnabled
+			)
+			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 			SwitchSetting(
 				{ viewModel.getPlayTextAnimations() },
 				{ viewModel.setPlayTextAnimations(it) },
@@ -677,7 +696,7 @@ private fun CustomThemePreview(
 							color = readableColorFor(surfaceColor)
 						)
 						Text(
-							text = "1.2.8 -> 1.2.9",
+							text = "1.2.9 -> 1.3.0",
 							style = MaterialTheme.typography.bodyMedium,
 							color = readableColorFor(surfaceColor).copy(alpha = 0.72f)
 						)
@@ -943,6 +962,8 @@ private fun SourcesSettings(
 			SwitchSetting({ viewModel.getUseApkMirror() }, { viewModel.setUseApkMirror(it) }, stringResource(R.string.source_apkmirror), R.drawable.ic_apkmirror)
 			SwitchSetting({ viewModel.getUseAptoide() }, { viewModel.setUseAptoide(it) }, stringResource(R.string.source_aptoide), R.drawable.ic_aptoide)
 			SwitchSetting({ viewModel.getUseApkPure() }, { viewModel.setUseApkPure(it) }, stringResource(R.string.source_apkpure), R.drawable.ic_apkpure)
+			SwitchSetting({ viewModel.getUseApkCombo() }, { viewModel.setUseApkCombo(it) }, stringResource(R.string.source_apkcombo), R.drawable.ic_apkcombo)
+			SwitchSetting({ viewModel.getUseUptodown() }, { viewModel.setUseUptodown(it) }, stringResource(R.string.source_uptodown), R.drawable.ic_uptodown)
 			SwitchSetting({ viewModel.getUsePlay() }, { viewModel.setUsePlay(it) }, stringResource(R.string.source_play), R.drawable.ic_play)
 
 			var huaweiExpanded by remember { mutableStateOf(false) }

@@ -22,6 +22,7 @@ import kotlin.random.Random
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.hasValidationMetadata
+import com.apkupdateross.data.ui.isSplitPackageDownloadUrl
 import com.apkupdateross.data.ui.totalSize
 import com.apkupdateross.data.ui.validationPackageName
 import com.apkupdateross.data.ui.validationSize
@@ -121,6 +122,7 @@ class UpdatesWorker(
         return runCatching {
             when (val link = update.link) {
                 Link.Empty -> false
+                is Link.BrowserDownload -> false
                 is Link.Play -> {
                     val files = link.getInstallFiles()
                     val total = files.sumOf { it.size }
@@ -132,39 +134,63 @@ class UpdatesWorker(
                 }
                 is Link.Url -> {
                     if (mode == 1) {
-                        val file = if (link.hasValidationMetadata()) {
-                            val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                        val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                        val isSplitPackage = link.isSplitPackage(result.url)
+                        if (isSplitPackage) {
+                            installer.validateSplitPackageFile(
+                                result.file,
+                                link.validationPackageName(update.packageName) ?: update.packageName,
+                                link.sha256,
+                                link.validationSize()
+                            )
+                        } else if (link.hasValidationMetadata()) {
                             installer.validateApkFile(
                                 result.file,
                                 link.validationPackageName(update.packageName),
                                 link.sha256,
                                 link.validationSize()
                             )
-                            result.file
-                        } else {
-                            val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
-                            java.io.File(applicationContext.cacheDir, "${java.util.UUID.randomUUID()}.apk").also { file ->
-                                result.stream.use { input -> file.outputStream().use { output -> input.copyTo(output) } }
-                            }
                         }
-                        val success = installer.rootInstall(file)
+                        val success = if (isSplitPackage) {
+                            installer.rootInstallXapk(result.file)
+                        } else {
+                            installer.rootInstall(result.file)
+                        }
                         downloader.cleanup(update.id)
                         success
                     } else {
                         if (link.hasValidationMetadata()) {
                             val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
-                            installer.validateApkFile(
-                                result.file,
-                                link.validationPackageName(update.packageName),
-                                link.sha256,
-                                link.validationSize()
-                            )
+                            val isSplitPackage = link.isSplitPackage(result.url)
+                            if (isSplitPackage) {
+                                installer.validateSplitPackageFile(
+                                    result.file,
+                                    link.validationPackageName(update.packageName) ?: update.packageName,
+                                    link.sha256,
+                                    link.validationSize()
+                                )
+                            } else {
+                                installer.validateApkFile(
+                                    result.file,
+                                    link.validationPackageName(update.packageName),
+                                    link.sha256,
+                                    link.validationSize()
+                                )
+                            }
                             val total = link.totalSize(result.contentLength, result.file.length())
-                            installer.shizukuInstall(update.id, update.packageName, result.file.inputStream(), total)
+                            if (isSplitPackage) {
+                                installer.shizukuInstallXapk(update.id, update.packageName, result.file.inputStream(), total)
+                            } else {
+                                installer.shizukuInstall(update.id, update.packageName, result.file.inputStream(), total)
+                            }
                         } else {
                             val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
                             val total = link.totalSize(result.contentLength)
-                            installer.shizukuInstall(update.id, update.packageName, result.stream, total)
+                            if (link.isSplitPackage(result.url)) {
+                                installer.shizukuInstallXapk(update.id, update.packageName, result.stream, total)
+                            } else {
+                                installer.shizukuInstall(update.id, update.packageName, result.stream, total)
+                            }
                         }
                         downloader.cleanup(update.id)
                         true
@@ -200,3 +226,6 @@ class UpdatesWorker(
             (root is HttpException && root.code() >= 500)
     }
 }
+
+private fun Link.Url.isSplitPackage(resolvedUrl: String): Boolean =
+    link.isSplitPackageDownloadUrl() || resolvedUrl.isSplitPackageDownloadUrl()

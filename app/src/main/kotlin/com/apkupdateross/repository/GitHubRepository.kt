@@ -101,7 +101,7 @@ class GitHubRepository(
                 val author = release.author?.login ?: "EikeiDev"
                 val sourceUrl = "https://github.com/$author/apkupdateross"
                 emit(listOf(AppUpdate(
-                    name = "APKUpdater",
+                    name = "APKUpdater OSS",
                     packageName = BuildConfig.APPLICATION_ID,
                     version = versionName,
                     oldVersion = BuildConfig.VERSION_NAME,

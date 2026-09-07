@@ -44,6 +44,7 @@ import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.InstalledItem
 import com.apkupdateross.ui.component.LoadingGrid
+import com.apkupdateross.ui.component.SwipeToIgnoreBox
 import com.apkupdateross.viewmodel.AppsViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -58,6 +59,8 @@ fun AppsScreen(
 	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
 	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
 	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
+	val swipeIgnoreEnabled by viewModel.swipeIgnoreEnabled.collectAsStateWithLifecycle()
+	val swipeIgnoreDirection by viewModel.swipeIgnoreDirection.collectAsStateWithLifecycle()
 	val context = LocalContext.current
 
 	val (excludeSystem, excludeAppStore, excludeDisabled) = when (state) {
@@ -95,24 +98,35 @@ fun AppsScreen(
 					portraitColumns = portraitColumns,
 					landscapeColumns = landscapeColumns
 				) {
-					items(it.apps) { app ->
-						if (compactMode) {
-							GridItem(
-								packageName = app.packageName,
-								name = app.name,
-								version = app.version,
-								uri = null,
-								isIgnored = app.ignored,
-								onIgnore = { viewModel.ignore(app.packageName) },
-								onClick = {
-									val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-									if (intent != null) {
-										context.startActivity(intent)
+					items(it.apps, key = { app -> app.packageName }) { app ->
+						SwipeToIgnoreBox(
+							title = stringResource(R.string.ignore_app_title),
+							message = stringResource(R.string.ignore_app_message),
+							confirmLabel = stringResource(R.string.hide_app_updates),
+							cancelLabel = stringResource(R.string.settings_custom_repo_cancel),
+							onIgnore = { viewModel.ignore(app.packageName) },
+							enabled = swipeIgnoreEnabled && !app.ignored,
+							swipeDirection = swipeIgnoreDirection,
+							shape = MaterialTheme.shapes.medium
+						) {
+							if (compactMode) {
+								GridItem(
+									packageName = app.packageName,
+									name = app.name,
+									version = app.version,
+									uri = null,
+									isIgnored = app.ignored,
+									onIgnore = { viewModel.ignore(app.packageName) },
+									onClick = {
+										val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+										if (intent != null) {
+											context.startActivity(intent)
+										}
 									}
-								}
-							)
-						} else {
-							InstalledItem(app, compactMode) { viewModel.ignore(app.packageName) }
+								)
+							} else {
+								InstalledItem(app, compactMode) { viewModel.ignore(app.packageName) }
+							}
 						}
 					}
 				}

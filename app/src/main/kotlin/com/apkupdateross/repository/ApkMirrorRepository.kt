@@ -18,6 +18,7 @@ import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.ApkMirrorService
 import com.apkupdateross.util.AbiMatcher
+import com.apkupdateross.util.AppUserAgent
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.orFalse
 import kotlinx.coroutines.flow.catch
@@ -26,8 +27,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
-
-private const val USER_AGENT = "APKUpdater-v3.0.3"
 
 class ApkMirrorRepository(
     private val service: ApkMirrorService,
@@ -49,7 +48,7 @@ class ApkMirrorRepository(
         val doc = withContext(Dispatchers.IO) {
             Jsoup
                 .connect("$baseUrl$searchQuery$text")
-                .userAgent(USER_AGENT)
+                .userAgent(AppUserAgent.value)
                 .referrer(baseUrl)
                 .timeout(15000)
                 .get()

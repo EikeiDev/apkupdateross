@@ -1,5 +1,6 @@
 package com.apkupdateross.ui.screen
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
@@ -46,7 +48,9 @@ import androidx.compose.foundation.lazy.grid.items
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GroupedAppUpdate
+import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.UpdatesUiState
+import com.apkupdateross.ui.activity.UptodownDownloadActivity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.apkupdateross.ui.component.DefaultErrorScreen
@@ -55,18 +59,11 @@ import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.RefreshIcon
+import com.apkupdateross.ui.component.SwipeToIgnoreBox
 import com.apkupdateross.ui.component.UpdateItem
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.viewmodel.UpdatesViewModel
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
@@ -89,6 +86,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 	val selfUpdate = viewModel.selfUpdate.collectAsStateWithLifecycle().value
 	val loadingSources by viewModel.loadingSources.collectAsStateWithLifecycle()
 	val failedSources by viewModel.failedSources.collectAsStateWithLifecycle()
+	val context = LocalContext.current
 	val uriHandler = LocalUriHandler.current
 	val visibleUpdates = (state as? UpdatesUiState.Success)?.updates.orEmpty()
 	val installAllCount = viewModel.installAllCount(visibleUpdates)
@@ -161,6 +159,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 					else -> Grid(
 						viewModel = viewModel,
 						updates = it.updates,
+						context = context,
 						handler = uriHandler,
 						installAllCount = installAllCount,
 						isInstallingAll = isInstallingAll,
@@ -294,6 +293,7 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 fun Grid(
 	viewModel: UpdatesViewModel,
 	updates: List<GroupedAppUpdate>,
+	context: Context,
 	handler: UriHandler,
 	installAllCount: Int,
 	isInstallingAll: Boolean,
@@ -302,6 +302,8 @@ fun Grid(
 	val compactMode by viewModel.useCompactView.collectAsStateWithLifecycle()
 	val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
 	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
+	val swipeIgnoreEnabled by viewModel.swipeIgnoreEnabled.collectAsStateWithLifecycle()
+	val swipeIgnoreDirection by viewModel.swipeIgnoreDirection.collectAsStateWithLifecycle()
 
 	InstalledGrid(
 		compactMode = compactMode,
@@ -320,7 +322,13 @@ fun Grid(
 		items(updates, key = { it.packageName }) { grouped ->
 			val update = grouped.primary
 			SwipeToIgnoreBox(
+				title = stringResource(R.string.ignore_update_title),
+				message = stringResource(R.string.ignore_update_message),
+				confirmLabel = stringResource(R.string.hide_update),
+				cancelLabel = stringResource(R.string.settings_custom_repo_cancel),
 				onIgnore = { viewModel.ignoreVersion(update.id) },
+				enabled = swipeIgnoreEnabled,
+				swipeDirection = swipeIgnoreDirection,
 				shape = MaterialTheme.shapes.medium
 			) {
 				if (compactMode) {
@@ -332,25 +340,50 @@ fun Grid(
 						source = update.source,
 						onIgnore = { viewModel.ignoreVersion(update.id) },
 						onOpenPage = { viewModel.openSourcePage(update, handler) },
-						onClick = { viewModel.install(update, handler) },
+						onClick = { installUpdate(context, viewModel, update, handler) },
 						updates = grouped.updates,
 						onUpdateIgnore = { viewModel.ignoreVersion(it) },
 						onUpdateOpenPage = { viewModel.openSourcePage(it, handler) },
-						onUpdateClick = { viewModel.install(it, handler) }
+						onUpdateClick = { installUpdate(context, viewModel, it, handler) }
 					)
 				} else {
 					UpdateItem(
 						grouped,
 						compactMode,
-						{ viewModel.install(it, handler) },
+						{ installUpdate(context, viewModel, it, handler) },
 						{ viewModel.ignoreVersion(it)},
 						{ viewModel.cancel(it) },
-						onDownload = { viewModel.downloadToStorage(it) },
+						onDownload = { downloadUpdate(context, viewModel, it) },
 						onOpenPage = { viewModel.openSourcePage(it, handler) }
 					)
 				}
 			}
 		}
+	}
+}
+
+private fun installUpdate(
+	context: Context,
+	viewModel: UpdatesViewModel,
+	update: AppUpdate,
+	handler: UriHandler
+) {
+	if (update.link is Link.BrowserDownload) {
+		context.startActivity(UptodownDownloadActivity.intent(context, update, UptodownDownloadActivity.Mode.Install))
+	} else {
+		viewModel.install(update, handler)
+	}
+}
+
+private fun downloadUpdate(
+	context: Context,
+	viewModel: UpdatesViewModel,
+	update: AppUpdate
+) {
+	if (update.link is Link.BrowserDownload) {
+		context.startActivity(UptodownDownloadActivity.intent(context, update, UptodownDownloadActivity.Mode.Save))
+	} else {
+		viewModel.downloadToStorage(update)
 	}
 }
 
@@ -383,52 +416,4 @@ private fun InstallAllButton(
 			}
 		)
 	}
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SwipeToIgnoreBox(
-	onIgnore: () -> Unit,
-	shape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-	content: @Composable () -> Unit
-) {
-	val dismissState = rememberSwipeToDismissBoxState(
-		confirmValueChange = { dismissValue ->
-			if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-				onIgnore()
-				true
-			} else {
-				false
-			}
-		}
-	)
-
-	SwipeToDismissBox(
-		state = dismissState,
-		backgroundContent = {
-			val color by animateColorAsState(
-				when (dismissState.targetValue) {
-					SwipeToDismissBoxValue.Settled -> Color.Transparent
-					else -> MaterialTheme.colorScheme.errorContainer
-				}
-			)
-			Box(
-				Modifier
-					.fillMaxSize()
-					.clip(shape)
-					.background(color)
-					.padding(horizontal = 20.dp),
-				contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart
-			) {
-				Icon(
-					Icons.Default.Delete,
-					contentDescription = stringResource(R.string.ignore_cd),
-					tint = MaterialTheme.colorScheme.onErrorContainer
-				)
-			}
-		},
-		content = {
-			content()
-		}
-	)
 }

@@ -2,7 +2,6 @@ package com.apkupdateross.service
 
 import com.apkupdateross.data.apkmirror.AppExistsRequest
 import com.apkupdateross.data.apkmirror.AppExistsResponse
-import com.apkupdateross.BuildConfig
 import retrofit2.http.Body
 import retrofit2.http.Headers
 import retrofit2.http.POST
@@ -11,7 +10,6 @@ import retrofit2.http.POST
 interface ApkMirrorService {
 
     @Headers(
-        "User-Agent: APKUpdater-v3.0.3",
         "Authorization: Basic YXBpLWFwa3VwZGF0ZXI6cm01cmNmcnVVakt5MDRzTXB5TVBKWFc4",
         "Content-Type: application/json"
     )

@@ -23,6 +23,7 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.UUID.randomUUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 
@@ -124,6 +125,52 @@ class SessionInstaller(
         }
     }
 
+    fun validateSplitPackageFile(
+        file: File,
+        expectedPackageName: String?,
+        expectedSha256: String? = null,
+        expectedSize: Long = 0L
+    ) {
+        if (expectedSize > 0L && file.length() != expectedSize) {
+            throw Exception("Split package size mismatch: expected $expectedSize, got ${file.length()}")
+        }
+
+        expectedSha256?.takeIf { it.isNotBlank() }?.let { expected ->
+            val actual = file.sha256()
+            if (!actual.equals(expected, ignoreCase = true)) {
+                throw Exception("Split package SHA-256 mismatch")
+            }
+        }
+
+        val expected = expectedPackageName?.takeIf { it.isNotBlank() } ?: return
+        ZipFile(file).use { zip ->
+            val apks = zip.apkEntries()
+            if (apks.isEmpty()) {
+                throw Exception("Split package has no APK entries")
+            }
+
+            var lastError: Throwable? = null
+            for (entry in apks) {
+                val tempApk = File(context.cacheDir, "${randomUUID()}.apk")
+                try {
+                    zip.getInputStream(entry).use { input ->
+                        tempApk.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    runCatching {
+                        validateApkFile(tempApk, expected, null, 0L)
+                    }.onSuccess {
+                        return
+                    }.onFailure {
+                        lastError = it
+                    }
+                } finally {
+                    tempApk.delete()
+                }
+            }
+            throw Exception(lastError?.message ?: "Split package mismatch: expected $expected")
+        }
+    }
+
     private fun archivePackageName(file: File): String? =
         if (Build.VERSION.SDK_INT >= 33) {
             context.packageManager.getPackageArchiveInfo(
@@ -148,29 +195,50 @@ class SessionInstaller(
         return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
+    private fun ZipFile.apkEntries(): List<ZipEntry> =
+        entries().asSequence()
+            .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
+            .sortedWith(compareBy({ !it.name.substringAfterLast('/').equals("base.apk", ignoreCase = true) }, { it.name }))
+            .toList()
+
     fun rootInstallXapk(file: File): Boolean {
-        return ZipFile(file).use { zip ->
-            val apks = zip.entries().toList().filter { it.name.contains(".apk") }
-            val result = if (apks.size == 1) {
-                val tempApk = File(file.parentFile, "${randomUUID()}.apk")
-                zip.getInputStream(apks[0]).use { it.copyTo(tempApk.outputStream()) }
-                val res = Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
-                tempApk.delete()
-                res
-            } else {
-                val createResult = Shell.cmd("pm install-create -r -d").exec()
-                val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out.joinToString(""))?.groupValues?.get(1)
-                    ?: run { file.delete(); return false }
-                apks.forEachIndexed { index, entry ->
-                    val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
-                    zip.getInputStream(entry).use { it.copyTo(tempApk.outputStream()) }
-                    Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
-                    tempApk.delete()
+        return try {
+            ZipFile(file).use { zip ->
+                val apks = zip.apkEntries()
+                when {
+                    apks.isEmpty() -> false
+                    apks.size == 1 -> {
+                        val tempApk = File(file.parentFile, "${randomUUID()}.apk")
+                        try {
+                            zip.getInputStream(apks[0]).use { input ->
+                                tempApk.outputStream().use { output -> input.copyTo(output) }
+                            }
+                            Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
+                        } finally {
+                            tempApk.delete()
+                        }
+                    }
+                    else -> {
+                        val createResult = Shell.cmd("pm install-create -r -d").exec()
+                        val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out.joinToString(""))?.groupValues?.get(1)
+                            ?: return@use false
+                        apks.forEachIndexed { index, entry ->
+                            val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
+                            try {
+                                zip.getInputStream(entry).use { input ->
+                                    tempApk.outputStream().use { output -> input.copyTo(output) }
+                                }
+                                Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
+                            } finally {
+                                tempApk.delete()
+                            }
+                        }
+                        Shell.cmd("pm install-commit $sessionId").exec().isSuccess
+                    }
                 }
-                Shell.cmd("pm install-commit $sessionId").exec().isSuccess
             }
+        } finally {
             file.delete()
-            result
         }
     }
 
@@ -192,15 +260,18 @@ class SessionInstaller(
     @Suppress("BlockingMethodInNonBlockingContext")
     suspend fun installXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
         val file = File(context.cacheDir, randomUUID().toString())
-        stream.copyTo(file.outputStream())
-
-        ZipFile(file).use { zip ->
-            val entries = zip.entries().toList()
-            val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-            installList(id, packageName, apks, total)
+        try {
+            stream.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            ZipFile(file).use { zip ->
+                val apks = zip.apkEntries().map { zip.getInputStream(it) }
+                if (apks.isEmpty()) throw Exception("Split package has no APK entries")
+                installList(id, packageName, apks, total)
+            }
+        } finally {
+            file.delete()
         }
-
-        file.delete()
     }
 
     suspend fun playInstall(id: Int, packageName: String, streams: List<InputStream>, total: Long = 0L) =
@@ -318,13 +389,18 @@ class SessionInstaller(
     @Suppress("BlockingMethodInNonBlockingContext")
     suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
         val file = File(context.cacheDir, randomUUID().toString())
-        stream.copyTo(file.outputStream())
-        ZipFile(file).use { zip ->
-            val entries = zip.entries().toList()
-            val apks = entries.filter { it.name.contains(".apk") }.map { zip.getInputStream(it) }
-            shizukuInstall(id, packageName, apks, total)
+        try {
+            stream.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            ZipFile(file).use { zip ->
+                val apks = zip.apkEntries().map { zip.getInputStream(it) }
+                if (apks.isEmpty()) throw Exception("Split package has no APK entries")
+                shizukuInstall(id, packageName, apks, total)
+            }
+        } finally {
+            file.delete()
         }
-        file.delete()
     }
 
 }

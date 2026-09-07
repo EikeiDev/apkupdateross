@@ -4,8 +4,11 @@ import android.util.Log
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.Jsoup
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 import kotlinx.coroutines.CoroutineScope
@@ -22,8 +25,8 @@ class Downloader(
     private val dir: File
 ) {
 
-    data class DownloadResult(val stream: InputStream, val contentLength: Long)
-    data class FileDownloadResult(val file: File, val contentLength: Long)
+    data class DownloadResult(val stream: InputStream, val contentLength: Long, val url: String = "")
+    data class FileDownloadResult(val file: File, val contentLength: Long, val url: String = "")
 
     private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
     private val cancelledIds = ConcurrentSkipListSet<Int>()
@@ -71,7 +74,7 @@ class Downloader(
         if (response.isSuccessful) {
             val body = response.body
             if (body != null) {
-                return DownloadResult(body.byteStream(), body.contentLength())
+                return DownloadResult(body.byteStream(), body.contentLength(), response.request.url.toString())
             }
             response.close()
             Log.e("Downloader", "Download failed with an empty response body")
@@ -101,7 +104,7 @@ class Downloader(
                     file.outputStream().use { output ->
                         body.byteStream().use { input -> input.copyTo(output) }
                     }
-                    return FileDownloadResult(file, contentLength)
+                    return FileDownloadResult(file, contentLength, response.request.url.toString())
                 }
                 Log.e("Downloader", "Download failed with an empty response body")
             } else {
@@ -115,7 +118,69 @@ class Downloader(
         null
     }
 
-    private fun downloadRequest(url: String) = Request.Builder().url(url).build()
+    private fun downloadRequest(url: String): Request {
+        val normalized = url.trim()
+        val resolvedUrl = resolveApkMirrorDownloadUrl(normalized)
+        return Request.Builder()
+            .url(resolvedUrl)
+            .apply {
+                if (normalized.isApkMirrorHtmlDownloadUrl() || resolvedUrl.startsWith(APKMIRROR_BASE_URL)) {
+                    header("Accept", "*/*")
+                    header("Referer", normalized.takeIf { it.startsWith(APKMIRROR_BASE_URL) } ?: APKMIRROR_BASE_URL)
+                    header("User-Agent", APKMIRROR_USER_AGENT)
+                }
+            }
+            .build()
+    }
+
+    private fun resolveApkMirrorDownloadUrl(url: String): String {
+        val normalized = url.trim()
+        if (!normalized.isApkMirrorHtmlDownloadUrl()) return normalized
+        if (normalized.contains("/wp-content/themes/APKMirror/download.php", ignoreCase = true)) return normalized
+
+        val thankYouUrl = if (normalized.contains("/download/?key=", ignoreCase = true)) {
+            normalized
+        } else {
+            val page = requestApkMirrorHtml(normalized, APKMIRROR_BASE_URL)
+            page.selectFirst("a.downloadButton[href*=/download/?key=], a[href*=/download/?key=]")
+                ?.attr("abs:href")
+                ?.takeIf { it.isNotBlank() }
+                ?: throw IOException("APKMirror download button not found")
+        }
+
+        val thankYouPage = requestApkMirrorHtml(thankYouUrl, normalized)
+        return thankYouPage.selectFirst("#download-link[href], a[href*=/download.php?id=]")
+            ?.attr("abs:href")
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IOException("APKMirror final download link not found")
+    }
+
+    private fun requestApkMirrorHtml(url: String, referer: String): org.jsoup.nodes.Document {
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Referer", referer)
+            .header("User-Agent", APKMIRROR_USER_AGENT)
+            .get()
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("APKMirror HTTP ${response.code}: $url")
+            }
+            Jsoup.parse(response.body?.string().orEmpty(), url)
+        }
+    }
+
+    private fun String.isApkMirrorHtmlDownloadUrl(): Boolean {
+        val lower = lowercase(Locale.ROOT)
+        return lower.startsWith(APKMIRROR_BASE_URL)
+                && (
+                    lower.contains("-apk-download")
+                            || lower.contains("/download/?key=")
+                            || lower.contains("/wp-content/themes/apkmirror/download.php")
+                )
+    }
 
     fun cleanup(id: Int? = null) = runCatching {
         if (id == null) {
@@ -146,3 +211,7 @@ class Downloader(
     }
 
 }
+
+private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
+private val APKMIRROR_USER_AGENT: String
+    get() = AppUserAgent.value

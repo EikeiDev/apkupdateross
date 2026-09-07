@@ -6,7 +6,6 @@ import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppUpdate
-import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.PlaySource
@@ -75,6 +74,8 @@ class UpdatesViewModel(
 	val useCompactView = prefs.useCompactViewFlow
 	val portraitColumns = prefs.portraitColumnsFlow
 	val landscapeColumns = prefs.landscapeColumnsFlow
+	val swipeIgnoreEnabled = prefs.swipeIgnoreEnabledFlow
+	val swipeIgnoreDirection = prefs.swipeIgnoreDirectionFlow
 	val loadingSources = updatesRepository.loadingSources
 	val failedSources = updatesRepository.failedSources
 
@@ -310,8 +311,8 @@ class UpdatesViewModel(
 
 	private fun AppUpdate.canBulkInstall(installMode: Int): Boolean = when {
 		isPaid || isInstalling || isDownloading -> false
-		source == ApkMirrorSource -> false
 		link is Link.Empty -> false
+		link is Link.BrowserDownload -> false
 		installMode == 1 && link is Link.Play -> false
 		else -> true
 	}

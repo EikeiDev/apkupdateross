@@ -2,12 +2,12 @@ package com.apkupdateross.di
 
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
-import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.FdroidSource
 import com.apkupdateross.data.ui.IzzySource
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.ApkMirrorRepository
+import com.apkupdateross.repository.ApkComboRepository
 import com.apkupdateross.repository.ApkPureRepository
 import com.apkupdateross.repository.AppsRepository
 import com.apkupdateross.repository.AptoideRepository
@@ -18,6 +18,7 @@ import com.apkupdateross.repository.HuaweiRepository
 import com.apkupdateross.repository.PlayRepository
 import com.apkupdateross.repository.RuStoreRepository
 import com.apkupdateross.repository.SearchRepository
+import com.apkupdateross.repository.UptodownRepository
 import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.service.ApkMirrorService
 import com.apkupdateross.service.ApkPureService
@@ -26,6 +27,7 @@ import com.apkupdateross.service.FdroidService
 import com.apkupdateross.service.GitHubService
 import com.apkupdateross.service.GitLabService
 import com.apkupdateross.service.RuStoreService
+import com.apkupdateross.util.AppUserAgent
 import com.apkupdateross.util.Badger
 import com.apkupdateross.util.Clipboard
 import com.apkupdateross.util.DownloadStorage
@@ -76,7 +78,7 @@ val mainModule = module {
 			.readTimeout(20, TimeUnit.SECONDS)
 			.writeTimeout(10, TimeUnit.SECONDS)
 			.callTimeout(25, TimeUnit.SECONDS)
-			.addUserAgentInterceptor("APKUpdater-v" + BuildConfig.VERSION_NAME)
+			.addUserAgentInterceptor(AppUserAgent.value)
 			//.addInterceptor(get<HttpLoggingInterceptor>())
 			.build()
 	}
@@ -154,6 +156,10 @@ val mainModule = module {
 
 	single { ApkMirrorRepository(get(), get()) }
 
+	single { ApkComboRepository(get(), get()) }
+
+	single { UptodownRepository(get(), get()) }
+
 	single { AppsRepository(get(), get()) }
 
 	single { GitHubRepository(get(), get(), get(), get()) }
@@ -190,9 +196,9 @@ val mainModule = module {
 
 	single { PlayRepository(get(), get(), get(), get()) }
 
-	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 

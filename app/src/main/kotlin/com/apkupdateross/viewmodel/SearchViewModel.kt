@@ -72,13 +72,29 @@ class SearchViewModel(
     private fun loadSavedFilters(): Set<SearchSourceFilter> {
         val saved = prefs.searchFilters.get()
         val mapped = saved.mapNotNull { runCatching { SearchSourceFilter.valueOf(it) }.getOrNull() }.toSet()
-        val filters = mapped.ifEmpty { SearchSourceFilter.defaultSelection }
-        if (prefs.searchFiltersHuaweiMigrated.get()) return filters
+        var filters = mapped.ifEmpty { SearchSourceFilter.defaultSelection }
+        var changed = false
 
-        val migrated = filters + SearchSourceFilter.HUAWEI
-        prefs.searchFiltersHuaweiMigrated.put(true)
-        if (migrated != filters) saveFilters(migrated)
-        return migrated
+        if (!prefs.searchFiltersHuaweiMigrated.get()) {
+            filters = filters + SearchSourceFilter.HUAWEI
+            prefs.searchFiltersHuaweiMigrated.put(true)
+            changed = true
+        }
+
+        if (!prefs.searchFiltersApkComboMigrated.get()) {
+            filters = filters + SearchSourceFilter.APKCOMBO
+            prefs.searchFiltersApkComboMigrated.put(true)
+            changed = true
+        }
+
+        if (!prefs.searchFiltersUptodownMigrated.get()) {
+            filters = filters + SearchSourceFilter.UPTODOWN
+            prefs.searchFiltersUptodownMigrated.put(true)
+            changed = true
+        }
+
+        if (changed) saveFilters(filters)
+        return filters
     }
 
     private fun saveFilters(filters: Set<SearchSourceFilter>) {

@@ -14,6 +14,8 @@ val FdroidSource = Source("F-Droid (Main)", R.drawable.ic_fdroid)
 val IzzySource = Source("F-Droid (Izzy)", R.drawable.ic_izzy)
 val AptoideSource = Source("Aptoide", R.drawable.ic_aptoide)
 val ApkPureSource = Source("ApkPure", R.drawable.ic_apkpure)
+val ApkComboSource = Source("APKCombo", R.drawable.ic_apkcombo)
+val UptodownSource = Source("Uptodown", R.drawable.ic_uptodown)
 val GitLabSource = Source("GitLab", R.drawable.ic_gitlab)
 val PlaySource = Source("Play", R.drawable.ic_play)
 val RuStoreSource = Source("RuStore", R.drawable.ic_rustore)
@@ -28,6 +30,8 @@ fun Source.priority(filterRuStore: Boolean = false): Int = when (name) {
     "F-Droid (Main)" -> 70
     "F-Droid (Izzy)" -> 70
     "ApkPure" -> 60
+    "APKCombo" -> 55
+    "Uptodown" -> 53
     "Aptoide" -> 50
     "AppGallery" -> 45
     else -> 0

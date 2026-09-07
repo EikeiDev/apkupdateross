@@ -26,11 +26,13 @@ import com.apkupdateross.data.ui.Source
 import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.GitHubSource
 import com.apkupdateross.data.ui.AptoideSource
+import com.apkupdateross.data.ui.ApkComboSource
 import com.apkupdateross.data.ui.ApkPureSource
 import com.apkupdateross.data.ui.GitLabSource
 import com.apkupdateross.data.ui.PlaySource
 import com.apkupdateross.data.ui.RuStoreSource
 import com.apkupdateross.data.ui.HuaweiSource
+import com.apkupdateross.data.ui.UptodownSource
 
 
 class UpdatesRepository(
@@ -40,6 +42,8 @@ class UpdatesRepository(
     private val fdroidService: FdroidService,
     private val aptoideRepository: AptoideRepository,
     private val apkPureRepository: ApkPureRepository,
+    private val apkComboRepository: ApkComboRepository,
+    private val uptodownRepository: UptodownRepository,
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
     private val ruStoreRepository: RuStoreRepository,
@@ -94,6 +98,8 @@ class UpdatesRepository(
                 
                 if (prefs.useAptoide.get()) sources.add(aptoideRepository.updates(filtered).trackLoading(AptoideSource))
                 if (prefs.useApkPure.get()) sources.add(apkPureRepository.updates(filtered).trackLoading(ApkPureSource))
+                if (prefs.useApkCombo.get()) sources.add(apkComboRepository.updates(filtered).trackLoading(ApkComboSource))
+                if (prefs.useUptodown.get()) sources.add(uptodownRepository.updates(filtered).trackLoading(UptodownSource))
                 if (prefs.useGitLab.get()) sources.add(gitLabRepository.updates(filtered).trackLoading(GitLabSource))
                 if (prefs.usePlay.get()) sources.add(playRepository.updates(filtered).trackLoading(PlaySource))
                 if (prefs.useRuStore.get()) sources.add(ruStoreRepository.updates(filtered).trackLoading(RuStoreSource))

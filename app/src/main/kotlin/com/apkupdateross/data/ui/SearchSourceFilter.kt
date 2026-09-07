@@ -8,6 +8,8 @@ enum class SearchSourceFilter(@StringRes val labelRes: Int) {
     FDROID(R.string.search_filter_fdroid),
     APTOIDE(R.string.search_filter_aptoide),
     APKPURE(R.string.search_filter_apkpure),
+    APKCOMBO(R.string.search_filter_apkcombo),
+    UPTODOWN(R.string.search_filter_uptodown),
     GITHUB(R.string.search_filter_github),
     GITLAB(R.string.search_filter_gitlab),
     PLAY(R.string.search_filter_play),

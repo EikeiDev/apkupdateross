@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -67,11 +68,12 @@ import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.Source
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.util.getAppName
 import com.apkupdateross.util.to2f
 import com.apkupdateross.util.toAnnotatedString
 
-private val ActionButtonSize = 40.dp
+private val ActionButtonSize = 48.dp
 private val ActionIconSize = 20.dp
 private val ActionProgressSize = 20.dp
 
@@ -91,17 +93,17 @@ fun CommonItem(
     showVersionInfo: Boolean = true
 ) = Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
     val iconSlotWidth = when {
-        releaseType == null && compactMode -> 48.dp
-        releaseType == null -> 80.dp
+        releaseType == null && compactMode -> 52.dp
+        releaseType == null -> 76.dp
         compactMode -> 72.dp
-        else -> 92.dp
+        else -> 82.dp
     }
-    val iconSize = if (compactMode) 40.dp else 68.dp
+    val iconSize = if (compactMode) 44.dp else 64.dp
 
     Column(
         modifier = Modifier
             .width(iconSlotWidth)
-            .padding(end = if (compactMode) 8.dp else 12.dp),
+            .padding(end = if (compactMode) 8.dp else 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (compactMode) 4.dp else 6.dp)
     ) {
@@ -142,7 +144,7 @@ private fun VersionInfo(
     modifier: Modifier = Modifier
 ) = Column(
     modifier = modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(2.dp)
+    verticalArrangement = Arrangement.spacedBy(4.dp)
 ) {
     val previousVersion = oldVersion?.takeIf { it.isNotBlank() }
     if (previousVersion != null && !single) {
@@ -151,9 +153,8 @@ private fun VersionInfo(
         VersionLine(version)
     }
 
-    if (oldVersionCode != null && !single) {
-        val code = if (versionCode == 0L) "?" else versionCode.toString()
-        VersionCompareRow(oldVersionCode.toString(), code)
+    if (oldVersionCode != null && !single && versionCode > 0L) {
+        VersionCompareRow(oldVersionCode.toString(), versionCode.toString())
     } else if (versionCode > 0L) {
         VersionLine(versionCode.toString())
     }
@@ -175,7 +176,7 @@ private fun VersionCompareRow(
     Text(
         text = "->",
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+        color = ApkTheme.colors.textTertiary,
         textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(min = 24.dp).padding(horizontal = 4.dp)
     )
@@ -191,7 +192,7 @@ private fun VersionLine(text: String, modifier: Modifier = Modifier) = Scrollabl
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = ApkTheme.colors.textSecondary,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Clip
@@ -205,24 +206,24 @@ private fun VersionValueChip(
     modifier: Modifier = Modifier
 ) {
     val borderColor = if (highlighted) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+        ApkTheme.colors.accent.copy(alpha = 0.76f)
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.62f)
+        ApkTheme.colors.divider
     }
     val contentColor = if (highlighted) {
-        MaterialTheme.colorScheme.primary
+        ApkTheme.colors.accent
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        ApkTheme.colors.textSecondary
     }
     val containerColor = if (highlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+        ApkTheme.colors.surfaceHighlight
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+        ApkTheme.colors.surfaceSecondary
     }
 
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.small,
+        shape = ApkTheme.shapes.xs,
         color = containerColor,
         contentColor = contentColor,
         border = BorderStroke(1.dp, borderColor)
@@ -243,17 +244,19 @@ private fun VersionValueChip(
 
 @Composable
 private fun ReleaseTypeChip(type: ReleaseType, compactMode: Boolean = false) {
-    val container = when (type) {
-        ReleaseType.Stable -> Color(0xFF2E7D32)
-        ReleaseType.Beta -> Color(0xFF1565C0)
-        ReleaseType.Alpha -> Color(0xFFE65100)
-        ReleaseType.PreRelease -> Color(0xFFC62828)
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val content = when (type) {
+        ReleaseType.Stable -> ApkTheme.colors.success
+        ReleaseType.Beta -> if (dark) Color(0xFF7CC7FF) else Color(0xFF0B65B9)
+        ReleaseType.Alpha -> ApkTheme.colors.warning
+        ReleaseType.PreRelease -> ApkTheme.colors.error
     }
 
     Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-        color = container,
-        contentColor = Color.White
+        shape = ApkTheme.shapes.xs,
+        color = content.copy(alpha = if (dark) 0.2f else 0.13f),
+        contentColor = content,
+        border = BorderStroke(1.dp, content.copy(alpha = 0.35f))
     ) {
         Text(
             text = stringResource(type.labelRes),
@@ -274,13 +277,17 @@ private fun RoundActionButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit
-) = FilledTonalIconButton(
+) = Surface(
     modifier = modifier.size(ActionButtonSize),
-    onClick = onClick,
-    enabled = enabled
+    shape = ApkTheme.shapes.md,
+    color = if (enabled) ApkTheme.colors.surfaceSecondary else ApkTheme.colors.surfaceSecondary.copy(alpha = 0.45f),
+    contentColor = if (enabled) ApkTheme.colors.textPrimary else ApkTheme.colors.disabled,
+    border = BorderStroke(1.dp, ApkTheme.colors.divider)
 ) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
         content = content
     )
@@ -291,25 +298,42 @@ fun InstallButton(
     app: AppUpdate,
     onInstall: (String) -> Unit,
     onCancel: (AppUpdate) -> Unit = {}
-) = FilledTonalIconButton(
+) = Surface(
     modifier = Modifier.size(ActionButtonSize),
-    onClick = { if (app.isInstalling) onCancel(app) else onInstall(app.packageName) },
-    enabled = !app.isDownloading && (app.link !is Link.Empty || app.isInstalling),
-    colors = IconButtonDefaults.filledTonalIconButtonColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-) {
-    if (app.isInstalling) {
-        CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
+    shape = ApkTheme.shapes.md,
+    color = if (!app.isDownloading && (app.link !is Link.Empty || app.isInstalling)) {
+        ApkTheme.colors.accent
     } else {
-        androidx.compose.material3.Icon(
-            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_install),
-            contentDescription = stringResource(R.string.install_cd),
-            modifier = Modifier.size(ActionIconSize)
-        )
+        ApkTheme.colors.surfaceSecondary
+    },
+    contentColor = if (!app.isDownloading && (app.link !is Link.Empty || app.isInstalling)) {
+        ApkTheme.colors.onAccent
+    } else {
+        ApkTheme.colors.disabled
+    }
+) {
+    val enabled = !app.isDownloading && (app.link !is Link.Empty || app.isInstalling)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(enabled = enabled) {
+                if (app.isInstalling) onCancel(app) else onInstall(app.packageName)
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (app.isInstalling) {
+            CircularProgressIndicator(
+                Modifier.size(ActionProgressSize),
+                color = ApkTheme.colors.onAccent,
+                strokeWidth = 2.dp
+            )
+        } else {
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_install),
+                contentDescription = stringResource(R.string.install_cd),
+                modifier = Modifier.size(ActionIconSize)
+            )
+        }
     }
 }
 
@@ -318,16 +342,11 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
     var expanded by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+    AppListSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (app.ignored) 0.5f else 1f)
-            .clickable { expanded = !expanded }
+            .alpha(if (app.ignored) 0.5f else 1f),
+        onClick = { expanded = !expanded }
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
@@ -355,7 +374,7 @@ fun InstalledItem(app: AppInstalled, compactMode: Boolean = false, onIgnore: (St
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = ApkTheme.colors.divider)
                     
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -428,15 +447,9 @@ fun UpdateItem(
     var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
     val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded }
+    AppListSurface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { expanded = !expanded }
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
@@ -477,7 +490,7 @@ fun UpdateItem(
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = ApkTheme.colors.divider)
                     
                     WhatsNew(app.whatsNew, app.source)
 
@@ -541,14 +554,18 @@ fun UpdateItem(
                             val percent = (fraction * 100).roundToInt()
                             LinearProgressIndicator(
                                 progress = { fraction },
-                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = ApkTheme.colors.accent,
+                                trackColor = ApkTheme.colors.surfaceSecondary
                             )
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                                 SmallText("$percent%")
                             }
                         } else {
                             LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = ApkTheme.colors.accent,
+                                trackColor = ApkTheme.colors.surfaceSecondary
                             )
                         }
                     }
@@ -571,15 +588,9 @@ fun SearchItem(
     var activeUpdate by remember(grouped.id) { mutableStateOf(grouped.primary) }
     val app = grouped.updates.find { it.isInstalling || it.isDownloading } ?: (grouped.updates.find { it.id == activeUpdate.id } ?: activeUpdate)
 
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded }
+    AppListSurface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { expanded = !expanded }
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(if (compactMode) 8.dp else 12.dp)) {
             // Always visible top row
@@ -610,7 +621,7 @@ fun SearchItem(
             // Expanded content
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = ApkTheme.colors.divider)
                     
                     WhatsNew(app.whatsNew, app.source)
 
@@ -672,14 +683,18 @@ fun SearchItem(
                             val percent = (fraction * 100).roundToInt()
                             LinearProgressIndicator(
                                 progress = { fraction },
-                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = ApkTheme.colors.accent,
+                                trackColor = ApkTheme.colors.surfaceSecondary
                             )
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                                 SmallText("$percent%")
                             }
                         } else {
                             LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(4.dp)
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = ApkTheme.colors.accent,
+                                trackColor = ApkTheme.colors.surfaceSecondary
                             )
                         }
                     }
@@ -701,9 +716,13 @@ fun SourceSelector(
             val isSelected = update.id == selected.id
             androidx.compose.material3.Surface(
                 onClick = { onSelect(update) },
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.size(32.dp)
+                shape = ApkTheme.shapes.sm,
+                color = if (isSelected) ApkTheme.colors.surfaceHighlight else ApkTheme.colors.surfaceSecondary,
+                border = BorderStroke(
+                    1.dp,
+                    if (isSelected) ApkTheme.colors.accent.copy(alpha = 0.5f) else ApkTheme.colors.divider
+                ),
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     SourceIcon(update.source, Modifier.size(24.dp))
@@ -737,16 +756,11 @@ fun GridItem(
     val currentOnOpenPage = if (selectedUpdate != null && onUpdateOpenPage != null) ({ onUpdateOpenPage(selectedUpdate) }) else onOpenPage
     val currentOnClick = if (selectedUpdate != null && onUpdateClick != null) ({ onUpdateClick(selectedUpdate) }) else onClick
 
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+    AppListSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isIgnored) 0.5f else 1f)
-            .clickable { currentOnClick() }
+            .alpha(if (isIgnored) 0.5f else 1f),
+        onClick = { currentOnClick() }
     ) {
         Box {
             Column(
@@ -772,8 +786,10 @@ fun GridItem(
                 )
                 
                 androidx.compose.material3.Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = ApkTheme.shapes.xs,
+                    color = ApkTheme.colors.surfaceHighlight,
+                    contentColor = ApkTheme.colors.accent,
+                    border = BorderStroke(1.dp, ApkTheme.colors.accent.copy(alpha = 0.28f)),
                     modifier = Modifier.alpha(0.8f)
                 ) {
                     var showDropdown by remember { mutableStateOf(false) }
@@ -794,7 +810,7 @@ fun GridItem(
                             Text(
                                 text = currentVersion,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                color = ApkTheme.colors.accent,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -811,7 +827,7 @@ fun GridItem(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = stringResource(R.string.search_filter_button),
                                     modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                    tint = ApkTheme.colors.accent
                                 )
                             }
 
@@ -846,7 +862,7 @@ fun GridItem(
                         ),
                         contentDescription = stringResource(if (isIgnored) R.string.unignore_cd else R.string.ignore_cd),
                         modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = ApkTheme.colors.textSecondary
                     )
                 }
             }
@@ -856,12 +872,21 @@ fun GridItem(
 
 @Composable
 private fun DownloadUnavailableNotice() {
-    Text(
-        text = stringResource(R.string.download_unavailable_for_source),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        shape = ApkTheme.shapes.xs,
+        color = ApkTheme.colors.warning.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, ApkTheme.colors.warning.copy(alpha = 0.28f))
+    ) {
+        Text(
+            text = stringResource(R.string.download_unavailable_for_source),
+            style = MaterialTheme.typography.bodySmall,
+            color = ApkTheme.colors.warning,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+        )
+    }
 }
 
 @Composable
@@ -877,6 +902,8 @@ fun WhatsNew(whatsNew: String, source: Source) {
 }
 
 @Composable
-fun DefaultErrorScreen() = Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-    MediumTitle(stringResource(R.string.something_went_wrong))
-}
+fun DefaultErrorScreen() = AppStateMessage(
+    title = stringResource(R.string.something_went_wrong),
+    icon = R.drawable.ic_disabled,
+    tone = AppTone.Error
+)

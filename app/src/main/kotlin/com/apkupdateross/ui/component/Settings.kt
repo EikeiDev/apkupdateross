@@ -20,8 +20,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.R
+import com.apkupdateross.ui.theme.ApkTheme
 
 @Composable
 fun SettingsIcon(
@@ -53,16 +56,16 @@ fun SettingsIcon(
     containerColor: Color? = null,
     iconSize: Dp = 24.dp
 ) = androidx.compose.material3.Surface(
-    shape = androidx.compose.material3.MaterialTheme.shapes.medium,
-    color = containerColor ?: androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
-    modifier = modifier.size(40.dp)
+    shape = ApkTheme.shapes.sm,
+    color = containerColor ?: ApkTheme.colors.surfaceHighlight,
+    modifier = modifier.size(42.dp)
 ) {
     Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
         Icon(
             painterResource(id = icon),
             contentDescription = contentDescription,
             modifier = Modifier.size(iconSize),
-            tint = if (tintIcon) androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer else Color.Unspecified
+            tint = if (tintIcon) ApkTheme.colors.accent else Color.Unspecified
         )
     }
 }
@@ -82,8 +85,18 @@ fun SliderSetting(
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
     Column(Modifier.weight(1f)) {
         Box(Modifier.fillMaxWidth()) {
-            Text(text, Modifier.align(CenterStart), style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
-            Text("${getValue().toInt()}", Modifier.align(CenterEnd), style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            Text(
+                text,
+                Modifier.align(CenterStart),
+                style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                color = ApkTheme.colors.textPrimary
+            )
+            Text(
+                "${getValue().toInt()}",
+                Modifier.align(CenterEnd),
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = ApkTheme.colors.textSecondary
+            )
         }
         Slider(
             value = position,
@@ -95,7 +108,12 @@ fun SliderSetting(
             modifier = Modifier
                 .padding(top = 8.dp)
                 .fillMaxWidth()
-                .height(32.dp)
+                .height(32.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = ApkTheme.colors.accent,
+                activeTrackColor = ApkTheme.colors.accent,
+                inactiveTrackColor = ApkTheme.colors.surfaceSecondary
+            )
         )
     }
 }
@@ -126,11 +144,15 @@ fun SegmentedButtonSetting(
     ) {
         SettingsIcon(icon, text, Modifier.padding(end = 16.dp).alpha(alpha))
         Column(Modifier.weight(1f).alpha(alpha)) {
-            Text(text, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+            Text(
+                text,
+                style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                color = ApkTheme.colors.textPrimary
+            )
             Text(
                 selectedText,
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                color = ApkTheme.colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -138,8 +160,8 @@ fun SegmentedButtonSetting(
         Box(Modifier.alpha(alpha)) {
             Surface(
                 modifier = Modifier.widthIn(min = 104.dp, max = 156.dp),
-                shape = androidx.compose.material3.MaterialTheme.shapes.small,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                shape = ApkTheme.shapes.sm,
+                color = ApkTheme.colors.surfaceSecondary
             ) {
                 Row(
                     Modifier.padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
@@ -148,6 +170,7 @@ fun SegmentedButtonSetting(
                     Text(
                         selectedText,
                         style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+                        color = ApkTheme.colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -156,7 +179,7 @@ fun SegmentedButtonSetting(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
                         modifier = Modifier.padding(start = 4.dp).size(18.dp),
-                        tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = ApkTheme.colors.textSecondary
                     )
                 }
             }
@@ -218,9 +241,17 @@ fun SwitchSetting(
         iconSize = iconSize
     )
     Column(Modifier.align(CenterVertically).weight(1f).alpha(alpha)) {
-        Text(text, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+        Text(
+            text,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+            color = ApkTheme.colors.textPrimary
+        )
         if (subtitle != null) {
-            Text(subtitle, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                subtitle,
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = ApkTheme.colors.textSecondary
+            )
         }
     }
     
@@ -229,7 +260,7 @@ fun SwitchSetting(
             imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
             contentDescription = null,
             modifier = Modifier.align(CenterVertically).padding(end = 8.dp),
-            tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+            tint = ApkTheme.colors.textSecondary
         )
     }
 
@@ -240,7 +271,14 @@ fun SwitchSetting(
             setValue(it)
             value = getValue()
         },
-        modifier = Modifier.align(CenterVertically)
+        modifier = Modifier.align(CenterVertically),
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = ApkTheme.colors.onAccent,
+            checkedTrackColor = ApkTheme.colors.accent,
+            uncheckedThumbColor = ApkTheme.colors.textTertiary,
+            uncheckedTrackColor = ApkTheme.colors.surfaceSecondary,
+            uncheckedBorderColor = ApkTheme.colors.divider
+        )
     )
 }
 
@@ -257,5 +295,10 @@ fun ButtonSetting(
         .padding(horizontal = 16.dp)
 ) {
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
-    Text(text, Modifier.align(CenterVertically).weight(1f), style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+    Text(
+        text,
+        Modifier.align(CenterVertically).weight(1f),
+        style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+        color = ApkTheme.colors.textPrimary
+    )
 }

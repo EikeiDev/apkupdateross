@@ -1,17 +1,20 @@
 package com.apkupdateross.ui.screen
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppsUiState
+import com.apkupdateross.ui.component.AppScreen
+import com.apkupdateross.ui.component.AppTopBar
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.ExcludeAppStoreIcon
 import com.apkupdateross.ui.component.ExcludeDisabledIcon
@@ -45,6 +50,7 @@ import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.InstalledItem
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.SwipeToIgnoreBox
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.viewmodel.AppsViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -77,11 +83,7 @@ fun AppsScreen(
 
 	var isSearchActive by remember { mutableStateOf(false) }
 
-	Column(
-		modifier = Modifier
-			.fillMaxSize()
-			.background(MaterialTheme.colorScheme.background)
-	) {
+	AppScreen {
 		AppsTopBar(viewModel, excludeSystem, excludeAppStore, excludeDisabled, isSearchActive, searchQuery, onSearchToggle = { isSearchActive = it })
 		PullToRefreshBox(
 			isRefreshing = state is AppsUiState.Loading,
@@ -107,7 +109,7 @@ fun AppsScreen(
 							onIgnore = { viewModel.ignore(app.packageName) },
 							enabled = swipeIgnoreEnabled && !app.ignored,
 							swipeDirection = swipeIgnoreDirection,
-							shape = MaterialTheme.shapes.medium
+							shape = ApkTheme.shapes.md
 						) {
 							if (compactMode) {
 								GridItem(
@@ -145,52 +147,69 @@ fun AppsTopBar(
 	isSearchActive: Boolean,
 	searchQuery: String,
 	onSearchToggle: (Boolean) -> Unit
-) = TopAppBar(
-	title = {
-		if (isSearchActive) {
-			val focusRequester = remember { FocusRequester() }
-			var localSearchText by rememberSaveable { mutableStateOf(searchQuery) }
+) {
+	if (isSearchActive) {
+		val focusRequester = remember { FocusRequester() }
+		var localSearchText by rememberSaveable { mutableStateOf(searchQuery) }
 
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.statusBarsPadding()
+				.heightIn(min = 64.dp)
+				.padding(horizontal = 16.dp, vertical = 10.dp),
+			verticalAlignment = Alignment.CenterVertically,
+			horizontalArrangement = Arrangement.spacedBy(8.dp)
+		) {
 			OutlinedTextField(
 				value = localSearchText,
 				onValueChange = { localSearchText = it },
 				modifier = Modifier
-					.fillMaxWidth()
+					.weight(1f)
 					.focusRequester(focusRequester),
 				placeholder = { Text(stringResource(R.string.tab_search)) },
 				singleLine = true,
+				shape = ApkTheme.shapes.lg,
 				colors = OutlinedTextFieldDefaults.colors(
-					focusedBorderColor = Color.Transparent,
-					unfocusedBorderColor = Color.Transparent
+					focusedBorderColor = ApkTheme.colors.accent.copy(alpha = 0.55f),
+					unfocusedBorderColor = ApkTheme.colors.divider,
+					focusedContainerColor = ApkTheme.colors.surfaceElevated,
+					unfocusedContainerColor = ApkTheme.colors.surfaceElevated,
+					focusedTextColor = ApkTheme.colors.textPrimary,
+					unfocusedTextColor = ApkTheme.colors.textPrimary,
+					focusedPlaceholderColor = ApkTheme.colors.textTertiary,
+					unfocusedPlaceholderColor = ApkTheme.colors.textTertiary,
+					cursorColor = ApkTheme.colors.accent
 				)
 			)
-
-			LaunchedEffect(localSearchText) {
-				if (localSearchText != searchQuery) {
-					delay(100)
-					viewModel.onSearchQueryChange(localSearchText)
-				}
-			}
-
-			LaunchedEffect(isSearchActive) {
-				if (isSearchActive) {
-					focusRequester.requestFocus()
-				}
-			}
-		} else {
-			Text(stringResource(R.string.tab_apps), style = MaterialTheme.typography.headlineSmall)
-		}
-	},
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-	actions = {
-		if (isSearchActive) {
 			IconButton(onClick = { 
 				viewModel.onSearchQueryChange("")
 				onSearchToggle(false) 
 			}) {
-				Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close_search))
+				Icon(
+					Icons.Filled.Close,
+					contentDescription = stringResource(R.string.close_search),
+					tint = ApkTheme.colors.textSecondary
+				)
 			}
-		} else {
+		}
+
+		LaunchedEffect(localSearchText) {
+			if (localSearchText != searchQuery) {
+				delay(100)
+				viewModel.onSearchQueryChange(localSearchText)
+			}
+		}
+
+		LaunchedEffect(isSearchActive) {
+			if (isSearchActive) {
+				focusRequester.requestFocus()
+			}
+		}
+	} else {
+		AppTopBar(
+			title = stringResource(R.string.tab_apps)
+		) {
 			IconButton(onClick = { onSearchToggle(true) }) {
 				Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.tab_search))
 			}
@@ -205,4 +224,4 @@ fun AppsTopBar(
 			}
 		}
 	}
-)
+}

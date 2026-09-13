@@ -5,9 +5,11 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import com.apkupdateross.data.ui.AppInstallProgress
+import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.InstallLog
 import java.io.File
 import java.io.FileOutputStream
@@ -19,13 +21,46 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
-class DownloadStorage(private val context: Context) {
+class DownloadStorage(
+    private val context: Context,
+    private val prefs: Prefs
+) {
 
     suspend fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean = withContext(Dispatchers.IO) {
+        val safeFileName = fileName.safeFileName()
+        val customFolderUri = prefs.downloadFolderUri.get().takeIf { it.isNotBlank() }
+        if (customFolderUri != null) {
+            return@withContext saveToDocumentTree(customFolderUri, safeFileName, mimeType, inputStream, id, installLog, total, offset)
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveScoped(fileName, mimeType, inputStream, id, installLog, total, offset)
+            saveScoped(safeFileName, mimeType, inputStream, id, installLog, total, offset)
         } else {
-            saveLegacy(fileName, inputStream, id, installLog, total, offset)
+            saveLegacy(safeFileName, inputStream, id, installLog, total, offset)
+        }
+    }
+
+    private suspend fun saveToDocumentTree(folderUri: String, fileName: String, mimeType: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
+        val resolver = context.contentResolver
+        val treeUri = Uri.parse(folderUri)
+        val documentId = DocumentsContract.getTreeDocumentId(treeUri)
+        val parentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+        val uri = DocumentsContract.createDocument(resolver, parentUri, mimeType, fileName) ?: return false
+
+        return runCatching {
+            resolver.openOutputStream(uri, "w")?.use { output ->
+                inputStream.use { input ->
+                    if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
+                    if (total > 0) {
+                        installLog?.emitProgress(AppInstallProgress(id, total, total))
+                    }
+                }
+            } ?: return false
+            true
+        }.getOrElse {
+            resolver.delete(uri, null, null)
+            if (it is CancellationException) throw it
+            false
         }
     }
 
@@ -82,6 +117,13 @@ class DownloadStorage(private val context: Context) {
         }
     }
 
+}
+
+private fun String.safeFileName(): String {
+    val cleaned = replace(Regex("""[\\/:*?"<>|\u0000-\u001F]"""), "_")
+        .trim()
+        .trim('.')
+    return cleaned.takeIf { it.isNotBlank() } ?: "download.apk"
 }
 
 suspend fun InputStream.copyToAndNotify(

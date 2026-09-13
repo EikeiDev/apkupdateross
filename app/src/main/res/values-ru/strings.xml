@@ -31,7 +31,7 @@
     <string name="settings_category_interface_subtitle">Тема, анимации, компактный вид и колонки</string>
     <string name="settings_category_network_subtitle">Таймауты подключения для источников обновлений</string>
     <string name="settings_category_data_logs">Данные и логи</string>
-    <string name="settings_category_data_logs_subtitle">Бэкап, восстановление, списки и логи</string>
+    <string name="settings_category_data_logs_subtitle">Загрузки, бэкап, восстановление, списки и логи</string>
     <string name="settings_category_about_subtitle">Версия, ссылки проекта и авторы</string>
     <string name="settings_sources_code_hosting">Git-источники</string>
     <string name="settings_sources_app_stores">Магазины приложений</string>
@@ -46,6 +46,15 @@
     <string name="settings_network_timeouts">Таймауты</string>
     <string name="settings_data_logs_actions">Логи и списки</string>
     <string name="settings_data_backup">Бэкап</string>
+    <string name="settings_downloads">Загрузки</string>
+    <string name="download_folder">Папка сохранения</string>
+    <string name="download_folder_storage_root">Корень хранилища</string>
+    <string name="download_folder_custom">Своя папка</string>
+    <string name="download_folder_choose">Выбрать папку сохранения</string>
+    <string name="download_folder_reset">Вернуть папку по умолчанию</string>
+    <string name="download_folder_selected">Папка сохранения выбрана.</string>
+    <string name="download_folder_select_failed">Не удалось использовать выбранную папку.</string>
+    <string name="download_folder_reset_done">Папка сохранения сброшена.</string>
     <string name="settings_ui">Интерфейс</string>
     <string name="settings_compact_view">Компактный режим</string>
     <string name="settings_alarm">Расписание автообновлений</string>
@@ -153,10 +162,14 @@
     <string name="self_update_whats_new">Что нового</string>
     <string name="self_update_button_later">Позже</string>
     <string name="self_update_button_update">Обновить</string>
+    <string name="debug_release_warning_title">Установлена debug-сборка</string>
+    <string name="debug_release_warning_message">Вы используете debug-сборку APKUpdater OSS %1$s (%2$d).\n\nRelease-сборки подписаны другим ключом, поэтому Android не сможет установить release APK поверх этой debug-сборки.\n\nЧтобы перейти на release: экспортируйте настройки, удалите debug-сборку, установите release APK из GitHub Releases, затем импортируйте настройки обратно.</string>
+    <string name="debug_release_warning_open_release">Открыть Releases</string>
+    <string name="debug_release_warning_understood">Понятно</string>
     <string name="updates_empty">Все приложения в актуальном состоянии</string>
     <string name="download">Скачать</string>
     <string name="open">Открыть</string>
-    <string name="download_success">Сохранено в Download/APKUpdaterOSS: %1$s</string>
+    <string name="download_success">Сохранено в папку загрузок: %1$s</string>
     <string name="download_failure">Ошибка сохранения %1$s</string>
     <string name="download_failure_cant_download">Не удалось скачать файл.</string>
     <string name="download_unavailable_for_source">Прямая загрузка APK недоступна для этого источника.</string>
@@ -168,7 +181,7 @@
     <string name="uptodown_download_saving">Сохранение&#8230;</string>
     <string name="uptodown_download_invalid_url">Uptodown вернул недоверенную ссылку для загрузки.</string>
     <string name="uptodown_download_failed">Не удалось скачать файл с Uptodown.</string>
-    <string name="uptodown_download_saved">Сохранено в Downloads/APKUpdaterOSS.</string>
+    <string name="uptodown_download_saved">Сохранено в папку загрузок.</string>
     <string name="link_not_available">Ссылка недоступна.</string>
 
     <string name="settings_custom_repos_edit">Редактировать репозиторий</string>

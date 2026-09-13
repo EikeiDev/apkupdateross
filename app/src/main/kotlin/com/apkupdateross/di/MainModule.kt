@@ -210,7 +210,7 @@ val mainModule = module {
 
 	single { SessionInstaller(get(), get()) }
 
-	single { DownloadStorage(androidContext()) }
+	single { DownloadStorage(androidContext(), get()) }
 
 	single { SnackBar() }
 

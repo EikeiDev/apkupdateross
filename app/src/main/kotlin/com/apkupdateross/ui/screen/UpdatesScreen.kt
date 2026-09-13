@@ -1,11 +1,15 @@
 package com.apkupdateross.ui.screen
 
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,11 +17,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -51,8 +54,13 @@ import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.UpdatesUiState
 import com.apkupdateross.ui.activity.UptodownDownloadActivity
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import com.apkupdateross.ui.component.AppScreen
+import com.apkupdateross.ui.component.AppStatusBadge
+import com.apkupdateross.ui.component.AppTone
+import com.apkupdateross.ui.component.AppTopBar
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.EmptyGrid
 import com.apkupdateross.ui.component.GridItem
@@ -62,8 +70,8 @@ import com.apkupdateross.ui.component.RefreshIcon
 import com.apkupdateross.ui.component.SwipeToIgnoreBox
 import com.apkupdateross.ui.component.UpdateItem
 import androidx.compose.ui.unit.dp
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.viewmodel.UpdatesViewModel
-import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +84,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,11 +104,7 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 		if (state is UpdatesUiState.Loading) viewModel.refresh()
 	}
 
-	Column(
-		modifier = Modifier
-			.fillMaxSize()
-			.background(MaterialTheme.colorScheme.background)
-	) {
+	AppScreen {
 		UpdatesTopBar(viewModel)
 		SelfUpdateDialog(
 			update = selfUpdate,
@@ -120,7 +125,11 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 					AssistChip(
 						onClick = {},
 						label = { Text(source.name, style = MaterialTheme.typography.labelSmall) },
-						leadingIcon = { CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp) }
+						leadingIcon = { CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp) },
+						colors = AssistChipDefaults.assistChipColors(
+							containerColor = ApkTheme.colors.surfaceSecondary,
+							labelColor = ApkTheme.colors.textSecondary
+						)
 					)
 				}
 				items(failedSources.toList(), key = { "failed_${it.name}" }) { source ->
@@ -132,12 +141,12 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 								Icons.Filled.Warning,
 								contentDescription = null,
 								modifier = Modifier.size(12.dp),
-								tint = MaterialTheme.colorScheme.error
+								tint = ApkTheme.colors.error
 							)
 						},
 						colors = AssistChipDefaults.assistChipColors(
-							containerColor = MaterialTheme.colorScheme.errorContainer,
-							labelColor = MaterialTheme.colorScheme.onErrorContainer
+							containerColor = ApkTheme.colors.error.copy(alpha = 0.18f),
+							labelColor = ApkTheme.colors.error
 						)
 					)
 				}
@@ -194,7 +203,8 @@ private fun SelfUpdateDialog(
 		title = {
 			Text(
 				text = stringResource(R.string.self_update_title),
-				style = MaterialTheme.typography.titleLarge
+				style = MaterialTheme.typography.titleLarge,
+				color = ApkTheme.colors.textPrimary
 			)
 		},
 		text = {
@@ -204,17 +214,18 @@ private fun SelfUpdateDialog(
 				Text(
 					text = stringResource(R.string.self_update_message, update.version, update.versionCode),
 					style = MaterialTheme.typography.bodyLarge,
+					color = ApkTheme.colors.textSecondary,
 					fontWeight = FontWeight.Medium
 				)
 				if (update.whatsNew.isNotBlank()) {
 					Text(
 						text = stringResource(R.string.self_update_whats_new),
 						style = MaterialTheme.typography.titleMedium,
+						color = ApkTheme.colors.textPrimary,
 						modifier = Modifier.padding(top = 16.dp)
 					)
-					Text(
-						text = update.whatsNew.trim(),
-						style = MaterialTheme.typography.bodyMedium,
+					SelfUpdateReleaseNotes(
+						markdown = update.whatsNew,
 						modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
 					)
 				}
@@ -223,6 +234,110 @@ private fun SelfUpdateDialog(
 	)
 }
 
+@Composable
+private fun SelfUpdateReleaseNotes(
+	markdown: String,
+	modifier: Modifier = Modifier
+) {
+	val lines = remember(markdown) { markdown.toReleaseNoteLines() }
+	Column(modifier = modifier) {
+		lines.forEach { line ->
+			when (line) {
+				is ReleaseNoteLine.Heading -> Text(
+					text = line.text,
+					style = if (line.level <= 2) {
+						MaterialTheme.typography.titleSmall
+					} else {
+						MaterialTheme.typography.labelLarge
+					},
+					fontWeight = FontWeight.SemiBold,
+					color = ApkTheme.colors.textPrimary,
+					modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+				)
+				is ReleaseNoteLine.Bullet -> Text(
+					text = "\u2022 ${line.text}",
+					style = MaterialTheme.typography.bodyMedium,
+					color = ApkTheme.colors.textSecondary,
+					modifier = Modifier.padding(start = (8 + line.indent * 12).dp, top = 2.dp)
+				)
+				is ReleaseNoteLine.Paragraph -> Text(
+					text = line.text,
+					style = MaterialTheme.typography.bodyMedium,
+					color = ApkTheme.colors.textSecondary,
+					modifier = Modifier.padding(top = 4.dp)
+				)
+			}
+		}
+	}
+}
+
+private sealed interface ReleaseNoteLine {
+	data class Heading(val text: String, val level: Int) : ReleaseNoteLine
+	data class Bullet(val text: String, val indent: Int) : ReleaseNoteLine
+	data class Paragraph(val text: String) : ReleaseNoteLine
+}
+
+private fun String.toReleaseNoteLines(): List<ReleaseNoteLine> {
+	val result = mutableListOf<ReleaseNoteLine>()
+	var inCodeFence = false
+
+	lineSequence().forEach { rawLine ->
+		val trimmed = rawLine.trim()
+		if (trimmed.startsWith("```")) {
+			inCodeFence = !inCodeFence
+			return@forEach
+		}
+		if (trimmed.isBlank()) return@forEach
+
+		val heading = markdownHeadingRegex.matchEntire(trimmed)
+		if (!inCodeFence && heading != null) {
+			val text = heading.groupValues[2].cleanInlineMarkdown()
+			if (result.isEmpty() && text.isSelfUpdateReleaseHeading()) return@forEach
+			result += ReleaseNoteLine.Heading(text, heading.groupValues[1].length)
+			return@forEach
+		}
+
+		val bullet = markdownBulletRegex.matchEntire(trimmed)
+		if (!inCodeFence && bullet != null) {
+			val indent = (rawLine.takeWhile { it == ' ' || it == '\t' }.length / 2).coerceIn(0, 2)
+			result += ReleaseNoteLine.Bullet(bullet.groupValues[1].cleanInlineMarkdown(), indent)
+			return@forEach
+		}
+
+		val numbered = markdownNumberedRegex.matchEntire(trimmed)
+		if (!inCodeFence && numbered != null) {
+			val indent = (rawLine.takeWhile { it == ' ' || it == '\t' }.length / 2).coerceIn(0, 2)
+			result += ReleaseNoteLine.Bullet(numbered.groupValues[1].cleanInlineMarkdown(), indent)
+			return@forEach
+		}
+
+		result += ReleaseNoteLine.Paragraph(trimmed.cleanInlineMarkdown())
+	}
+
+	return result.ifEmpty { listOf(ReleaseNoteLine.Paragraph(trim().cleanInlineMarkdown())) }
+}
+
+private fun String.cleanInlineMarkdown(): String =
+	replace(markdownImageRegex, "$1")
+		.replace(markdownLinkRegex, "$1")
+		.replace(markdownCodeRegex, "$1")
+		.replace("**", "")
+		.replace("__", "")
+		.replace(Regex("""(^|[^\\])~~"""), "$1")
+		.trim()
+
+private fun String.isSelfUpdateReleaseHeading(): Boolean {
+	val normalized = lowercase(Locale.ROOT)
+	return normalized.contains("apkupdater oss") || normalized.contains("apkupdateross")
+}
+
+private val markdownHeadingRegex = Regex("""^(#{1,6})\s+(.+)$""")
+private val markdownBulletRegex = Regex("""^[-*+]\s+(.+)$""")
+private val markdownNumberedRegex = Regex("""^\d+[.)]\s+(.+)$""")
+private val markdownImageRegex = Regex("""!\[([^\]]*)]\([^)]+\)""")
+private val markdownLinkRegex = Regex("""\[([^\]]+)]\([^)]+\)""")
+private val markdownCodeRegex = Regex("""`([^`]*)`""")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdatesTopBar(viewModel: UpdatesViewModel) {
@@ -230,63 +345,73 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) {
 	val query by viewModel.filterQuery.collectAsStateWithLifecycle()
 	val focusRequester = remember { FocusRequester() }
 
-	TopAppBar(
-		navigationIcon = {
-			if (isSearchMode) {
-				IconButton(onClick = {
-					isSearchMode = false
-					viewModel.setFilterQuery("")
-				}) {
-					Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-				}
+	if (isSearchMode) {
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.statusBarsPadding()
+				.heightIn(min = 64.dp)
+				.padding(horizontal = 12.dp, vertical = 10.dp),
+			verticalAlignment = Alignment.CenterVertically,
+			horizontalArrangement = Arrangement.spacedBy(8.dp)
+		) {
+			IconButton(onClick = {
+				isSearchMode = false
+				viewModel.setFilterQuery("")
+			}) {
+				Icon(
+					Icons.AutoMirrored.Filled.ArrowBack,
+					contentDescription = stringResource(R.string.back),
+					tint = ApkTheme.colors.textSecondary
+				)
 			}
-		},
-		title = {
-			if (isSearchMode) {
-				OutlinedTextField(
-					value = query,
-					onValueChange = { viewModel.setFilterQuery(it) },
-					modifier = Modifier
-						.fillMaxWidth()
-						.padding(0.dp)
-						.focusRequester(focusRequester),
-					placeholder = { Text(stringResource(R.string.filter_updates)) },
-					colors = OutlinedTextFieldDefaults.colors(
-						focusedBorderColor = Color.Transparent,
-						unfocusedBorderColor = Color.Transparent,
-						focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
-						unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f)
-					),
-					shape = MaterialTheme.shapes.medium,
-					maxLines = 1,
-					singleLine = true,
-					trailingIcon = {
-						if (query.isNotEmpty()) {
-							IconButton(onClick = { viewModel.setFilterQuery("") }) {
-								Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear))
-							}
+			OutlinedTextField(
+				value = query,
+				onValueChange = { viewModel.setFilterQuery(it) },
+				modifier = Modifier
+					.weight(1f)
+					.focusRequester(focusRequester),
+				placeholder = { Text(stringResource(R.string.filter_updates)) },
+				colors = OutlinedTextFieldDefaults.colors(
+					focusedBorderColor = ApkTheme.colors.accent.copy(alpha = 0.55f),
+					unfocusedBorderColor = ApkTheme.colors.divider,
+					focusedContainerColor = ApkTheme.colors.surfaceElevated,
+					unfocusedContainerColor = ApkTheme.colors.surfaceElevated,
+					focusedTextColor = ApkTheme.colors.textPrimary,
+					unfocusedTextColor = ApkTheme.colors.textPrimary,
+					focusedPlaceholderColor = ApkTheme.colors.textTertiary,
+					unfocusedPlaceholderColor = ApkTheme.colors.textTertiary,
+					cursorColor = ApkTheme.colors.accent
+				),
+				shape = ApkTheme.shapes.lg,
+				maxLines = 1,
+				singleLine = true,
+				trailingIcon = {
+					if (query.isNotEmpty()) {
+						IconButton(onClick = { viewModel.setFilterQuery("") }) {
+							Icon(
+								Icons.Default.Close,
+								contentDescription = stringResource(R.string.clear),
+								tint = ApkTheme.colors.textSecondary
+							)
 						}
 					}
-				)
-				LaunchedEffect(Unit) {
-					focusRequester.requestFocus()
 				}
-			} else {
-				Text(stringResource(R.string.tab_updates), style = MaterialTheme.typography.headlineSmall)
-			}
-		},
-		colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-		actions = {
-			if (!isSearchMode) {
-				IconButton(onClick = { isSearchMode = true }) {
-					Icon(Icons.Default.Search, contentDescription = stringResource(R.string.tab_search))
-				}
+			)
+		}
+		LaunchedEffect(Unit) {
+			focusRequester.requestFocus()
+		}
+	} else {
+		AppTopBar(title = stringResource(R.string.tab_updates)) {
+			IconButton(onClick = { isSearchMode = true }) {
+				Icon(Icons.Default.Search, contentDescription = stringResource(R.string.tab_search))
 			}
 			IconButton(onClick = { viewModel.refresh() }) {
 				RefreshIcon(stringResource(R.string.refresh_updates))
 			}
 		}
-	)
+	}
 }
 
 @Composable
@@ -329,7 +454,7 @@ fun Grid(
 				onIgnore = { viewModel.ignoreVersion(update.id) },
 				enabled = swipeIgnoreEnabled,
 				swipeDirection = swipeIgnoreDirection,
-				shape = MaterialTheme.shapes.medium
+				shape = ApkTheme.shapes.md
 			) {
 				if (compactMode) {
 					GridItem(
@@ -393,27 +518,47 @@ private fun InstallAllButton(
 	isInstalling: Boolean,
 	onClick: () -> Unit
 ) {
-	FilledTonalButton(
-		onClick = onClick,
-		enabled = count > 0 && !isInstalling,
-		modifier = Modifier.fillMaxWidth()
+	val enabled = count > 0 && !isInstalling
+	Surface(
+		modifier = Modifier.fillMaxWidth(),
+		shape = ApkTheme.shapes.lg,
+		color = if (enabled) ApkTheme.colors.surfaceHighlight else ApkTheme.colors.surfaceSecondary,
+		contentColor = if (enabled) ApkTheme.colors.accent else ApkTheme.colors.disabled,
+		border = androidx.compose.foundation.BorderStroke(
+			1.dp,
+			if (enabled) ApkTheme.colors.accent.copy(alpha = 0.42f) else ApkTheme.colors.divider
+		)
 	) {
-		if (isInstalling) {
-			CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-		} else {
-			Icon(
-				painter = painterResource(R.drawable.ic_install),
-				contentDescription = null,
-				modifier = Modifier.size(18.dp)
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.clickable(enabled = enabled, onClick = onClick)
+				.padding(horizontal = 16.dp, vertical = 12.dp),
+			horizontalArrangement = Arrangement.Center,
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			if (isInstalling) {
+				CircularProgressIndicator(
+					Modifier.size(18.dp),
+					color = ApkTheme.colors.accent,
+					strokeWidth = 2.dp
+				)
+			} else {
+				Icon(
+					painter = painterResource(R.drawable.ic_install),
+					contentDescription = null,
+					modifier = Modifier.size(18.dp)
+				)
+			}
+			Spacer(Modifier.width(8.dp))
+			Text(
+				text = if (count > 0) {
+					"${stringResource(R.string.update_all)} ($count)"
+				} else {
+					stringResource(R.string.update_all)
+				},
+				style = MaterialTheme.typography.labelLarge
 			)
 		}
-		Spacer(Modifier.width(8.dp))
-		Text(
-			text = if (count > 0) {
-				"${stringResource(R.string.update_all)} ($count)"
-			} else {
-				stringResource(R.string.update_all)
-			}
-		)
 	}
 }

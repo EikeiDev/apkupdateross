@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import com.apkupdateross.R
+import com.apkupdateross.ui.theme.ApkTheme
 
 @Composable
 fun LoadingGrid() {
@@ -28,8 +29,8 @@ private fun ShimmeringGrid() = InstalledGrid(false) {
     items(16) {
         Box(
             Modifier
-                .height(140.dp)
-                .clip(MaterialTheme.shapes.medium)
+                .height(132.dp)
+                .clip(ApkTheme.shapes.md)
                 .shimmering(true)
         )
     }
@@ -40,7 +41,12 @@ fun EmptyGrid(
     text: String = ""
 ) = Box(Modifier.fillMaxSize()) {
     if (text.isNotEmpty()) {
-        MediumTitle(text, Modifier.align(Alignment.Center))
+        AppStateMessage(
+            title = text,
+            icon = R.drawable.ic_empty,
+            tone = AppTone.Neutral,
+            modifier = Modifier.align(Alignment.Center)
+        )
     }
     LazyColumn(Modifier.fillMaxSize()) {}
 }
@@ -54,9 +60,9 @@ fun InstalledGrid(
     content: LazyGridScope.() -> Unit
 ) = LazyVerticalGrid(
     columns = GridCells.Fixed(getNumColumns(compactMode, portraitColumns, landscapeColumns)),
-    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
-    verticalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 16.dp),
-    horizontalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 16.dp),
+    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp),
+    verticalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 14.dp),
+    horizontalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 14.dp),
     content = content,
     userScrollEnabled = scroll,
     modifier = Modifier.fillMaxSize()

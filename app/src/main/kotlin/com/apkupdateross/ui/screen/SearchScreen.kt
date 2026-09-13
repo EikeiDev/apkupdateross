@@ -2,7 +2,6 @@ package com.apkupdateross.ui.screen
 
 import android.content.Context
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,8 +9,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -30,8 +31,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,11 +58,15 @@ import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.ui.activity.UptodownDownloadActivity
+import com.apkupdateross.ui.component.AppScreen
+import com.apkupdateross.ui.component.AppStateMessage
+import com.apkupdateross.ui.component.AppTone
 import com.apkupdateross.ui.component.DefaultErrorScreen
 import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.SearchItem
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.viewmodel.SearchViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -77,11 +80,7 @@ fun SearchScreen(
     val portraitColumns by viewModel.portraitColumns.collectAsStateWithLifecycle()
     val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    AppScreen {
         SearchTopBar(viewModel)
         state.onError {
             DefaultErrorScreen()
@@ -104,6 +103,15 @@ fun SearchScreenSuccess(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val updates = state.updates
+
+    if (updates.isEmpty()) {
+        AppStateMessage(
+            title = stringResource(R.string.search_no_results),
+            icon = R.drawable.ic_empty,
+            tone = AppTone.Neutral
+        )
+        return@Column
+    }
 
     InstalledGrid(
         compactMode = compactMode,
@@ -134,11 +142,6 @@ fun SearchScreenSuccess(
             }
         }
     }
-
-    if (updates.isEmpty()) {
-        Spacer(modifier = Modifier.height(16.dp))
-        SearchNoResultsBanner()
-    }
 }
 
 private fun installSearchUpdate(
@@ -168,10 +171,16 @@ private fun downloadSearchUpdate(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchTopBar(viewModel: SearchViewModel) = TopAppBar(
-    title = { SearchText(viewModel) },
-    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-)
+fun SearchTopBar(viewModel: SearchViewModel) = Row(
+    modifier = Modifier
+        .fillMaxWidth()
+        .statusBarsPadding()
+        .heightIn(min = 64.dp)
+        .padding(horizontal = 16.dp, vertical = 10.dp),
+    verticalAlignment = Alignment.CenterVertically
+) {
+    SearchText(viewModel)
+}
 
 @Composable
 fun SearchText(viewModel: SearchViewModel) = Box {
@@ -190,11 +199,14 @@ fun SearchText(viewModel: SearchViewModel) = Box {
         onValueChange = { value = it },
         modifier = Modifier
             .fillMaxWidth()
-            .padding(end = 12.dp, top = 4.dp, bottom = 4.dp)
             .focusRequester(focusRequester),
         placeholder = { Text(stringResource(R.string.tab_search)) },
         leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.tab_search))
+            Icon(
+                Icons.Default.Search,
+                contentDescription = stringResource(R.string.tab_search),
+                tint = ApkTheme.colors.textSecondary
+            )
         },
         trailingIcon = {
             if (value.isNotEmpty()) {
@@ -202,7 +214,11 @@ fun SearchText(viewModel: SearchViewModel) = Box {
                     value = ""
                     viewModel.search("") 
                 }) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear))
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.clear),
+                        tint = ApkTheme.colors.textSecondary
+                    )
                 }
             } else {
                 SearchFilterAction(viewModel)
@@ -210,12 +226,17 @@ fun SearchText(viewModel: SearchViewModel) = Box {
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
-        shape = MaterialTheme.shapes.medium,
+        shape = ApkTheme.shapes.lg,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color.Transparent,
-            unfocusedBorderColor = Color.Transparent,
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+            focusedBorderColor = ApkTheme.colors.accent.copy(alpha = 0.55f),
+            unfocusedBorderColor = ApkTheme.colors.divider,
+            focusedContainerColor = ApkTheme.colors.surfaceElevated,
+            unfocusedContainerColor = ApkTheme.colors.surfaceElevated,
+            focusedTextColor = ApkTheme.colors.textPrimary,
+            unfocusedTextColor = ApkTheme.colors.textPrimary,
+            focusedPlaceholderColor = ApkTheme.colors.textTertiary,
+            unfocusedPlaceholderColor = ApkTheme.colors.textTertiary,
+            cursorColor = ApkTheme.colors.accent
         ),
         maxLines = 1,
         singleLine = true
@@ -243,7 +264,8 @@ private fun SearchFilterAction(viewModel: SearchViewModel) {
     IconButton(onClick = { showDialog = true }) {
         Icon(
             imageVector = Icons.Default.Menu,
-            contentDescription = stringResource(R.string.search_filter_button)
+            contentDescription = stringResource(R.string.search_filter_button),
+            tint = ApkTheme.colors.textSecondary
         )
     }
 
@@ -324,7 +346,7 @@ private fun SearchFilterDialog(
                 Text(
                     text = stringResource(R.string.search_filter_hint),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = ApkTheme.colors.textSecondary
                 )
             }
         }
@@ -337,13 +359,13 @@ private fun SearchNoResultsBanner() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = ApkTheme.shapes.md,
+        color = ApkTheme.colors.surfaceSecondary
     ) {
         Text(
             text = stringResource(R.string.search_no_results),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = ApkTheme.colors.textSecondary
         )
     }
 }

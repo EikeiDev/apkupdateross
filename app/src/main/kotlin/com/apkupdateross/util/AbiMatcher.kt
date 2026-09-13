@@ -31,6 +31,9 @@ object AbiMatcher {
         }
     }
 
+    fun detectAbis(value: String): List<String> =
+        detectAbiTags(value).toList()
+
     fun <T> selectCompatible(
         items: List<T>,
         supportedAbis: List<String>,

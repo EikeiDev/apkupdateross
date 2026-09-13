@@ -1,6 +1,10 @@
 package com.apkupdateross.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.result.ActivityResultLauncher
 import com.apkupdateross.R
 import com.apkupdateross.data.git.CustomGitRepo
@@ -65,6 +69,7 @@ class SettingsViewModel(
     val ignoredUpdateInfos = prefs.ignoredUpdateInfosFlow
 	val useCompactView = prefs.useCompactViewFlow
 	val swipeIgnoreEnabled = prefs.swipeIgnoreEnabledFlow
+	val downloadFolderUri = prefs.downloadFolderUriFlow
 	
 	private val _installModeFlow = MutableStateFlow(prefs.installMode.get())
 	val installModeFlow = _installModeFlow.asStateFlow()
@@ -173,6 +178,20 @@ class SettingsViewModel(
 	fun getSwipeIgnoreEnabled() = prefs.swipeIgnoreEnabled.get()
 	fun getSwipeIgnoreDirection() = SwipeIgnoreDirection.fromIndex(prefs.swipeIgnoreDirection.get()).ordinal
 	fun getUseCompactView() = prefs.useCompactView.get()
+	fun getDownloadFolderLabel(uriString: String = prefs.downloadFolderUri.get()): String {
+		if (uriString.isBlank()) return stringer.get(R.string.download_folder_default)
+		return runCatching {
+			val documentId = DocumentsContract.getTreeDocumentId(Uri.parse(uriString))
+			val path = documentId.substringAfter(':', "")
+			val volume = documentId.substringBefore(':', "")
+			when {
+				path.isNotBlank() -> path
+				volume.equals("primary", ignoreCase = true) -> stringer.get(R.string.download_folder_storage_root)
+				volume.isNotBlank() -> volume
+				else -> stringer.get(R.string.download_folder_custom)
+			}
+		}.getOrDefault(stringer.get(R.string.download_folder_custom))
+	}
 
 	fun setUseCompactView(b: Boolean) = prefs.setUseCompactView(b)
 
@@ -187,6 +206,36 @@ class SettingsViewModel(
 
 	fun setSwipeIgnoreDirection(index: Int) {
 		prefs.setSwipeIgnoreDirection(SwipeIgnoreDirection.fromIndex(index))
+	}
+
+	fun setDownloadFolderUri(context: Context, uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+		runCatching {
+			val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+			runCatching {
+				context.contentResolver.takePersistableUriPermission(uri, flags)
+			}.recoverCatching {
+				context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+			}.getOrThrow()
+			prefs.setDownloadFolderUri(uri.toString())
+		}.onSuccess {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_folder_selected)))
+		}.onFailure {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_folder_select_failed)))
+		}
+	}
+
+	fun resetDownloadFolder(context: Context) {
+		val current = prefs.downloadFolderUri.get()
+		if (current.isNotBlank()) {
+			val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+			runCatching {
+				context.contentResolver.releasePersistableUriPermission(Uri.parse(current), flags)
+			}.recoverCatching {
+				context.contentResolver.releasePersistableUriPermission(Uri.parse(current), Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+			}
+		}
+		prefs.setDownloadFolderUri("")
+		snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_folder_reset_done)))
 	}
 
 	fun getCustomThemeAccent() = prefs.customThemeAccent.get()

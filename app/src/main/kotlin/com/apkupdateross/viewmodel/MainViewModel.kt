@@ -7,6 +7,7 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.result.ActivityResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.apkupdateross.BuildConfig
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.apkupdateross.data.ui.AppInstallStatus
@@ -64,6 +65,15 @@ class MainViewModel(
 	}
 
 	fun getLastRoute() = prefs.lastTab.get()
+
+	fun shouldShowDebugReleaseWarning(): Boolean =
+		BuildConfig.DEBUG && prefs.lastDebugReleaseWarningVersionCode.get() < BuildConfig.VERSION_CODE
+
+	fun dismissDebugReleaseWarning() {
+		if (BuildConfig.DEBUG) {
+			prefs.lastDebugReleaseWarningVersionCode.put(BuildConfig.VERSION_CODE.toLong())
+		}
+	}
 
 	private fun processInstallIntent(
 		intent: Intent,

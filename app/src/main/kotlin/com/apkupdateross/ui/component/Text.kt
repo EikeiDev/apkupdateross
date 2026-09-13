@@ -30,11 +30,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.prefs.Prefs
 import androidx.compose.ui.graphics.Color
+import com.apkupdateross.ui.theme.ApkTheme
 import org.koin.compose.koinInject
 
 
 @Composable
-fun SmallText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) = Text(
+fun SmallText(text: String, modifier: Modifier = Modifier, color: Color = ApkTheme.colors.textTertiary) = Text(
     text = text,
     style = MaterialTheme.typography.bodySmall,
     color = color,
@@ -48,7 +49,7 @@ fun MediumText(
     text: String,
     modifier: Modifier = Modifier,
     maxLines: Int = 1,
-    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    color: Color = ApkTheme.colors.textSecondary
 ) = Text(
     text = text,
     style = MaterialTheme.typography.bodyMedium,
@@ -63,6 +64,7 @@ fun MediumTitle(text: String, modifier: Modifier = Modifier) = Text(
     text = text,
     style = MaterialTheme.typography.titleMedium,
     fontWeight = FontWeight.Bold,
+    color = ApkTheme.colors.textPrimary,
     maxLines = 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
@@ -73,6 +75,7 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) = Text(
     text = text,
     style = MaterialTheme.typography.titleMedium,
     fontWeight = FontWeight.SemiBold,
+    color = ApkTheme.colors.textPrimary,
     maxLines = 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
@@ -125,8 +128,11 @@ fun ScrollableText(
 @Composable
 fun BadgeText(number: String) {
     if (number.isNotEmpty()) {
-        Badge {
-            Text(number)
+        Badge(
+            containerColor = ApkTheme.colors.error,
+            contentColor = Color.White
+        ) {
+            Text(number, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -139,10 +145,16 @@ fun ExpandingAnnotatedText(
     style: TextStyle = MaterialTheme.typography.bodySmall,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+    val displayText = if (text.length > 0 && text.text.last() == '\n') {
+        text.subSequence(0, text.length - 1)
+    } else {
+        text
+    }
     Text(
-        text =  if (text.text.last() == '\n') text.subSequence(0, text.length - 1) else text,
+        text = displayText,
         maxLines = if (isExpanded) Int.MAX_VALUE else minLines,
         style = style,
+        color = ApkTheme.colors.textSecondary,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .clickable(true) { isExpanded = !isExpanded }

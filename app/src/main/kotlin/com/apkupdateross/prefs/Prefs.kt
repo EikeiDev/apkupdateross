@@ -65,6 +65,7 @@ class Prefs(
 	val customThemeBackground = string("customThemeBackground", defValue = "#101312", backed = true)
 	val customThemeSurface = string("customThemeSurface", defValue = "#151917", backed = true)
 	val customThemeNavigation = string("customThemeNavigation", defValue = "#15231D", backed = true)
+	val downloadFolderUri = string("downloadFolderUri", defValue = "", backed = true)
 	val lastTab = string("lastTab", defValue = Screen.Updates.route, backed = true)
 	val playAuthData = json("playAuthData", AuthData("", ""), true)
 	val lastPlayCheck = long("lastPlayCheck", 0L, true)
@@ -72,6 +73,7 @@ class Prefs(
 	val lastUpdateCheckTimestamp = long("lastUpdateCheckTimestamp", 0L, true)
 	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
 	val lastSelfUpdateVersionCode = long("lastSelfUpdateVersionCode", 0L, true)
+	val lastDebugReleaseWarningVersionCode = long("lastDebugReleaseWarningVersionCode", 0L, true)
 	val customGitRepos = json("customGitRepos", emptyList<CustomGitRepo>(), true)
 	val useCompactView = boolean("useCompactView", defValue = false, backed = true)
 	val globalTimeoutSec = int("globalTimeoutSec", defValue = 30, backed = true)
@@ -98,6 +100,9 @@ class Prefs(
 	private val _swipeIgnoreDirectionFlow = kotlinx.coroutines.flow.MutableStateFlow(SwipeIgnoreDirection.fromIndex(swipeIgnoreDirection.get()))
 	val swipeIgnoreDirectionFlow = _swipeIgnoreDirectionFlow.asStateFlow()
 
+	private val _downloadFolderUriFlow = kotlinx.coroutines.flow.MutableStateFlow(downloadFolderUri.get())
+	val downloadFolderUriFlow = _downloadFolderUriFlow.asStateFlow()
+
 	fun setUseCompactView(b: Boolean) {
 		useCompactView.put(b)
 		_useCompactViewFlow.value = b
@@ -121,6 +126,11 @@ class Prefs(
 	fun setSwipeIgnoreDirection(direction: SwipeIgnoreDirection) {
 		swipeIgnoreDirection.put(direction.ordinal)
 		_swipeIgnoreDirectionFlow.value = direction
+	}
+
+	fun setDownloadFolderUri(uri: String) {
+		downloadFolderUri.put(uri)
+		_downloadFolderUriFlow.value = uri
 	}
 
 	fun setIgnoredVersions(list: List<Int>, infos: List<com.apkupdateross.data.ui.IgnoredUpdateInfo>) {

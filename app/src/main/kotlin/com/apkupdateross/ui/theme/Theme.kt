@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.apkupdateross.util.isDark
 
 private val ApkDarkColors = darkColorScheme(
@@ -74,20 +75,53 @@ private val ApkLightColors = lightColorScheme(
 )
 
 private val ApkShapes = Shapes(
-	extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-	small = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-	medium = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-	large = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-	extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+	extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+	small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+	medium = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+	large = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+	extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
 )
 
 private val DefaultTypography = Typography()
 private val ApkTypography = Typography(
-	displaySmall = DefaultTypography.displaySmall.copy(fontWeight = FontWeight.Bold),
-	headlineSmall = DefaultTypography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-	titleLarge = DefaultTypography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-	titleMedium = DefaultTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-	labelLarge = DefaultTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+	displaySmall = DefaultTypography.displaySmall.copy(
+		fontSize = 30.sp,
+		lineHeight = 36.sp,
+		fontWeight = FontWeight.Bold
+	),
+	headlineSmall = DefaultTypography.headlineSmall.copy(
+		fontSize = 24.sp,
+		lineHeight = 30.sp,
+		fontWeight = FontWeight.SemiBold
+	),
+	titleLarge = DefaultTypography.titleLarge.copy(
+		fontSize = 20.sp,
+		lineHeight = 26.sp,
+		fontWeight = FontWeight.SemiBold
+	),
+	titleMedium = DefaultTypography.titleMedium.copy(
+		fontSize = 17.sp,
+		lineHeight = 22.sp,
+		fontWeight = FontWeight.SemiBold
+	),
+	bodyLarge = DefaultTypography.bodyLarge.copy(
+		fontSize = 16.sp,
+		lineHeight = 22.sp
+	),
+	bodyMedium = DefaultTypography.bodyMedium.copy(
+		fontSize = 14.sp,
+		lineHeight = 20.sp
+	),
+	labelLarge = DefaultTypography.labelLarge.copy(
+		fontSize = 13.sp,
+		lineHeight = 18.sp,
+		fontWeight = FontWeight.SemiBold
+	),
+	labelSmall = DefaultTypography.labelSmall.copy(
+		fontSize = 11.sp,
+		lineHeight = 14.sp,
+		fontWeight = FontWeight.Medium
+	)
 )
 
 const val THEME_MODE_SYSTEM = 0
@@ -114,7 +148,11 @@ data class AppThemeState(
 )
 
 data class AppExtraColors(
-	val navigationBar: Color? = null
+	val navigationBar: Color? = null,
+	val onNavigationBar: Color? = null,
+	val navigationIndicator: Color? = null,
+	val onNavigationIndicator: Color? = null,
+	val selectedNavigationText: Color? = null
 )
 
 val LocalAppExtraColors = staticCompositionLocalOf { AppExtraColors() }
@@ -135,17 +173,30 @@ fun AppTheme(
 		else -> ApkLightColors
 	}
 	val extraColors = if (theme.mode == THEME_MODE_CUSTOM) {
+		val navigationBar = colorFromHex(
+			theme.customColors.navigationHex,
+			colorScheme.surfaceColorAtElevation(6.dp)
+		)
+		val onNavigationBar = contentColorFor(navigationBar)
+		val navigationIndicator = navigationIndicatorFor(
+			colorFromHex(theme.customColors.accentHex, Color(0xFF74D7B2)),
+			navigationBar
+		)
 		AppExtraColors(
-			navigationBar = colorFromHex(
-				theme.customColors.navigationHex,
-				colorScheme.surfaceColorAtElevation(6.dp)
-			)
+			navigationBar = navigationBar,
+			onNavigationBar = onNavigationBar,
+			navigationIndicator = navigationIndicator,
+			onNavigationIndicator = contentColorFor(navigationIndicator),
+			selectedNavigationText = preferredReadableColor(colorScheme.primary, navigationBar, onNavigationBar)
 		)
 	} else {
 		AppExtraColors()
 	}
 
-	CompositionLocalProvider(LocalAppExtraColors provides extraColors) {
+	CompositionLocalProvider(
+		LocalAppExtraColors provides extraColors,
+		LocalAppColors provides colorScheme.toAppColors(theme.darkTheme)
+	) {
 		MaterialTheme(
 			colorScheme = colorScheme,
 			typography = ApkTypography,
@@ -188,12 +239,13 @@ private fun customColorScheme(colors: CustomThemeColors): ColorScheme {
 	val base = if (dark) ApkDarkColors else ApkLightColors
 	val onBackground = contentColorFor(background)
 	val onSurface = contentColorFor(surface)
+	val primary = readableAccentOn(readableAccentOn(accent, background), surface)
 	val primaryContainer = if (dark) lerp(accent, Color.Black, 0.55f) else lerp(accent, Color.White, 0.72f)
 	val surfaceVariant = lerp(surface, onSurface, if (dark) 0.12f else 0.08f)
 
 	return base.copy(
-		primary = accent,
-		onPrimary = contentColorFor(accent),
+		primary = primary,
+		onPrimary = contentColorFor(primary),
 		primaryContainer = primaryContainer,
 		onPrimaryContainer = contentColorFor(primaryContainer),
 		background = background,
@@ -204,9 +256,51 @@ private fun customColorScheme(colors: CustomThemeColors): ColorScheme {
 		onSurfaceVariant = lerp(onSurface, surface, 0.18f),
 		outline = lerp(onSurface, surface, 0.45f),
 		outlineVariant = lerp(onSurface, surface, 0.72f),
-		surfaceTint = accent
+		surfaceTint = accent,
+		surfaceDim = surface,
+		surfaceBright = surfaceVariant,
+		surfaceContainerLowest = surface,
+		surfaceContainerLow = surface,
+		surfaceContainer = surface,
+		surfaceContainerHigh = surfaceVariant,
+		surfaceContainerHighest = surfaceVariant
 	)
 }
 
 private fun contentColorFor(background: Color): Color =
 	if (background.luminance() > 0.45f) Color(0xFF111418) else Color.White
+
+private fun preferredReadableColor(
+	preferred: Color,
+	background: Color,
+	fallback: Color,
+	minContrast: Float = 3f
+): Color =
+	if (contrastRatio(preferred, background) >= minContrast) preferred else fallback
+
+private fun readableAccentOn(accent: Color, background: Color, minContrast: Float = 3f): Color {
+	if (contrastRatio(accent, background) >= minContrast) return accent
+	val target = if (background.luminance() > 0.5f) Color.Black else Color.White
+	var amount = 0.12f
+	while (amount <= 0.84f) {
+		val candidate = lerp(accent, target, amount)
+		if (contrastRatio(candidate, background) >= minContrast) return candidate
+		amount += 0.12f
+	}
+	return target
+}
+
+private fun navigationIndicatorFor(accent: Color, navigationBar: Color): Color {
+	val target = if (navigationBar.luminance() > 0.5f) Color.Black else Color.White
+	val amount = if (contrastRatio(accent, navigationBar) >= 1.8f) 0.12f else 0.36f
+	val candidate = lerp(accent, target, amount)
+	return if (contrastRatio(candidate, navigationBar) >= 1.35f) candidate else target
+}
+
+private fun contrastRatio(first: Color, second: Color): Float {
+	val firstLum = first.luminance()
+	val secondLum = second.luminance()
+	val lighter = maxOf(firstLum, secondLum)
+	val darker = minOf(firstLum, secondLum)
+	return (lighter + 0.05f) / (darker + 0.05f)
+}

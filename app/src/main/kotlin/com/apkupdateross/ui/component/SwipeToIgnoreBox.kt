@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.data.ui.SwipeIgnoreDirection
+import com.apkupdateross.ui.theme.ApkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +62,7 @@ fun SwipeToIgnoreBox(
     val enableStartToEnd = swipeDirection.allowsStartToEnd(layoutDirection)
     val enableEndToStart = swipeDirection.allowsEndToStart(layoutDirection)
     val dismissState = rememberSwipeToDismissBoxState(
-        positionalThreshold = { distance -> distance * 0.62f },
+        positionalThreshold = { distance -> distance * 0.72f },
         confirmValueChange = { value ->
             val shouldConfirm = when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> enableStartToEnd
@@ -99,8 +100,18 @@ fun SwipeToIgnoreBox(
                     Text(cancelLabel)
                 }
             },
-            title = { Text(title) },
-            text = { Text(message) }
+            title = {
+                Text(
+                    text = title,
+                    color = ApkTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = message,
+                    color = ApkTheme.colors.textSecondary
+                )
+            }
         )
     }
 
@@ -108,10 +119,10 @@ fun SwipeToIgnoreBox(
     val isSwipeActive = direction != SwipeToDismissBoxValue.Settled ||
         dismissState.targetValue != SwipeToDismissBoxValue.Settled
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSwipeActive) MaterialTheme.colorScheme.errorContainer else Color.Transparent,
+        targetValue = if (isSwipeActive) ApkTheme.colors.error.copy(alpha = 0.14f) else Color.Transparent,
         label = "swipeIgnoreBackground"
     )
-    val contentColor = MaterialTheme.colorScheme.onErrorContainer
+    val contentColor = ApkTheme.colors.error
     val fromStart = direction == SwipeToDismissBoxValue.StartToEnd
 
     SwipeToDismissBox(

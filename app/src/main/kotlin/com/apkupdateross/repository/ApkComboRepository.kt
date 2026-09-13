@@ -10,7 +10,7 @@ import com.apkupdateross.data.ui.Link
 import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.AbiMatcher
-import com.apkupdateross.util.versionCodeFromTag
+import com.apkupdateross.util.AppUserAgent
 import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -67,7 +68,7 @@ class ApkComboRepository(
                 .map { result ->
                     async(Dispatchers.IO) {
                         limiter.withPermit {
-                            loadDetails(result.url, result.packageName, result)?.toAppUpdate(null)
+                            loadDetailsSafely(result.url, result.packageName, result)?.toAppUpdate(null)
                         }
                     }
                 }
@@ -80,12 +81,8 @@ class ApkComboRepository(
         Log.e("ApkComboRepository", "Error searching.", it)
     }
 
-    private fun checkUpdate(app: AppInstalled): AppUpdate? {
-        val appUrl = appUrlCache[app.packageName]
-            ?: findAppUrl(app.packageName, app.packageName)?.also { appUrlCache[app.packageName] = it }
-            ?: return null
-
-        val details = loadDetails(appUrl, app.packageName) ?: return null
+    private fun checkUpdate(app: AppInstalled): AppUpdate? = runCatching {
+        val details = loadDetailsForPackage(app.packageName) ?: return null
         if (!details.packageName.equals(app.packageName, ignoreCase = true)) {
             appUrlCache.remove(app.packageName)
             return null
@@ -97,6 +94,30 @@ class ApkComboRepository(
         if (!shouldInclude(details.releaseType)) return null
 
         return details.toAppUpdate(app, variant)
+    }.getOrElse {
+        Log.w("ApkComboRepository", "Could not check ${app.packageName}", it)
+        null
+    }
+
+    private fun loadDetailsForPackage(packageName: String): ApkComboDetails? {
+        appUrlCache[packageName]?.let { cachedUrl ->
+            val cachedDetails = loadDetailsSafely(cachedUrl, packageName)
+            if (cachedDetails != null && cachedDetails.packageName.equals(packageName, ignoreCase = true)) {
+                return cachedDetails
+            }
+            appUrlCache.remove(packageName)
+        }
+
+        val directDetails = loadDetailsSafely(packageDownloadUrl(packageName), packageName)
+        if (directDetails != null && directDetails.packageName.equals(packageName, ignoreCase = true)) {
+            appUrlCache[packageName] = directDetails.sourceUrl
+            return directDetails
+        }
+
+        val appUrl = findAppUrl(packageName, packageName) ?: return null
+        return loadDetailsSafely(appUrl, packageName)
+            ?.takeIf { it.packageName.equals(packageName, ignoreCase = true) }
+            ?.also { appUrlCache[packageName] = it.sourceUrl }
     }
 
     private fun findAppUrl(query: String, packageName: String? = null): String? {
@@ -115,10 +136,21 @@ class ApkComboRepository(
             .toString()
 
         val doc = requestDocument(url)
-        return doc.select("div.content.content-apps a.l_item[href], a.l_item[href]")
+        return doc.select("div.content.content-apps a.l_item[href], a.l_item[href], a.lapp[href]")
             .mapNotNull { it.toSearchResult() }
             .distinctBy { it.packageName.lowercase(Locale.ROOT) }
     }
+
+    private fun loadDetailsSafely(
+        pageUrl: String,
+        fallbackPackageName: String? = null,
+        searchResult: ApkComboSearchResult? = null
+    ): ApkComboDetails? =
+        runCatching { loadDetails(pageUrl, fallbackPackageName, searchResult) }
+            .getOrElse {
+                Log.w("ApkComboRepository", "Could not load details from $pageUrl", it)
+                null
+            }
 
     private fun loadDetails(
         pageUrl: String,
@@ -136,34 +168,46 @@ class ApkComboRepository(
             ?: fallbackPackageName?.takeIf { packageRegex.matches(it) }
             ?: return null
 
+        val titleName = doc.selectFirst(".app_header .app_name h1, div.app_name h1, div.app_name")
+            ?.text()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: doc.title().appNameFromTitle()
+            ?: searchResult?.name
+            ?: packageName
+        val metaDescription = doc.selectFirst("meta[name=description]")
+            ?.attr("content")
+            .orEmpty()
         val versionFromTable = doc.infoValue("Version")?.text().orEmpty()
         val version = doc.selectFirst(".app_header .version, div.version")
             ?.text()
             ?.cleanVersionName()
             ?.takeIf { it.isNotBlank() }
+            ?: doc.selectFirst("span.vername")
+                ?.text()
+                ?.cleanVariantVersionName(titleName, packageName)
+                ?.takeIf { it.isNotBlank() }
             ?: versionFromTable.cleanVersionName().takeIf { it.isNotBlank() }
+            ?: metaDescription.versionFromMetaDescription()
             ?: return null
 
-        val variants = runCatching { loadVariants(normalizedUrl) }
+        val variants = runCatching { loadVariants(normalizedUrl, packageName) }
             .getOrElse {
                 Log.w("ApkComboRepository", "Could not load variants for $packageName", it)
                 emptyList()
             }
 
         val versionCode = parseVersionCode(versionFromTable)
+            ?: parseVersionCode(doc.selectFirst("span.vercode")?.text().orEmpty())
             ?: variants.maxOfOrNull { it.versionCode }?.takeIf { it > 0L }
             ?: 0L
 
-        val name = doc.selectFirst(".app_header .app_name h1, div.app_name h1, div.app_name")
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: searchResult?.name
-            ?: packageName
+        val name = titleName
         val author = doc.selectFirst(".app_header .author, div.author")
             ?.text()
             ?.trim()
             ?.takeIf { it.isNotBlank() }
+            ?: metaDescription.authorFromMetaDescription(packageName)
             ?: searchResult?.author
             ?: name
         val iconUrl = doc.selectFirst("meta[name=thumbnail]")
@@ -191,15 +235,37 @@ class ApkComboRepository(
         )
     }
 
-    private fun loadVariants(pageUrl: String): List<ApkComboVariant> {
+    private fun loadVariants(pageUrl: String, packageName: String): List<ApkComboVariant> {
         val downloadUrl = "${pageUrl.trimEnd('/')}/download/apk"
         val doc = requestDocument(downloadUrl, referer = pageUrl)
+        val checkin = if (doc.html().contains("/r2?u=", ignoreCase = true)) {
+            requestCheckin(downloadUrl)
+        } else {
+            null
+        }
+
+        val staticVariants = extractVariants(doc, packageName, checkin)
+        if (staticVariants.isNotEmpty()) return staticVariants
+
+        val dynamicDoc = requestDynamicDownloadDocument(doc, packageName, downloadUrl) ?: return emptyList()
+        return extractVariants(dynamicDoc, packageName, checkin)
+    }
+
+    private fun extractVariants(
+        doc: Document,
+        packageName: String,
+        checkin: String?
+    ): List<ApkComboVariant> {
         val groups = doc.select("#variants-tab div.tree > ul > li, #download-tab div.tree > ul > li")
-            .ifEmpty { doc.select("a.variant[href]").map { it.parent() ?: it } }
+            .ifEmpty {
+                doc.select("a.variant[href], a[href*=/r2?u=], a[href*=.apk], a[href*=.xapk], a[href*=.apks]")
+                    .map { it.parent() ?: it }
+            }
 
         return groups.flatMap { group ->
-            val arches = parseArches(group.selectFirst("code")?.text().orEmpty())
-            group.select("a.variant[href]").mapNotNull { it.toVariant(arches) }
+            val groupArches = parseArches(group.selectFirst("code")?.text().orEmpty())
+            group.select("a.variant[href], a[href*=/r2?u=], a[href*=.apk], a[href*=.xapk], a[href*=.apks]")
+                .mapNotNull { it.toVariant(groupArches.ifEmpty { it.nearbyArches() }, packageName, checkin) }
         }.distinctBy { it.url }
     }
 
@@ -227,9 +293,11 @@ class ApkComboRepository(
     }
 
     private fun ApkComboDetails.preferredVariant(): ApkComboVariant? {
+        val supportedAbis = Build.SUPPORTED_ABIS.toList()
         val compatible = variants
             .filter { it.minSdk == null || it.minSdk <= Build.VERSION.SDK_INT }
             .filter { it.isPhoneCompatible }
+            .filter { AbiMatcher.isCompatible(it.arches, supportedAbis) }
         if (compatible.isEmpty()) return null
 
         val highestCode = compatible.maxOfOrNull { it.versionCode } ?: 0L
@@ -243,7 +311,7 @@ class ApkComboRepository(
 
         return AbiMatcher.selectCompatible(
             items = pool,
-            supportedAbis = Build.SUPPORTED_ABIS.toList(),
+            supportedAbis = supportedAbis,
             nameSelector = { it.matcherText },
             sizeSelector = { it.size.takeIf { size -> size > 0L } ?: it.versionCode }
         ) ?: pool.maxByOrNull { it.size.takeIf { size -> size > 0L } ?: it.versionCode }
@@ -252,7 +320,7 @@ class ApkComboRepository(
     private fun ApkComboDetails.remoteVersionCode(selectedVariant: ApkComboVariant): Long =
         selectedVariant.versionCode.takeIf { it > 0L }
             ?: versionCode.takeIf { it > 0L }
-            ?: version.versionCodeFromTag()
+            ?: 0L
 
     private fun ApkComboVariant.toLink(packageName: String): Link =
         if (isArchive) {
@@ -289,15 +357,21 @@ class ApkComboRepository(
         )
     }
 
-    private fun Element.toVariant(arches: List<String>): ApkComboVariant? {
-        val url = attr("abs:href").ifBlank { attr("href").toAbsoluteUrl() }
-        if (url.isBlank()) return null
+    private fun Element.toVariant(
+        arches: List<String>,
+        packageName: String,
+        checkin: String?
+    ): ApkComboVariant? {
+        val rawUrl = attr("abs:href").ifBlank { attr("href").toAbsoluteUrl() }
+        if (rawUrl.isBlank()) return null
+
+        val url = rawUrl.withCheckin(checkin, packageName)
 
         val effectiveUrl = redirectTarget(url)
         val type = fileType(effectiveUrl, selectFirst(".vtype span")?.text().orEmpty())
             ?: return null
-        val versionCode = parseVersionCode(selectFirst(".vercode")?.text().orEmpty()) ?: 0L
         val text = text()
+        val versionCode = parseVersionCode(selectFirst(".header .vercode, .vercode")?.text().orEmpty()) ?: 0L
         val size = parseSize(text)
         val minSdk = parseMinSdk(text)
         val name = buildVariantName(arches, versionCode, type)
@@ -313,6 +387,61 @@ class ApkComboRepository(
                     && !text.contains("Android Wear", ignoreCase = true),
             fileType = type
         )
+    }
+
+    private fun requestDynamicDownloadDocument(
+        doc: Document,
+        packageName: String,
+        referer: String
+    ): Document? {
+        val endpoint = extractDownloadEndpoint(doc.html(), packageName) ?: return null
+        val request = Request.Builder()
+            .url(endpoint)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "*/*")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Referer", referer)
+            .post(
+                FormBody.Builder()
+                    .add("package_name", packageName)
+                    .add("version", "")
+                    .build()
+            )
+            .build()
+
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                Jsoup.parse(response.body?.string().orEmpty(), endpoint)
+            }
+        }.getOrElse {
+            Log.w("ApkComboRepository", "Could not load dynamic variants for $packageName", it)
+            null
+        }
+    }
+
+    private fun requestCheckin(referer: String): String? {
+        val request = Request.Builder()
+            .url("$BASE_URL/checkin")
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "*/*")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Referer", referer)
+            .post(FormBody.Builder().build())
+            .build()
+
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body
+                    ?.string()
+                    ?.trim()
+                    ?.takeIf { it.contains("fp=") || it.contains("ip=") }
+            }
+        }.getOrElse {
+            Log.w("ApkComboRepository", "Could not get APKCombo checkin token", it)
+            null
+        }
     }
 
     private fun requestDocument(url: String, referer: String = BASE_URL): Document {
@@ -335,8 +464,31 @@ class ApkComboRepository(
     }
 
     private fun isNewerThan(app: AppInstalled, version: String, versionCode: Long): Boolean {
-        if (versionCode > 0L) return versionCode > app.versionCode
-        return runCatching { Version(version) > Version(app.version) }.getOrDefault(false)
+        val comparison = compareVersionNames(version, app.version)
+        if (comparison == null) {
+            Log.d(
+                "ApkComboRepository",
+                "Falling back to APKCombo versionCode for ${app.packageName}: version $version could not be compared with installed ${app.version}"
+            )
+            return versionCode > 0L && versionCode > app.versionCode
+        }
+        if (comparison < 0) {
+            Log.d(
+                "ApkComboRepository",
+                "Skipping ${app.packageName}: APKCombo version $version is older than installed ${app.version}"
+            )
+            return false
+        }
+        if (comparison > 0) return true
+
+        return versionCode > 0L && versionCode > app.versionCode
+    }
+
+    private fun compareVersionNames(remoteVersion: String, installedVersion: String): Int? {
+        val remote = remoteVersion.comparableVersionName()
+        val installed = installedVersion.comparableVersionName()
+        if (remote.isBlank() || installed.isBlank()) return null
+        return runCatching { Version(remote).compareTo(Version(installed)) }.getOrNull()
     }
 
     private fun shouldInclude(releaseType: ReleaseType): Boolean = when (releaseType) {
@@ -391,15 +543,107 @@ class ApkComboRepository(
             .trimEnd('/')
             .let { "$it/" }
 
+    private fun packageDownloadUrl(packageName: String): String =
+        BASE_URL.toHttpUrl()
+            .newBuilder()
+            .addPathSegment("app")
+            .addPathSegment(packageName)
+            .addPathSegment("download")
+            .addPathSegment("apk")
+            .build()
+            .toString()
+
     private fun String.cleanVersionName(): String =
         replace(Regex("\\(\\s*\\d+\\s*\\)"), "")
             .trim()
+
+    private fun String.comparableVersionName(): String =
+        trim()
+            .removePrefix("v")
+            .removePrefix("V")
+            .substringBefore(" ")
+            .substringBefore("(")
+            .trim()
+
+    private fun String.cleanVariantVersionName(appName: String, packageName: String): String =
+        trim()
+            .removePrefix(appName)
+            .removePrefix(packageName)
+            .cleanVersionName()
+            .trim('-', ' ', ':')
+            .trim()
+
+    private fun String.versionFromMetaDescription(): String? =
+        apkComboMetaVersionRegex.find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.cleanVersionName()
+            ?.takeIf { it.isNotBlank() }
+
+    private fun String.authorFromMetaDescription(packageName: String): String? {
+        val versionSection = substringAfter("Version:", missingDelimiterValue = "")
+        if (versionSection.isBlank()) return null
+
+        val parts = versionSection
+            .split(" - ")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        val packageIndex = parts.indexOfFirst { it.equals(packageName, ignoreCase = true) }
+        return parts.getOrNull(packageIndex + 1)?.takeIf { it.isNotBlank() }
+    }
+
+    private fun String.appNameFromTitle(): String? =
+        replace(Regex("^Download\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s+APK\\b.*$", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .takeIf { it.isNotBlank() }
 
     private fun redirectTarget(url: String): String =
         runCatching { Uri.parse(url).getQueryParameter("u") }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: url
+
+    private fun String.withCheckin(checkin: String?, packageName: String): String {
+        if (checkin.isNullOrBlank() || !contains("/r2?u=", ignoreCase = true)) return this
+
+        val builder = runCatching { toHttpUrl().newBuilder() }.getOrNull() ?: return this
+        checkin.split('&')
+            .mapNotNull { entry ->
+                val key = entry.substringBefore('=').takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val value = entry.substringAfter('=', missingDelimiterValue = "")
+                key to value
+            }
+            .forEach { (key, value) -> builder.setQueryParameter(key, value) }
+        builder.setQueryParameter("package_name", packageName)
+        builder.setQueryParameter("lang", "en")
+        return builder.build().toString()
+    }
+
+    private fun extractDownloadEndpoint(html: String, packageName: String): String? {
+        val xid = apkComboXidRegex.find(html)?.groupValues?.getOrNull(1)
+        if (!xid.isNullOrBlank()) {
+            apkComboFetchWithXidRegex.find(html)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.takeIf { it.contains(packageName) }
+                ?.let { path -> return "$BASE_URL$path$xid/dl" }
+
+            apkComboPackagePathRegex.find(html)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.takeIf { it.contains(packageName) }
+                ?.let { path -> return "$BASE_URL/$path$xid/dl" }
+        }
+
+        return apkComboDirectDlRegex.find(html)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.takeIf { it.contains(packageName) || it.endsWith("/dl") }
+            ?.let { endpoint ->
+                if (endpoint.startsWith("/")) "$BASE_URL$endpoint" else endpoint
+            }
+    }
 
     private fun fileType(url: String, rawType: String): String? {
         val type = rawType.uppercase(Locale.ROOT)
@@ -412,10 +656,15 @@ class ApkComboRepository(
         }
     }
 
+    private fun Element.nearbyArches(): List<String> =
+        generateSequence(parent()) { it.parent() }
+            .take(4)
+            .mapNotNull { parent -> parseArches(parent.selectFirst("code")?.text().orEmpty()).takeIf { it.isNotEmpty() } }
+            .firstOrNull()
+            .orEmpty()
+
     private fun parseArches(raw: String): List<String> =
-        raw.split(",", " ", "\n", "\t")
-            .map { it.trim().removeSuffix(":") }
-            .filter { it.isNotBlank() }
+        AbiMatcher.detectAbis(raw)
 
     private fun parseVersionCode(raw: String): Long? =
         Regex("\\((\\d+)\\)").find(raw)?.groupValues?.getOrNull(1)?.toLongOrNull()
@@ -521,12 +770,19 @@ class ApkComboRepository(
 
     companion object {
         private const val BASE_URL = "https://apkcombo.com"
-        private const val USER_AGENT = "curl/8.0.1"
+        private val USER_AGENT: String
+            get() = AppUserAgent.value
         private const val UPDATE_CONCURRENCY = 4
         private const val SEARCH_CONCURRENCY = 4
         private const val MAX_SEARCH_RESULTS = 10
         private val packageRegex = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
         private val sizeRegex = Regex("(\\d+(?:[\\.,]\\d+)?)\\s*(KB|MB|GB)", RegexOption.IGNORE_CASE)
         private val androidVersionRegex = Regex("Android\\s+([0-9]+(?:\\.[0-9]+)?)\\+", RegexOption.IGNORE_CASE)
+        private val apkComboMetaVersionRegex = Regex("Version:\\s*([^\\-]+)", RegexOption.IGNORE_CASE)
+        private val apkComboXidRegex = Regex("""var\s+xid\s*=\s*["']([^"']+)["']""")
+        private val apkComboFetchWithXidRegex =
+            Regex("""fetchData\(["']([^"']*/[^"']+/)["']\s*\+\s*xid\s*\+\s*["']/dl["']\)""")
+        private val apkComboPackagePathRegex = Regex("""["']/([^"']*/[^"']*/)["']""")
+        private val apkComboDirectDlRegex = Regex("""fetchData\(["']([^"']*/dl)["']""")
     }
 }

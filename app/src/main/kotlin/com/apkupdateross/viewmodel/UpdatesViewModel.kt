@@ -355,6 +355,11 @@ class UpdatesViewModel(
 	}
 
 	private fun updateSelfUpdateCandidate(updates: List<AppUpdate>) {
+		if (BuildConfig.DEBUG) {
+			_selfUpdate.value = null
+			snoozedSelfUpdateVersionCode = null
+			return
+		}
 		val candidate = updates.firstOrNull { it.packageName == BuildConfig.APPLICATION_ID }
 		if (candidate == null) {
 			_selfUpdate.value = null

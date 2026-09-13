@@ -48,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider as Divider
@@ -86,6 +87,9 @@ import com.apkupdateross.data.git.parseRepoUrl
 import com.apkupdateross.data.ui.SettingsUiState
 import com.apkupdateross.data.ui.SwipeIgnoreDirection
 import com.apkupdateross.ui.component.ButtonSetting
+import com.apkupdateross.ui.component.AppListSurface
+import com.apkupdateross.ui.component.AppScreen
+import com.apkupdateross.ui.component.AppTopBar
 import com.apkupdateross.ui.component.LargeTitle
 import com.apkupdateross.ui.component.LoadingImageApp
 import com.apkupdateross.ui.component.SegmentedButtonSetting
@@ -93,6 +97,7 @@ import com.apkupdateross.ui.component.SliderSetting
 import com.apkupdateross.ui.component.SourceIcon
 import com.apkupdateross.ui.component.SettingsIcon
 import com.apkupdateross.ui.component.SwitchSetting
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_ACCENT
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_BACKGROUND
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_NAVIGATION
@@ -110,11 +115,7 @@ import java.util.Locale
 
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column(
-	Modifier
-		.fillMaxSize()
-		.background(MaterialTheme.colorScheme.background)
-) {
+fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = AppScreen {
 	val uiState = viewModel.state.collectAsStateWithLifecycle().value
 	val ruStoreCacheCount = viewModel.ruStore404Count.collectAsStateWithLifecycle().value
 	val updateMetrics = viewModel.updateMetrics.collectAsStateWithLifecycle().value
@@ -204,11 +205,11 @@ fun About() = Column(
 
 	Surface(
 		modifier = Modifier.size(112.dp),
-		shape = MaterialTheme.shapes.medium,
-		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+		shape = ApkTheme.shapes.lg,
+		color = ApkTheme.colors.surfaceSecondary,
 		border = androidx.compose.foundation.BorderStroke(
 			1.dp,
-			MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+			ApkTheme.colors.divider
 		)
 	) {
 		Box(contentAlignment = Alignment.Center) {
@@ -222,7 +223,7 @@ fun About() = Column(
 		text = stringResource(R.string.app_name),
 		style = MaterialTheme.typography.displaySmall,
 		fontWeight = FontWeight.ExtraBold,
-		color = MaterialTheme.colorScheme.onSurface
+		color = ApkTheme.colors.textOnBackground
 	)
 
 	Spacer(Modifier.height(12.dp))
@@ -235,14 +236,14 @@ fun About() = Column(
 				Icons.Default.Info,
 				null,
 				Modifier.size(18.dp),
-				tint = MaterialTheme.colorScheme.primary
+				tint = ApkTheme.colors.accent
 			)
 		},
-		shape = CircleShape,
+		shape = ApkTheme.shapes.xs,
 		border = null,
 		colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-			containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-			labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+			containerColor = ApkTheme.colors.surfaceHighlight,
+			labelColor = ApkTheme.colors.accent
 		)
 	)
 
@@ -273,13 +274,13 @@ fun About() = Column(
 	Text(
 		text = "Copyright (c) ${Calendar.getInstance().get(Calendar.YEAR)}",
 		style = MaterialTheme.typography.labelMedium,
-		color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+		color = ApkTheme.colors.textOnBackground.copy(alpha = 0.58f)
 	)
 	Text(
 		text = "rumboalla, NotDev",
 		style = MaterialTheme.typography.labelLarge,
 		fontWeight = FontWeight.Bold,
-		color = MaterialTheme.colorScheme.onSurfaceVariant
+		color = ApkTheme.colors.textOnBackground.copy(alpha = 0.78f)
 	)
 	Spacer(Modifier.height(16.dp))
 }
@@ -302,9 +303,10 @@ private fun SocialButton(
 		modifier = Modifier
 			.fillMaxWidth(0.7f)
 			.height(56.dp),
-		shape = MaterialTheme.shapes.medium,
+		shape = ApkTheme.shapes.md,
 		colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-			containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+			containerColor = ApkTheme.colors.surfaceSecondary,
+			contentColor = ApkTheme.colors.textPrimary
 		)
 	) {
 		if (icon != null) {
@@ -312,14 +314,14 @@ private fun SocialButton(
 				painter = painterResource(icon),
 				contentDescription = null,
 				modifier = Modifier.size(24.dp),
-				tint = MaterialTheme.colorScheme.primary
+				tint = ApkTheme.colors.accent
 			)
 		} else if (imageVector != null) {
 			Icon(
 				imageVector = imageVector,
 				contentDescription = null,
 				modifier = Modifier.size(24.dp),
-				tint = MaterialTheme.colorScheme.primary
+				tint = ApkTheme.colors.accent
 			)
 		}
 		Spacer(Modifier.width(12.dp))
@@ -367,11 +369,15 @@ private fun Settings(
 ) {
 	val installMode = viewModel.installModeFlow.collectAsStateWithLifecycle().value
 	val context = LocalContext.current
+	val downloadFolderUri = viewModel.downloadFolderUri.collectAsStateWithLifecycle().value
 	val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
 		uri?.let { viewModel.exportSettings(it, context) }
 	}
 	val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
 		uri?.let { viewModel.importSettings(it, context) }
+	}
+	val downloadFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+		uri?.let { viewModel.setDownloadFolderUri(context, it) }
 	}
 
 	when (selectedSection) {
@@ -401,6 +407,10 @@ private fun Settings(
 		SettingsSection.Network -> NetworkSettings(viewModel)
 		SettingsSection.DataLogs -> DataLogsSettings(
 			viewModel = viewModel,
+			downloadFolderLabel = viewModel.getDownloadFolderLabel(downloadFolderUri),
+			hasCustomDownloadFolder = downloadFolderUri.isNotBlank(),
+			onChooseDownloadFolder = { downloadFolderLauncher.launch(null) },
+			onResetDownloadFolder = { viewModel.resetDownloadFolder(context) },
 			onExport = { exportLauncher.launch("apkupdateross_backup.json") },
 			onImport = { importLauncher.launch(arrayOf("application/json", "*/*")) }
 		)
@@ -447,27 +457,30 @@ private fun SettingsCategoryItem(
 	subtitle: String,
 	@DrawableRes icon: Int,
 	onClick: () -> Unit
-) = ElevatedCard(
-	shape = MaterialTheme.shapes.medium,
+) = AppListSurface(
 	modifier = Modifier
 		.fillMaxWidth()
-		.padding(horizontal = 16.dp, vertical = 6.dp)
-		.clickable { onClick() }
+		.padding(horizontal = 16.dp, vertical = 6.dp),
+	onClick = onClick
 ) {
 	Row(
 		modifier = Modifier
 			.fillMaxWidth()
-			.heightIn(min = 72.dp)
+			.heightIn(min = 76.dp)
 			.padding(horizontal = 16.dp, vertical = 12.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
 		SettingsIcon(icon, title, Modifier.padding(end = 16.dp))
 		Column(Modifier.weight(1f)) {
-			Text(title, style = MaterialTheme.typography.bodyLarge)
+			Text(
+				title,
+				style = MaterialTheme.typography.bodyLarge,
+				color = ApkTheme.colors.textPrimary
+			)
 			Text(
 				subtitle,
 				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				color = ApkTheme.colors.textSecondary,
 				maxLines = 2,
 				overflow = TextOverflow.Ellipsis
 			)
@@ -475,7 +488,7 @@ private fun SettingsCategoryItem(
 		Icon(
 			Icons.AutoMirrored.Filled.KeyboardArrowRight,
 			contentDescription = null,
-			tint = MaterialTheme.colorScheme.onSurfaceVariant
+			tint = ApkTheme.colors.textTertiary
 		)
 	}
 }
@@ -486,8 +499,10 @@ private fun SettingsGroup(
 	content: @Composable () -> Unit
 ) {
 	LargeTitle(stringResource(title), Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp))
-	ElevatedCard(
-		shape = MaterialTheme.shapes.medium,
+	Surface(
+		shape = ApkTheme.shapes.md,
+		color = ApkTheme.colors.surface,
+		border = BorderStroke(1.dp, ApkTheme.colors.divider),
 		modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
 	) {
 		Column { content() }
@@ -513,17 +528,17 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 				R.drawable.ic_theme
 			)
 			if (currentTheme == THEME_MODE_CUSTOM) {
-				Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+				Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 				CustomThemeSettings(viewModel)
 			}
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SwitchSetting(
 				{ viewModel.getSwipeIgnoreEnabled() },
 				{ viewModel.setSwipeIgnoreEnabled(it) },
 				stringResource(R.string.settings_swipe_controls),
 				R.drawable.ic_disabled
 			)
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SegmentedButtonSetting(
 				stringResource(R.string.settings_swipe_hide_direction),
 				SwipeIgnoreDirection.entries.map { stringResource(it.labelRes) },
@@ -532,7 +547,7 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 				R.drawable.ic_disabled,
 				enabled = swipeIgnoreEnabled
 			)
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SwitchSetting(
 				{ viewModel.getPlayTextAnimations() },
 				{ viewModel.setPlayTextAnimations(it) },
@@ -549,7 +564,7 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 				stringResource(R.string.settings_compact_view),
 				R.drawable.ic_visible
 			)
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SliderSetting(
 				{ viewModel.getPortraitColumns().toFloat() },
 				{ viewModel.setPortraitColumns(it.toInt()) },
@@ -557,7 +572,7 @@ private fun InterfaceSettings(viewModel: SettingsViewModel) = LazyColumn {
 				1f..6f,
 				R.drawable.ic_system
 			)
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SliderSetting(
 				{ viewModel.getLandscapeColumns().toFloat() },
 				{ viewModel.setLandscapeColumns(it.toInt()) },
@@ -664,9 +679,9 @@ private fun CustomThemePreview(
 		modifier = Modifier
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 12.dp),
-		shape = MaterialTheme.shapes.medium,
+		shape = ApkTheme.shapes.md,
 		color = backgroundColor,
-		border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+		border = BorderStroke(1.dp, readableColorFor(backgroundColor).copy(alpha = 0.22f))
 	) {
 		Column(
 			modifier = Modifier.padding(12.dp),
@@ -679,7 +694,7 @@ private fun CustomThemePreview(
 			)
 			Surface(
 				modifier = Modifier.fillMaxWidth(),
-				shape = MaterialTheme.shapes.small,
+				shape = ApkTheme.shapes.sm,
 				color = surfaceColor,
 				border = BorderStroke(1.dp, readableColorFor(surfaceColor).copy(alpha = 0.22f))
 			) {
@@ -696,7 +711,7 @@ private fun CustomThemePreview(
 							color = readableColorFor(surfaceColor)
 						)
 						Text(
-							text = "1.2.9 -> 1.3.0",
+							text = "1.3.0 -> 1.3.1",
 							style = MaterialTheme.typography.bodyMedium,
 							color = readableColorFor(surfaceColor).copy(alpha = 0.72f)
 						)
@@ -705,7 +720,7 @@ private fun CustomThemePreview(
 			}
 			Surface(
 				modifier = Modifier.fillMaxWidth().height(28.dp),
-				shape = MaterialTheme.shapes.small,
+				shape = ApkTheme.shapes.sm,
 				color = navigationColor
 			) {
 				Box(contentAlignment = Alignment.Center) {
@@ -738,8 +753,8 @@ private fun CustomColorSetting(
 		Row(verticalAlignment = Alignment.CenterVertically) {
 			Surface(
 				shape = CircleShape,
-				color = colorFromHex(value, MaterialTheme.colorScheme.surfaceVariant),
-				border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+				color = colorFromHex(value, ApkTheme.colors.surfaceSecondary),
+				border = BorderStroke(1.dp, ApkTheme.colors.divider),
 				modifier = Modifier.size(32.dp)
 			) {}
 			Spacer(Modifier.width(12.dp))
@@ -750,6 +765,18 @@ private fun CustomColorSetting(
 				label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
 				singleLine = true,
 				isError = normalized == null,
+				shape = ApkTheme.shapes.sm,
+				colors = OutlinedTextFieldDefaults.colors(
+					focusedBorderColor = ApkTheme.colors.accent.copy(alpha = 0.72f),
+					unfocusedBorderColor = ApkTheme.colors.divider,
+					focusedContainerColor = ApkTheme.colors.surfaceSecondary,
+					unfocusedContainerColor = ApkTheme.colors.surfaceSecondary,
+					focusedTextColor = ApkTheme.colors.textPrimary,
+					unfocusedTextColor = ApkTheme.colors.textPrimary,
+					focusedLabelColor = ApkTheme.colors.accent,
+					unfocusedLabelColor = ApkTheme.colors.textSecondary,
+					cursorColor = ApkTheme.colors.accent
+				),
 				supportingText = {
 					if (normalized == null) {
 						Text(stringResource(R.string.theme_custom_invalid))
@@ -762,10 +789,10 @@ private fun CustomColorSetting(
 				val selected = swatch.equals(normalized, ignoreCase = true)
 				Surface(
 					shape = CircleShape,
-					color = colorFromHex(swatch, MaterialTheme.colorScheme.surfaceVariant),
+					color = colorFromHex(swatch, ApkTheme.colors.surfaceSecondary),
 					border = BorderStroke(
 						if (selected) 3.dp else 1.dp,
-						if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+						if (selected) ApkTheme.colors.accent else ApkTheme.colors.divider
 					),
 					modifier = Modifier
 						.size(32.dp)
@@ -1105,7 +1132,7 @@ private fun NetworkSettings(viewModel: SettingsViewModel) = LazyColumn {
 				valueRange = 10f..120f,
 				icon = R.drawable.ic_system
 			)
-			Divider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
 			SliderSetting(
 				getValue = { viewModel.getPlayTimeoutSec().toFloat() },
 				setValue = { viewModel.setPlayTimeoutSec(it.toInt()) },
@@ -1121,9 +1148,28 @@ private fun NetworkSettings(viewModel: SettingsViewModel) = LazyColumn {
 @Composable
 private fun DataLogsSettings(
 	viewModel: SettingsViewModel,
+	downloadFolderLabel: String,
+	hasCustomDownloadFolder: Boolean,
+	onChooseDownloadFolder: () -> Unit,
+	onResetDownloadFolder: () -> Unit,
 	onExport: () -> Unit,
 	onImport: () -> Unit
 ) = LazyColumn {
+	item {
+		SettingsGroup(R.string.settings_downloads) {
+			MetricInlineRow(
+				text = stringResource(R.string.download_folder),
+				value = downloadFolderLabel,
+				icon = R.drawable.ic_download
+			)
+			Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
+			ButtonSetting(stringResource(R.string.download_folder_choose), onChooseDownloadFolder, R.drawable.ic_download)
+			if (hasCustomDownloadFolder) {
+				Divider(Modifier.padding(horizontal = 16.dp), color = ApkTheme.colors.divider)
+				ButtonSetting(stringResource(R.string.download_folder_reset), onResetDownloadFolder, R.drawable.ic_refresh)
+			}
+		}
+	}
 	item {
 		SettingsGroup(R.string.settings_data_logs_actions) {
 			ButtonSetting(stringResource(R.string.copy_app_list), { viewModel.copyAppList() }, R.drawable.ic_root)
@@ -1148,8 +1194,8 @@ private fun MetricInlineRow(text: String, value: String, @DrawableRes icon: Int)
 ) {
 	SettingsIcon(icon, text, Modifier.padding(end = 16.dp))
 	Column(Modifier.weight(1f)) {
-		Text(text, style = MaterialTheme.typography.bodyLarge)
-		Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+		Text(text, style = MaterialTheme.typography.bodyLarge, color = ApkTheme.colors.textPrimary)
+		Text(value, style = MaterialTheme.typography.bodyMedium, color = ApkTheme.colors.textSecondary)
 	}
 }
 
@@ -1166,9 +1212,18 @@ private fun CustomGitReposSection(
 			.padding(start = 16.dp, end = 8.dp, top = 8.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		Text(stringResource(R.string.settings_custom_repos), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+		Text(
+			stringResource(R.string.settings_custom_repos),
+			style = MaterialTheme.typography.titleMedium,
+			color = ApkTheme.colors.textPrimary,
+			modifier = Modifier.weight(1f)
+		)
 		IconButton(onClick = onAdd) {
-			Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.settings_custom_repos_add))
+			Icon(
+				Icons.Filled.Add,
+				contentDescription = stringResource(R.string.settings_custom_repos_add),
+				tint = ApkTheme.colors.textSecondary
+			)
 		}
 	}
 	if (repos.isEmpty()) {
@@ -1176,7 +1231,7 @@ private fun CustomGitReposSection(
 			text = stringResource(R.string.settings_custom_repo_empty),
 			modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
 			style = MaterialTheme.typography.bodyMedium,
-			color = MaterialTheme.colorScheme.onSurfaceVariant
+			color = ApkTheme.colors.textSecondary
 		)
 	} else {
 		repos.forEach { repo ->
@@ -1195,7 +1250,7 @@ private fun CustomRepoCard(
 	onEdit: () -> Unit,
 	onDelete: () -> Unit
 ) {
-	ElevatedCard(
+	AppListSurface(
 		modifier = Modifier
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -1209,14 +1264,14 @@ private fun CustomRepoCard(
 			SettingsIcon(providerIcon(repo.platform), repo.platform.name)
 			Spacer(Modifier.width(16.dp))
 			Column(Modifier.weight(1f)) {
-				Text("${repo.user}/${repo.repo}", style = MaterialTheme.typography.titleMedium)
-				Text(repo.packageName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+				Text("${repo.user}/${repo.repo}", style = MaterialTheme.typography.titleMedium, color = ApkTheme.colors.textPrimary)
+				Text(repo.packageName, style = MaterialTheme.typography.bodyMedium, color = ApkTheme.colors.textSecondary)
 				repo.extraRegex?.takeIf { it.isNotBlank() }?.let {
-					Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+					Text(it, style = MaterialTheme.typography.bodySmall, color = ApkTheme.colors.textSecondary)
 				}
 			}
-			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null) }
-			IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null) }
+			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, tint = ApkTheme.colors.textSecondary) }
+			IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, tint = ApkTheme.colors.error) }
 		}
 	}
 }
@@ -1326,7 +1381,7 @@ private fun formatTimestamp(timestamp: Long): String =
 	DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestamp))
 
 @Composable
-private fun MetricRow(text: String, value: String, @DrawableRes icon: Int) = ElevatedCard(
+private fun MetricRow(text: String, value: String, @DrawableRes icon: Int) = AppListSurface(
 	modifier = Modifier
 		.fillMaxWidth()
 		.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -1339,8 +1394,8 @@ private fun MetricRow(text: String, value: String, @DrawableRes icon: Int) = Ele
 	) {
 		SettingsIcon(icon, text, Modifier.padding(end = 16.dp))
 		Column(Modifier.weight(1f)) {
-			Text(text, style = MaterialTheme.typography.bodyLarge)
-			Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+			Text(text, style = MaterialTheme.typography.bodyLarge, color = ApkTheme.colors.textPrimary)
+			Text(value, style = MaterialTheme.typography.bodyMedium, color = ApkTheme.colors.textSecondary)
 		}
 	}
 }
@@ -1351,7 +1406,7 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 	val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
 		notificationStatus.value = viewModel.areNotificationsEnabled()
 	}
-	ElevatedCard(
+	AppListSurface(
 		modifier = Modifier
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -1365,7 +1420,8 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 				)
 				Text(
 					text = if (notificationStatus.value) stringResource(R.string.notifications_status_on) else stringResource(R.string.notifications_status_off),
-					style = MaterialTheme.typography.bodyLarge
+					style = MaterialTheme.typography.bodyLarge,
+					color = ApkTheme.colors.textPrimary
 				)
 			}
 			if (!notificationStatus.value) {
@@ -1385,26 +1441,32 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 fun SettingsTopBar(
 	title: String,
 	onBack: (() -> Unit)? = null
-) = TopAppBar(
-	title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+) = AppTopBar(
+	title = title,
 	navigationIcon = {
 		if (onBack != null) {
 			IconButton(onClick = onBack) {
-				Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.back))
+				Icon(
+					Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+					stringResource(R.string.back),
+					tint = ApkTheme.colors.textSecondary
+				)
 			}
 		}
-	},
+	}
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutTopBar(onBack: () -> Unit) = TopAppBar(
-	title = { Text(stringResource(R.string.about), style = MaterialTheme.typography.headlineSmall) },
-	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+fun AboutTopBar(onBack: () -> Unit) = AppTopBar(
+	title = stringResource(R.string.about),
 	navigationIcon = {
 		IconButton(onClick = onBack) {
-			Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.back))
+			Icon(
+				Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+				stringResource(R.string.back),
+				tint = ApkTheme.colors.textSecondary
+			)
 		}
 	}
 )
@@ -1445,7 +1507,7 @@ private fun FdroidRepoCard(
 	onDelete: () -> Unit,
 	onToggle: (Boolean) -> Unit
 ) {
-	ElevatedCard(
+	AppListSurface(
 		modifier = Modifier
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -1467,23 +1529,24 @@ private fun FdroidRepoCard(
 					if (repo.isDefault) {
 						Spacer(Modifier.width(8.dp))
 						Surface(
-							color = MaterialTheme.colorScheme.secondaryContainer,
-							shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+							color = ApkTheme.colors.surfaceHighlight,
+							shape = ApkTheme.shapes.xs,
+							border = BorderStroke(1.dp, ApkTheme.colors.accent.copy(alpha = 0.28f))
 						) {
 							Text(
 								stringResource(R.string.settings_fdroid_repo_default),
 								Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
 								style = MaterialTheme.typography.labelSmall,
-								color = MaterialTheme.colorScheme.onSecondaryContainer
+								color = ApkTheme.colors.accent
 							)
 						}
 					}
 				}
-				Text(repo.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+				Text(repo.url, style = MaterialTheme.typography.bodySmall, color = ApkTheme.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
 			}
-			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp)) }
+			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.textSecondary) }
 			if (!repo.isDefault) {
-				IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp)) }
+				IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.error) }
 			}
 		}
 	}
@@ -1559,7 +1622,7 @@ fun IgnoredUpdatesDialog(
 				Text(
 					text = stringResource(R.string.ignored_updates_empty),
 					modifier = Modifier.padding(vertical = 16.dp),
-					color = MaterialTheme.colorScheme.onSurfaceVariant
+					color = ApkTheme.colors.textSecondary
 				)
 			} else {
 				androidx.compose.foundation.lazy.LazyColumn(
@@ -1594,7 +1657,7 @@ fun IgnoredUpdatesDialog(
 								Text(
 									text = info.packageName,
 									style = MaterialTheme.typography.bodyMedium,
-									color = MaterialTheme.colorScheme.onSurfaceVariant,
+									color = ApkTheme.colors.textSecondary,
 									maxLines = 1,
 									overflow = TextOverflow.Ellipsis
 								)
@@ -1605,7 +1668,7 @@ fun IgnoredUpdatesDialog(
 								Icon(
 									imageVector = Icons.Default.Close,
 									contentDescription = null,
-									tint = MaterialTheme.colorScheme.onSurfaceVariant
+									tint = ApkTheme.colors.textSecondary
 								)
 							}
 						}

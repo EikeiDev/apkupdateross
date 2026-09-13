@@ -32,7 +32,7 @@
     <string name="settings_category_interface_subtitle">Theme, gestures, animation, compact view, and columns</string>
     <string name="settings_category_network_subtitle">Connection timeouts for update sources</string>
     <string name="settings_category_data_logs">Data &amp; logs</string>
-    <string name="settings_category_data_logs_subtitle">Backup, restore, copied lists, and logs</string>
+    <string name="settings_category_data_logs_subtitle">Downloads, backup, restore, lists, and logs</string>
     <string name="settings_category_about_subtitle">Version, project links, and credits</string>
     <string name="settings_sources_code_hosting">Code hosting</string>
     <string name="settings_sources_app_stores">App stores</string>
@@ -47,6 +47,16 @@
     <string name="settings_network_timeouts">Timeouts</string>
     <string name="settings_data_logs_actions">Logs and lists</string>
     <string name="settings_data_backup">Backup</string>
+    <string name="settings_downloads">Downloads</string>
+    <string name="download_folder">Save folder</string>
+    <string name="download_folder_default" translatable="false">Downloads/APKUpdaterOSS</string>
+    <string name="download_folder_storage_root">Storage root</string>
+    <string name="download_folder_custom">Custom folder</string>
+    <string name="download_folder_choose">Choose save folder</string>
+    <string name="download_folder_reset">Use default folder</string>
+    <string name="download_folder_selected">Save folder selected.</string>
+    <string name="download_folder_select_failed">Could not use the selected folder.</string>
+    <string name="download_folder_reset_done">Save folder reset.</string>
     <string name="settings_ui">UI</string>
     <string name="settings_compact_view">Compact mode</string>
     <string name="settings_alarm">Auto-update schedule</string>
@@ -183,11 +193,15 @@
     <string name="self_update_whats_new">What\'s new</string>
     <string name="self_update_button_later">Later</string>
     <string name="self_update_button_update">Update now</string>
+    <string name="debug_release_warning_title">Debug build installed</string>
+    <string name="debug_release_warning_message">You are using APKUpdater OSS debug build %1$s (%2$d).\n\nRelease builds are signed with a different key, so Android cannot install the release APK over this debug build.\n\nTo switch to release: export your settings, uninstall the debug build, install the release APK from GitHub Releases, then import your settings back.</string>
+    <string name="debug_release_warning_open_release">Open Releases</string>
+    <string name="debug_release_warning_understood">I understand</string>
     <string name="updates_empty">All apps are up to date</string>
     <string name="filter_updates">Search updates&#8230;</string>
     <string name="download">Download</string>
     <string name="open">Open</string>
-    <string name="download_success">Saved to Download/APKUpdaterOSS: %1$s</string>
+    <string name="download_success">Saved to download folder: %1$s</string>
     <string name="download_failure">Failed to save %1$s</string>
     <string name="download_failure_cant_download">Could not download file.</string>
     <string name="download_unavailable_for_source">Direct APK download is not available for this source.</string>
@@ -200,7 +214,7 @@
     <string name="uptodown_download_saving">Saving&#8230;</string>
     <string name="uptodown_download_invalid_url">Uptodown returned an untrusted download link.</string>
     <string name="uptodown_download_failed">Uptodown download failed.</string>
-    <string name="uptodown_download_saved">Saved to Downloads/APKUpdaterOSS.</string>
+    <string name="uptodown_download_saved">Saved to download folder.</string>
     <string name="link_not_available">Link not available.</string>
     <string name="release_type_stable" translatable="false">Stable</string>
     <string name="release_type_beta" translatable="false">Beta</string>

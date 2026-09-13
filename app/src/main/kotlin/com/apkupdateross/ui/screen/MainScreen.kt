@@ -9,37 +9,56 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.util.Consumer
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -47,8 +66,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.apkupdateross.BuildConfig
+import com.apkupdateross.R
 import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.ui.component.BadgeText
+import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.ui.theme.AppTheme
 import com.apkupdateross.ui.theme.LocalAppExtraColors
 import com.apkupdateross.util.Badger
@@ -107,13 +129,74 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	val snackBarHostState = handleSnackBar()
 
 	AppTheme(theme) {
+		ApplySystemBarColors()
+		DebugReleaseMigrationDialog(mainViewModel)
 		Scaffold(
 			snackbarHost = { SnackbarHost(snackBarHostState) },
 			bottomBar = { BottomBar(mainViewModel, navController) },
-			containerColor = MaterialTheme.colorScheme.background,
+			containerColor = ApkTheme.colors.background,
 			contentWindowInsets = WindowInsets(0)
 		) { padding ->
 			NavHost(navController, padding, mainViewModel, appsViewModel, updatesViewModel, searchViewModel, settingsViewModel)
+		}
+	}
+}
+
+@Composable
+private fun DebugReleaseMigrationDialog(mainViewModel: MainViewModel) {
+	var visible by rememberSaveable { mutableStateOf(mainViewModel.shouldShowDebugReleaseWarning()) }
+	if (!visible) return
+
+	val uriHandler = LocalUriHandler.current
+	val releasesUrl = "${stringResource(R.string.github_url)}/releases/latest"
+	fun dismiss() {
+		mainViewModel.dismissDebugReleaseWarning()
+		visible = false
+	}
+
+	AlertDialog(
+		onDismissRequest = { dismiss() },
+		title = { Text(stringResource(R.string.debug_release_warning_title)) },
+		text = {
+			Text(
+				stringResource(
+					R.string.debug_release_warning_message,
+					BuildConfig.VERSION_NAME,
+					BuildConfig.VERSION_CODE
+				)
+			)
+		},
+		confirmButton = {
+			Button(
+				onClick = {
+					dismiss()
+					uriHandler.openUri(releasesUrl)
+				}
+			) {
+				Text(stringResource(R.string.debug_release_warning_open_release))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = { dismiss() }) {
+				Text(stringResource(R.string.debug_release_warning_understood))
+			}
+		}
+	)
+}
+
+@Suppress("DEPRECATION")
+@Composable
+private fun ApplySystemBarColors() {
+	val activity = LocalContext.current as? ComponentActivity ?: return
+	val statusBarColor = ApkTheme.colors.background
+	val navigationBarColor = LocalAppExtraColors.current.navigationBar ?: ApkTheme.colors.background
+
+	SideEffect {
+		activity.window.statusBarColor = Color.Transparent.toArgb()
+		activity.window.navigationBarColor = navigationBarColor.toArgb()
+		WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+			isAppearanceLightStatusBars = statusBarColor.luminance() > 0.5f
+			isAppearanceLightNavigationBars = navigationBarColor.luminance() > 0.5f
 		}
 	}
 }
@@ -184,60 +267,92 @@ fun BottomBar(mainViewModel: MainViewModel, navController: NavController) = Box(
 ) {
 	val badges = koinInject<Badger>().flow().collectAsStateWithLifecycle().value
 	val extraColors = LocalAppExtraColors.current
+	val navigationBarColor = extraColors.navigationBar ?: ApkTheme.colors.surfaceElevated
 	Surface(
 		modifier = Modifier.fillMaxWidth(),
-		shape = MaterialTheme.shapes.medium,
-		color = extraColors.navigationBar ?: MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-		tonalElevation = 6.dp,
-		shadowElevation = 8.dp,
-		border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+		shape = ApkTheme.shapes.lg,
+		color = navigationBarColor,
+		tonalElevation = 0.dp,
+		shadowElevation = 6.dp,
+		border = BorderStroke(1.dp, ApkTheme.colors.divider)
 	) {
-		NavigationBar(
+		Row(
 			modifier = Modifier
 				.fillMaxWidth()
-				.height(72.dp),
-			containerColor = Color.Transparent,
-			tonalElevation = 0.dp
+				.heightIn(min = 72.dp)
+				.padding(horizontal = 6.dp, vertical = 6.dp),
+			horizontalArrangement = Arrangement.spacedBy(4.dp),
+			verticalAlignment = Alignment.CenterVertically
 		) {
 			mainViewModel.screens.forEach { screen ->
 				val state = navController.currentBackStackEntryAsState().value
 				val selected = state?.destination?.route  == screen.route
-				BottomBarItem(mainViewModel, navController, screen, selected, badges[screen.route].orEmpty())
+				BottomBarItem(
+					mainViewModel = mainViewModel,
+					navController = navController,
+					screen = screen,
+					selected = selected,
+					badge = badges[screen.route].orEmpty(),
+					modifier = Modifier.weight(1f)
+				)
 			}
 		}
 	}
 }
 
 @Composable
-fun RowScope.BottomBarItem(
+fun BottomBarItem(
 	mainViewModel: MainViewModel,
     navController: NavController,
     screen: Screen,
     selected: Boolean,
-    badge: String
-) = NavigationBarItem(
-	icon = {
-		BadgedBox({ BadgeText(badge) }) {
-			Icon(if (selected) screen.iconSelected else screen.icon, contentDescription = null)
+    badge: String,
+	modifier: Modifier = Modifier
+) {
+	val extraColors = LocalAppExtraColors.current
+	val navigationContentColor = extraColors.onNavigationBar ?: ApkTheme.colors.textSecondary
+	val selectedContainer = extraColors.navigationIndicator ?: ApkTheme.colors.surfaceHighlight
+	val selectedIconColor = extraColors.onNavigationIndicator ?: ApkTheme.colors.accent
+	val selectedTextColor = extraColors.selectedNavigationText ?: ApkTheme.colors.accent
+	val itemColor = if (selected) selectedTextColor else navigationContentColor.copy(alpha = 0.78f)
+	Column(
+		modifier = modifier
+			.height(60.dp)
+			.clip(ApkTheme.shapes.md)
+			.clickable(
+				interactionSource = remember { MutableInteractionSource() },
+				indication = null,
+				onClick = { mainViewModel.navigateTo(navController, screen.route) }
+			)
+			.padding(horizontal = 2.dp, vertical = 4.dp),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.Center
+	) {
+		Box(
+			modifier = Modifier
+				.size(width = 54.dp, height = 30.dp)
+				.clip(ApkTheme.shapes.lg)
+				.background(if (selected) selectedContainer else Color.Transparent),
+			contentAlignment = Alignment.Center
+		) {
+			BadgedBox({ BadgeText(badge) }) {
+				Icon(
+					imageVector = if (selected) screen.iconSelected else screen.icon,
+					contentDescription = null,
+					modifier = Modifier.size(21.dp),
+					tint = if (selected) selectedIconColor else itemColor
+				)
+			}
 		}
-   	},
-	label = {
 		Text(
 			stringResource(screen.resourceId),
+			color = itemColor,
+			style = MaterialTheme.typography.labelSmall,
 			maxLines = 1,
 			overflow = TextOverflow.Ellipsis
 		)
-	},
-	selected = selected,
-	colors = NavigationBarItemDefaults.colors(
-		selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-		selectedTextColor = MaterialTheme.colorScheme.primary,
-		indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-		unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-		unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-	),
-	onClick = { mainViewModel.navigateTo(navController, screen.route) }
-)
+	}
+}
 
 @Composable
 fun NavHost(

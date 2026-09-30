@@ -711,7 +711,7 @@ private fun CustomThemePreview(
 							color = readableColorFor(surfaceColor)
 						)
 						Text(
-							text = "1.3.0 -> 1.3.1",
+							text = "1.3.1 -> 1.3.2",
 							style = MaterialTheme.typography.bodyMedium,
 							color = readableColorFor(surfaceColor).copy(alpha = 0.72f)
 						)

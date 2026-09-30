@@ -10,7 +10,6 @@ import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.UptodownSource
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.AbiMatcher
-import com.apkupdateross.util.versionCodeFromTag
 import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -143,18 +142,18 @@ class UptodownRepository(
             ?: return null
 
         val nameElement = doc.selectFirst("#detail-app-name")
-        val version = doc.selectFirst(".detail .info .version, div.version")
+        val rawVersion = doc.selectFirst(".detail .info .version, div.version")
             ?.text()
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: return null
+        val parsedVersion = rawVersion.toUptodownVersion()
+        val version = parsedVersion.name
         val fileId = nameElement?.attr("data-file-id")?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("#detail-download-button")?.attr("data-file-id")?.takeIf { it.isNotBlank() }
         val appId = nameElement?.attr("data-code")?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("#detail-download-button")?.attr("data-app-id")?.takeIf { it.isNotBlank() }
-        val versionCode = version.versionCodeFromTag().takeIf { it > 0L }
-            ?: fileId?.toLongOrNull()
-            ?: 0L
+        val versionCode = parsedVersion.code
         val name = nameElement
             ?.text()
             ?.trim()
@@ -241,10 +240,13 @@ class UptodownRepository(
     }
 
     private fun UptodownDetails.isNewerThan(app: AppInstalled): Boolean {
-        runCatching { Version(version) > Version(app.version) }
-            .getOrNull()
-            ?.let { return it }
-        return versionCode > 0L && versionCode > app.versionCode
+        val comparison = runCatching { Version(version).compareTo(Version(app.version)) }.getOrNull()
+        return when {
+            comparison == null -> versionCode > 0L && versionCode > app.versionCode
+            comparison > 0 -> true
+            comparison < 0 -> false
+            else -> versionCode > 0L && versionCode > app.versionCode
+        }
     }
 
     private fun shouldInclude(releaseType: ReleaseType): Boolean = when (releaseType) {
@@ -345,6 +347,18 @@ class UptodownRepository(
     private fun String.toSafeFileNamePart(): String =
         replace(unsafeFileNameRegex, "_").trim('_').ifBlank { "file" }
 
+    private fun String.toUptodownVersion(): UptodownVersion {
+        val versionCode = uptodownVersionCodeRegex.find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toLongOrNull()
+            ?: 0L
+        val versionName = replace(uptodownVersionCodeRegex, "")
+            .trim()
+            .ifBlank { this.trim() }
+        return UptodownVersion(versionName, versionCode)
+    }
+
     private fun parseArches(raw: String): List<String> =
         raw.split(",", " ", "\n", "\t")
             .map { it.trim().removeSuffix(":") }
@@ -368,6 +382,11 @@ class UptodownRepository(
         val description: String,
         val iconUrl: String,
         val url: String
+    )
+
+    private data class UptodownVersion(
+        val name: String,
+        val code: Long
     )
 
     private data class UptodownDetails(
@@ -398,6 +417,7 @@ class UptodownRepository(
         private const val MAX_UPDATE_CANDIDATES = 4
         private val packageRegex = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
         private val sha256Regex = Regex("^[A-Fa-f0-9]{64}$")
+        private val uptodownVersionCodeRegex = Regex("\\s*\\((\\d+)\\)\\s*$")
         private val sizeRegex = Regex("(\\d+(?:[\\.,]\\d+)?)\\s*(KB|MB|GB)", RegexOption.IGNORE_CASE)
         private val onclickUrlRegex = Regex("location\\.href='([^']+)'")
         private val unsafeFileNameRegex = Regex("[^A-Za-z0-9._-]")

@@ -28,6 +28,8 @@ import com.apkupdateross.service.GitHubService
 import com.apkupdateross.service.GitLabService
 import com.apkupdateross.service.RuStoreService
 import com.apkupdateross.util.AppUserAgent
+import com.apkupdateross.util.ApkMirrorChallengeCoordinator
+import com.apkupdateross.util.ApkMirrorSession
 import com.apkupdateross.util.Badger
 import com.apkupdateross.util.Clipboard
 import com.apkupdateross.util.DownloadStorage
@@ -39,6 +41,8 @@ import com.apkupdateross.util.Stringer
 import com.apkupdateross.util.Themer
 import com.apkupdateross.util.UpdatesNotification
 import com.apkupdateross.util.addUserAgentInterceptor
+import com.apkupdateross.util.isApkMirrorUrl
+import com.apkupdateross.util.mergeCookieHeaders
 import com.apkupdateross.util.play.PlayHttpClient
 import com.apkupdateross.viewmodel.AppsViewModel
 import com.apkupdateross.viewmodel.MainViewModel
@@ -65,6 +69,9 @@ val mainModule = module {
 
 	single { Cache(androidContext().cacheDir, 50L * 1024 * 1024) }
 
+	single { ApkMirrorSession() }
+	single { ApkMirrorChallengeCoordinator(get()) }
+
 	single {
 		HttpLoggingInterceptor().apply {
 			level = HttpLoggingInterceptor.Level.BODY
@@ -72,6 +79,7 @@ val mainModule = module {
 	}
 
 	single {
+		val apkMirrorSession = get<ApkMirrorSession>()
 		OkHttpClient.Builder()
 			.cache(get())
 			.connectTimeout(10, TimeUnit.SECONDS)
@@ -79,6 +87,21 @@ val mainModule = module {
 			.writeTimeout(10, TimeUnit.SECONDS)
 			.callTimeout(25, TimeUnit.SECONDS)
 			.addUserAgentInterceptor(AppUserAgent.value)
+			.addNetworkInterceptor { chain ->
+				val original = chain.request()
+				val url = original.url.toString()
+				if (!isApkMirrorUrl(url)) return@addNetworkInterceptor chain.proceed(original)
+
+				val cookies = mergeCookieHeaders(
+					original.header("Cookie"),
+					apkMirrorSession.cookieHeaderFor(url)
+				)
+				val request = original.newBuilder()
+					.header("User-Agent", apkMirrorSession.userAgentOr(AppUserAgent.value))
+					.apply { if (cookies.isNotBlank()) header("Cookie", cookies) }
+					.build()
+				chain.proceed(request)
+			}
 			//.addInterceptor(get<HttpLoggingInterceptor>())
 			.build()
 	}
@@ -151,10 +174,10 @@ val mainModule = module {
 		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
 		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
 		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
-		Downloader(client, apkPureClient, auroraClient, dir)
+		Downloader(client, apkPureClient, auroraClient, dir, get(), get())
 	}
 
-	single { ApkMirrorRepository(get(), get()) }
+	single { ApkMirrorRepository(get(), get(), get(), get(), get()) }
 
 	single { ApkComboRepository(get(), get()) }
 

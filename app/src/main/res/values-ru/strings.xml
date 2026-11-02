@@ -226,6 +226,10 @@
     <string name="github">GitHub</string>
     <string name="donate">Поддержать разработчика</string>
     <string name="checking_updates">Проверка обновлений…</string>
+    <string name="apkmirror_verification_title">Проверка APKMirror</string>
+    <string name="apkmirror_verification_message">Пройдите проверку Cloudflare. Загрузка продолжится автоматически.</string>
+    <string name="apkmirror_verification_complete">Проверка завершена. Продолжаем загрузку…</string>
+    <string name="apkmirror_verification_close">Отменить проверку</string>
     <string name="settings_network">Сеть</string>
     <string name="settings_global_timeout">Глобальный таймаут (сек)</string>
     <string name="settings_play_timeout">Таймаут Play Store (сек)</string>

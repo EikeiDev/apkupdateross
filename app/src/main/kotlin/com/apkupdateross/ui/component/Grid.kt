@@ -1,6 +1,7 @@
 package com.apkupdateross.ui.component
 
 import android.content.res.Configuration
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -38,13 +40,17 @@ private fun ShimmeringGrid() = InstalledGrid(false) {
 
 @Composable
 fun EmptyGrid(
-    text: String = ""
+    text: String = "",
+    @DrawableRes icon: Int? = null,
+    tone: AppTone = AppTone.Neutral,
+    loading: Boolean = false
 ) = Box(Modifier.fillMaxSize()) {
     if (text.isNotEmpty()) {
         AppStateMessage(
             title = text,
-            icon = R.drawable.ic_empty,
-            tone = AppTone.Neutral,
+            icon = icon,
+            tone = tone,
+            loading = loading,
             modifier = Modifier.align(Alignment.Center)
         )
     }
@@ -59,8 +65,16 @@ fun InstalledGrid(
     landscapeColumns: Int = 2,
     content: LazyGridScope.() -> Unit
 ) = LazyVerticalGrid(
-    columns = GridCells.Fixed(getNumColumns(compactMode, portraitColumns, landscapeColumns)),
-    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp),
+    columns = if (LocalTvMode.current) {
+        GridCells.Adaptive(if (compactMode) 240.dp else 360.dp)
+    } else {
+        GridCells.Fixed(getNumColumns(compactMode, portraitColumns, landscapeColumns))
+    },
+    contentPadding = if (LocalTvMode.current) {
+        PaddingValues(start = 12.dp, top = 8.dp, end = 20.dp, bottom = 28.dp)
+    } else {
+        PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp)
+    },
     verticalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 14.dp),
     horizontalArrangement = Arrangement.spacedBy(if (compactMode) 8.dp else 14.dp),
     content = content,
@@ -70,9 +84,32 @@ fun InstalledGrid(
 
 @Composable
 fun getNumColumns(compactMode: Boolean, portraitColumns: Int, landscapeColumns: Int): Int {
-    return if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
+    val configuration = LocalConfiguration.current
+    val requested = if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
         if (compactMode) portraitColumns else 1
     } else {
         if (compactMode) landscapeColumns else 2
     }
+    return accessibleColumnCount(
+        requested = requested,
+        screenWidthDp = configuration.screenWidthDp,
+        fontScale = LocalDensity.current.fontScale
+    )
+}
+
+internal fun accessibleColumnCount(
+    requested: Int,
+    screenWidthDp: Int,
+    fontScale: Float
+): Int {
+    if (fontScale < 1.3f) return requested.coerceAtLeast(1)
+
+    val minimumColumnWidth = when {
+        fontScale >= 1.8f -> 200
+        fontScale >= 1.5f -> 168
+        else -> 144
+    }
+    val availableWidth = (screenWidthDp - 32).coerceAtLeast(1)
+    val accessibleMaximum = (availableWidth / minimumColumnWidth).coerceAtLeast(1)
+    return requested.coerceIn(1, accessibleMaximum)
 }

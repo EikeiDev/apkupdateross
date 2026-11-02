@@ -4,6 +4,7 @@ import android.util.Log
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.Jsoup
 import java.io.File
 import java.io.IOException
@@ -22,7 +23,9 @@ class Downloader(
     private val client: OkHttpClient,
     private val apkPureClient: OkHttpClient,
     private val auroraClient: OkHttpClient,
-    private val dir: File
+    private val dir: File,
+    private val apkMirrorSession: ApkMirrorSession,
+    private val apkMirrorChallengeCoordinator: ApkMirrorChallengeCoordinator
 ) {
 
     data class DownloadResult(val stream: InputStream, val contentLength: Long, val url: String = "")
@@ -50,8 +53,7 @@ class Downloader(
             url.contains("aurora") -> auroraClient
             else -> client
         }
-        val call = registerCall(id, c.newCall(downloadRequest(url)))
-        call.execute().use { response ->
+        executeDownload(id, url, c).use { response ->
             if (response.isSuccessful) {
                 file.outputStream().use { os ->
                     response.body?.byteStream()?.copyTo(os)
@@ -69,8 +71,7 @@ class Downloader(
             url.contains("aurora") -> auroraClient
             else -> client
         }
-        val call = registerCall(id, c.newCall(downloadRequest(url)))
-        val response = call.execute()
+        val response = executeDownload(id, url, c)
         if (response.isSuccessful) {
             val body = response.body
             if (body != null) {
@@ -95,8 +96,7 @@ class Downloader(
             url.contains("aurora") -> auroraClient
             else -> client
         }
-        val call = registerCall(id, c.newCall(downloadRequest(url)))
-        call.execute().use { response ->
+        executeDownload(id, url, c).use { response ->
             if (response.isSuccessful) {
                 val body = response.body
                 if (body != null) {
@@ -118,22 +118,71 @@ class Downloader(
         null
     }
 
-    private fun downloadRequest(url: String): Request {
+    private fun executeDownload(id: Int, url: String, httpClient: OkHttpClient): Response {
+        var verifiedUrl: String? = null
+        var verificationAttempts = 0
+
+        while (true) {
+            try {
+                val request = downloadRequest(id, url, verifiedUrl)
+                val response = registerCall(id, httpClient.newCall(request)).execute()
+                val responseUrl = response.request.url.toString()
+                val isApkMirrorRequest = isApkMirrorUrl(url) || isApkMirrorUrl(responseUrl)
+                if (response.code != 403 || !isApkMirrorRequest) return response
+
+                val referer = request.header("Referer") ?: url
+                val userAgent = request.header("User-Agent") ?: APKMIRROR_USER_AGENT
+                response.close()
+                if (verificationAttempts >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                    throw IOException("APKMirror Cloudflare verification did not clear HTTP 403")
+                }
+                verifiedUrl = verifyApkMirror(responseUrl, referer, userAgent).resolvedUrl
+                verificationAttempts++
+            } catch (challenge: ApkMirrorChallengeRequired) {
+                if (verificationAttempts >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                    throw IOException("APKMirror Cloudflare verification did not clear HTTP 403", challenge)
+                }
+                verifiedUrl = verifyApkMirror(
+                    challenge.challengeUrl,
+                    challenge.referer,
+                    apkMirrorSession.userAgentOr(APKMIRROR_USER_AGENT)
+                ).resolvedUrl
+                verificationAttempts++
+            }
+        }
+    }
+
+    private fun verifyApkMirror(
+        challengeUrl: String,
+        referer: String,
+        userAgent: String
+    ): ApkMirrorChallengeCoordinator.VerificationResult {
+        return apkMirrorChallengeCoordinator.requestVerification(
+            challengeUrl = challengeUrl,
+            referer = referer,
+            userAgent = userAgent
+        ) ?: throw IOException(
+            "APKMirror requires Cloudflare verification; keep APKUpdater OSS open to continue"
+        )
+    }
+
+    private fun downloadRequest(id: Int, url: String, verifiedUrl: String? = null): Request {
         val normalized = url.trim()
-        val resolvedUrl = resolveApkMirrorDownloadUrl(normalized)
+        val resolvedUrl = verifiedUrl ?: resolveApkMirrorDownloadUrl(id, normalized)
         return Request.Builder()
             .url(resolvedUrl)
             .apply {
-                if (normalized.isApkMirrorHtmlDownloadUrl() || resolvedUrl.startsWith(APKMIRROR_BASE_URL)) {
+                if (normalized.isApkMirrorHtmlDownloadUrl() || isApkMirrorUrl(resolvedUrl)) {
                     header("Accept", "*/*")
-                    header("Referer", normalized.takeIf { it.startsWith(APKMIRROR_BASE_URL) } ?: APKMIRROR_BASE_URL)
-                    header("User-Agent", APKMIRROR_USER_AGENT)
+                    header("Referer", normalized.takeIf(::isApkMirrorUrl) ?: APKMIRROR_BASE_URL)
+                    header("User-Agent", apkMirrorSession.userAgentOr(APKMIRROR_USER_AGENT))
+                    apkMirrorSession.cookieHeaderFor(resolvedUrl)?.let { header("Cookie", it) }
                 }
             }
             .build()
     }
 
-    private fun resolveApkMirrorDownloadUrl(url: String): String {
+    private fun resolveApkMirrorDownloadUrl(id: Int, url: String): String {
         val normalized = url.trim()
         if (!normalized.isApkMirrorHtmlDownloadUrl()) return normalized
         if (normalized.contains("/wp-content/themes/APKMirror/download.php", ignoreCase = true)) return normalized
@@ -141,30 +190,36 @@ class Downloader(
         val thankYouUrl = if (normalized.contains("/download/?key=", ignoreCase = true)) {
             normalized
         } else {
-            val page = requestApkMirrorHtml(normalized, APKMIRROR_BASE_URL)
+            val page = requestApkMirrorHtml(id, normalized, APKMIRROR_BASE_URL)
             page.selectFirst("a.downloadButton[href*=/download/?key=], a[href*=/download/?key=]")
                 ?.attr("abs:href")
                 ?.takeIf { it.isNotBlank() }
                 ?: throw IOException("APKMirror download button not found")
         }
 
-        val thankYouPage = requestApkMirrorHtml(thankYouUrl, normalized)
+        val thankYouPage = requestApkMirrorHtml(id, thankYouUrl, normalized)
         return thankYouPage.selectFirst("#download-link[href], a[href*=/download.php?id=]")
             ?.attr("abs:href")
             ?.takeIf { it.isNotBlank() }
             ?: throw IOException("APKMirror final download link not found")
     }
 
-    private fun requestApkMirrorHtml(url: String, referer: String): org.jsoup.nodes.Document {
+    private fun requestApkMirrorHtml(id: Int, url: String, referer: String): org.jsoup.nodes.Document {
         val request = Request.Builder()
             .url(url)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Referer", referer)
-            .header("User-Agent", APKMIRROR_USER_AGENT)
+            .header("User-Agent", apkMirrorSession.userAgentOr(APKMIRROR_USER_AGENT))
+            .apply {
+                apkMirrorSession.cookieHeaderFor(url)?.let { header("Cookie", it) }
+            }
             .get()
             .build()
 
-        return client.newCall(request).execute().use { response ->
+        return registerCall(id, client.newCall(request)).execute().use { response ->
+            if (response.code == 403) {
+                throw ApkMirrorChallengeRequired(url, referer)
+            }
             if (!response.isSuccessful) {
                 throw IOException("APKMirror HTTP ${response.code}: $url")
             }
@@ -212,6 +267,12 @@ class Downloader(
 
 }
 
+private class ApkMirrorChallengeRequired(
+    val challengeUrl: String,
+    val referer: String
+) : IOException("APKMirror Cloudflare challenge: $challengeUrl")
+
 private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
+private const val MAX_APKMIRROR_VERIFICATION_ATTEMPTS = 2
 private val APKMIRROR_USER_AGENT: String
     get() = AppUserAgent.value

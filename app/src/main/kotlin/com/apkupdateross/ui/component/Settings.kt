@@ -2,8 +2,10 @@ package com.apkupdateross.ui.component
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,8 +41,14 @@ import androidx.compose.ui.Alignment.Companion.CenterStart
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -82,18 +90,22 @@ fun SliderSetting(
         .padding(start = 16.dp, end = 24.dp, top = 12.dp, bottom = 12.dp)
 ) {
     var position by remember { mutableFloatStateOf(getValue()) }
+    val isTv = LocalTvMode.current
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
     Column(Modifier.weight(1f)) {
-        Box(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
                 text,
-                Modifier.align(CenterStart),
+                Modifier.weight(1f),
                 style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                 color = ApkTheme.colors.textPrimary
             )
             Text(
                 "${getValue().toInt()}",
-                Modifier.align(CenterEnd),
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                 color = ApkTheme.colors.textSecondary
             )
@@ -108,7 +120,24 @@ fun SliderSetting(
             modifier = Modifier
                 .padding(top = 8.dp)
                 .fillMaxWidth()
-                .height(32.dp),
+                .height(32.dp)
+                .onPreviewKeyEvent { event ->
+                    if (!isTv || event.type != KeyEventType.KeyDown) {
+                        return@onPreviewKeyEvent false
+                    }
+                    val delta = when (event.key) {
+                        Key.DirectionLeft -> -1f
+                        Key.DirectionRight -> 1f
+                        else -> return@onPreviewKeyEvent false
+                    }
+                    val next = (position + delta).coerceIn(valueRange)
+                    if (next != position) {
+                        position = next
+                        setValue(next)
+                    }
+                    true
+                }
+                .tvFocusOutline(ApkTheme.shapes.sm),
             colors = SliderDefaults.colors(
                 thumbColor = ApkTheme.colors.accent,
                 activeTrackColor = ApkTheme.colors.accent,
@@ -133,13 +162,15 @@ fun SegmentedButtonSetting(
     var expanded by remember { mutableStateOf(false) }
     val selectedText = options.getOrElse(position) { options.firstOrNull().orEmpty() }
     val alpha = if (enabled) 1f else 0.5f
+    val largeText = ApkTheme.accessibility.isLargeText
 
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
+            .tvFocusOutline(ApkTheme.shapes.sm, enabled)
             .clickable(enabled = enabled) { expanded = true }
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = CenterVertically
     ) {
         SettingsIcon(icon, text, Modifier.padding(end = 16.dp).alpha(alpha))
@@ -149,63 +180,106 @@ fun SegmentedButtonSetting(
                 style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                 color = ApkTheme.colors.textPrimary
             )
-            Text(
-                selectedText,
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = ApkTheme.colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            if (!largeText) {
+                Text(
+                    selectedText,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                    color = ApkTheme.colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (largeText) {
+                SettingDropdownControl(
+                    selectedText = selectedText,
+                    options = options,
+                    enabledItems = enabledItems,
+                    enabled = enabled,
+                    expanded = expanded,
+                    onDismiss = { expanded = false },
+                    onSelect = { index ->
+                        position = index
+                        setValue(position)
+                        expanded = false
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+            }
+        }
+        if (!largeText) {
+            SettingDropdownControl(
+                selectedText = selectedText,
+                options = options,
+                enabledItems = enabledItems,
+                enabled = enabled,
+                expanded = expanded && enabled,
+                onDismiss = { expanded = false },
+                onSelect = { index ->
+                    position = index
+                    setValue(position)
+                    expanded = false
+                },
+                modifier = Modifier.widthIn(min = 104.dp, max = 156.dp).alpha(alpha)
             )
         }
-        Box(Modifier.alpha(alpha)) {
-            Surface(
-                modifier = Modifier.widthIn(min = 104.dp, max = 156.dp),
-                shape = ApkTheme.shapes.sm,
-                color = ApkTheme.colors.surfaceSecondary
-            ) {
-                Row(
-                    Modifier.padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
-                    verticalAlignment = CenterVertically
-                ) {
-                    Text(
-                        selectedText,
-                        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
-                        color = ApkTheme.colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp).size(18.dp),
-                        tint = ApkTheme.colors.textSecondary
-                    )
-                }
-            }
+    }
+}
 
-            DropdownMenu(
-                expanded = expanded && enabled,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.widthIn(min = 156.dp)
+@Composable
+private fun SettingDropdownControl(
+    selectedText: String,
+    options: List<String>,
+    enabledItems: List<Boolean>,
+    enabled: Boolean,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = ApkTheme.shapes.sm,
+            color = ApkTheme.colors.surfaceSecondary
+        ) {
+            Row(
+                Modifier.padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+                verticalAlignment = CenterVertically
             ) {
-                options.forEachIndexed { index, label ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        enabled = enabled && enabledItems.getOrElse(index) { true },
-                        onClick = {
-                            position = index
-                            setValue(position)
-                            expanded = false
-                        }
-                    )
-                }
+                Text(
+                    selectedText,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+                    color = ApkTheme.colors.textPrimary,
+                    maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 4.dp).size(18.dp),
+                    tint = ApkTheme.colors.textSecondary
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = onDismiss,
+            modifier = Modifier.widthIn(min = 156.dp)
+        ) {
+            options.forEachIndexed { index, label ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            label,
+                            maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    enabled = enabled && enabledItems.getOrElse(index) { true },
+                    onClick = { onSelect(index) }
+                )
             }
         }
     }
@@ -224,14 +298,29 @@ fun SwitchSetting(
     tintIcon: Boolean = true,
     iconContainerColor: Color? = null,
     iconSize: Dp = 24.dp
-) = Row(Modifier.fillMaxWidth().heightIn(min = if (subtitle != null) 88.dp else 72.dp).clickable(enabled = enabled) {
-    if (onClick != null) onClick() else {
-        val next = !getValue()
-        setValue(next)
-    }
-}.padding(horizontal = 16.dp)) {
+) {
     var value by remember { mutableStateOf(getValue()) }
     val alpha = if (enabled) 1f else 0.5f
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = if (subtitle != null) 88.dp else 72.dp)
+            .tvFocusOutline(ApkTheme.shapes.sm, enabled)
+            .toggleable(
+                value = value,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = { checked ->
+                    if (onClick != null) {
+                        onClick()
+                    } else {
+                        setValue(checked)
+                        value = getValue()
+                    }
+                }
+            )
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
     SettingsIcon(
         icon = icon,
         contentDescription = text,
@@ -267,10 +356,7 @@ fun SwitchSetting(
     Switch(
         checked = value,
         enabled = enabled,
-        onCheckedChange = {
-            setValue(it)
-            value = getValue()
-        },
+        onCheckedChange = null,
         modifier = Modifier.align(CenterVertically),
         colors = SwitchDefaults.colors(
             checkedThumbColor = ApkTheme.colors.onAccent,
@@ -280,6 +366,7 @@ fun SwitchSetting(
             uncheckedBorderColor = ApkTheme.colors.divider
         )
     )
+    }
 }
 
 @Composable
@@ -291,8 +378,9 @@ fun ButtonSetting(
     Modifier
         .fillMaxWidth()
         .heightIn(min = 72.dp)
+        .tvFocusOutline(ApkTheme.shapes.sm)
         .clickable { onClick() }
-        .padding(horizontal = 16.dp)
+        .padding(horizontal = 16.dp, vertical = 10.dp)
 ) {
     SettingsIcon(icon, text, Modifier.align(CenterVertically).padding(end = 16.dp))
     Text(

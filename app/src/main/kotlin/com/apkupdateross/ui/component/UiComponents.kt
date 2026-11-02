@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,8 +41,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
+import com.apkupdateross.ui.component.TvAwareIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.ui.Alignment
@@ -261,7 +264,8 @@ private fun ReleaseTypeChip(type: ReleaseType, compactMode: Boolean = false) {
         Text(
             text = stringResource(type.labelRes),
             style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
+            maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
+            textAlign = TextAlign.Center,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.padding(
                 horizontal = if (compactMode) 5.dp else 7.dp,
@@ -278,7 +282,9 @@ private fun RoundActionButton(
     enabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit
 ) = Surface(
-    modifier = modifier.size(ActionButtonSize),
+    modifier = modifier
+        .size(ActionButtonSize)
+        .tvFocusOutline(ApkTheme.shapes.md, enabled),
     shape = ApkTheme.shapes.md,
     color = if (enabled) ApkTheme.colors.surfaceSecondary else ApkTheme.colors.surfaceSecondary.copy(alpha = 0.45f),
     contentColor = if (enabled) ApkTheme.colors.textPrimary else ApkTheme.colors.disabled,
@@ -299,7 +305,12 @@ fun InstallButton(
     onInstall: (String) -> Unit,
     onCancel: (AppUpdate) -> Unit = {}
 ) = Surface(
-    modifier = Modifier.size(ActionButtonSize),
+    modifier = Modifier
+        .size(ActionButtonSize)
+        .tvFocusOutline(
+            ApkTheme.shapes.md,
+            !app.isDownloading && (app.link !is Link.Empty || app.isInstalling)
+        ),
     shape = ApkTheme.shapes.md,
     color = if (!app.isDownloading && (app.link !is Link.Empty || app.isInstalling)) {
         ApkTheme.colors.accent
@@ -498,43 +509,39 @@ fun UpdateItem(
                         DownloadUnavailableNotice()
                     }
                     
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    UpdateActionsFooter(
+                        updates = grouped.updates,
+                        selected = activeUpdate,
+                        onSelectSource = { activeUpdate = it },
+                        actionCount = 3,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         val canDownload = app.link !is Link.Empty
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IgnoreVersionButton(app, onIgnoreVersion)
+                        IgnoreVersionButton(app, onIgnoreVersion)
                             
-                            RoundActionButton(
-                                onClick = { onOpenPage(app) },
-                                enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
-                            ) {
+                        RoundActionButton(
+                            onClick = { onOpenPage(app) },
+                            enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
+                        ) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
+                                contentDescription = stringResource(R.string.open),
+                                modifier = Modifier.size(ActionIconSize)
+                            )
+                        }
+                        RoundActionButton(
+                            onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
+                            enabled = canDownload && !app.isInstalling && !app.isPaid
+                        ) {
+                            if (app.isDownloading) {
+                                CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
+                            } else {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
-                                    contentDescription = stringResource(R.string.open),
+                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                                    contentDescription = stringResource(R.string.download),
                                     modifier = Modifier.size(ActionIconSize)
                                 )
-                            }
-                            RoundActionButton(
-                                onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
-                                enabled = canDownload && !app.isInstalling && !app.isPaid
-                            ) {
-                                if (app.isDownloading) {
-                                    CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
-                                } else {
-                                    Icon(
-                                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
-                                        contentDescription = stringResource(R.string.download),
-                                        modifier = Modifier.size(ActionIconSize)
-                                    )
                                 }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.weight(1f))
-                        
-                        if (grouped.updates.size > 1) {
-                            SourceSelector(grouped.updates, activeUpdate, { activeUpdate = it })
-                        } else {
-                            SourceIcon(app.source, Modifier.size(32.dp))
                         }
                     }
                 }
@@ -629,41 +636,37 @@ fun SearchItem(
                         DownloadUnavailableNotice()
                     }
                     
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    UpdateActionsFooter(
+                        updates = grouped.updates,
+                        selected = activeUpdate,
+                        onSelectSource = { activeUpdate = it },
+                        actionCount = 2,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
                         val canDownload = app.link !is Link.Empty
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RoundActionButton(
-                                onClick = { onOpenPage(app) },
-                                enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
-                            ) {
+                        RoundActionButton(
+                            onClick = { onOpenPage(app) },
+                            enabled = app.sourceUrl.isNotBlank() || app.releaseUrl.isNotBlank()
+                        ) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
+                                contentDescription = stringResource(R.string.open),
+                                modifier = Modifier.size(ActionIconSize)
+                            )
+                        }
+                        RoundActionButton(
+                            onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
+                            enabled = canDownload && !app.isInstalling && !app.isPaid
+                        ) {
+                            if (app.isDownloading) {
+                                CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
+                            } else {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_open_in_new),
-                                    contentDescription = stringResource(R.string.open),
+                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
+                                    contentDescription = stringResource(R.string.download),
                                     modifier = Modifier.size(ActionIconSize)
                                 )
-                            }
-                            RoundActionButton(
-                                onClick = { if (app.isDownloading) onCancel(app) else onDownload(app) },
-                                enabled = canDownload && !app.isInstalling && !app.isPaid
-                            ) {
-                                if (app.isDownloading) {
-                                    CircularProgressIndicator(Modifier.size(ActionProgressSize), strokeWidth = 2.dp)
-                                } else {
-                                    Icon(
-                                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_download),
-                                        contentDescription = stringResource(R.string.download),
-                                        modifier = Modifier.size(ActionIconSize)
-                                    )
                                 }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.weight(1f))
-                        
-                        if (grouped.updates.size > 1) {
-                            SourceSelector(grouped.updates, activeUpdate, { activeUpdate = it })
-                        } else {
-                            SourceIcon(app.source, Modifier.size(32.dp))
                         }
                     }
                 }
@@ -705,13 +708,85 @@ fun SearchItem(
 }
 
 @Composable
+private fun UpdateActionsFooter(
+    updates: List<AppUpdate>,
+    selected: AppUpdate,
+    onSelectSource: (AppUpdate) -> Unit,
+    actionCount: Int,
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val actionSpacing = 8.dp
+        val sectionSpacing = 12.dp
+        val actionsWidth = ActionButtonSize * actionCount.toFloat() +
+            actionSpacing * (actionCount - 1).coerceAtLeast(0).toFloat()
+        val sourcesWidth = if (updates.size > 1) {
+            40.dp * updates.size.toFloat() + actionSpacing * (updates.size - 1).toFloat()
+        } else {
+            32.dp
+        }
+        val stackSections = maxWidth < actionsWidth + sectionSpacing + sourcesWidth
+
+        if (stackSections) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(actionSpacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    actions()
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    UpdateSourceControl(updates, selected, onSelectSource)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(actionSpacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    actions()
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                UpdateSourceControl(updates, selected, onSelectSource)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateSourceControl(
+    updates: List<AppUpdate>,
+    selected: AppUpdate,
+    onSelect: (AppUpdate) -> Unit
+) {
+    if (updates.size > 1) {
+        SourceSelector(updates, selected, onSelect)
+    } else {
+        SourceIcon(selected.source, Modifier.size(32.dp))
+    }
+}
+
+@Composable
 fun SourceSelector(
     updates: List<AppUpdate>,
     selected: AppUpdate,
     onSelect: (AppUpdate) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val scrollState = rememberScrollState()
+
+    Row(
+        modifier = modifier.horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         updates.forEach { update ->
             val isSelected = update.id == selected.id
             androidx.compose.material3.Surface(
@@ -722,7 +797,9 @@ fun SourceSelector(
                     1.dp,
                     if (isSelected) ApkTheme.colors.accent.copy(alpha = 0.5f) else ApkTheme.colors.divider
                 ),
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .tvFocusOutline(ApkTheme.shapes.sm)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     SourceIcon(update.source, Modifier.size(24.dp))
@@ -780,7 +857,7 @@ fun GridItem(
                 Text(
                     text = name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName },
                     style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
+                    maxLines = if (ApkTheme.accessibility.isExtraLargeText) 3 else 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
@@ -800,7 +877,11 @@ fun GridItem(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.let { if (currentOnOpenPage != null) it.clickable { currentOnOpenPage() } else it }
+                            modifier = Modifier.let {
+                                if (currentOnOpenPage != null) {
+                                    it.tvFocusOutline(ApkTheme.shapes.xs).clickable { currentOnOpenPage() }
+                                } else it
+                            }
                         ) {
                             if (currentSource != null) {
                                 Box(modifier = Modifier.padding(end = 4.dp)) {
@@ -812,7 +893,7 @@ fun GridItem(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ApkTheme.colors.accent,
                                 textAlign = TextAlign.Center,
-                                maxLines = 1,
+                                maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
@@ -821,6 +902,7 @@ fun GridItem(
                             Box(
                                 modifier = Modifier
                                     .padding(start = 2.dp)
+                                    .tvFocusOutline(ApkTheme.shapes.xs)
                                     .clickable { showDropdown = true }
                             ) {
                                 Icon(

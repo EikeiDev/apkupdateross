@@ -3,6 +3,7 @@ package com.apkupdateross.ui.activity
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -82,6 +83,9 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
     private var autoClickAttempted = false
     private var downloadStarted = false
     private var browserFallbackLoaded = false
+    private val isTelevision: Boolean
+        get() = resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
     enum class Mode {
         Install,
@@ -136,7 +140,11 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(16.dp, 12.dp, 12.dp, 8.dp)
+            if (isTelevision) {
+                setPadding(36.dp, 20.dp, 36.dp, 12.dp)
+            } else {
+                setPadding(16.dp, 12.dp, 12.dp, 8.dp)
+            }
         }
 
         val textColumn = LinearLayout(this).apply {
@@ -169,6 +177,9 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
             setTextColor(Color.rgb(219, 230, 225))
             textSize = 18f
             gravity = Gravity.CENTER
+            contentDescription = getString(R.string.close_search)
+            isFocusable = true
+            background = getDrawable(R.drawable.tv_view_button_background)
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(44.dp, 44.dp))
 
@@ -181,6 +192,8 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         val browser = WebView(this).apply {
             setBackgroundColor(Color.rgb(9, 14, 12))
             visibility = View.GONE
+            isFocusable = true
+            isFocusableInTouchMode = true
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -294,6 +307,7 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         progressBar?.progress = 0
         browser.visibility = View.VISIBLE
         browser.loadUrl(request.pageUrl)
+        if (isTelevision) browser.requestFocus()
     }
 
     private fun prepareDownloadPage(browser: WebView) {

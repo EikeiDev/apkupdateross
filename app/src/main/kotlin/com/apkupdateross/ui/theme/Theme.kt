@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -163,6 +164,12 @@ fun AppTheme(
 	dynamicColor: Boolean = false,
 	content: @Composable () -> Unit
 ) {
+	val fontScale = LocalDensity.current.fontScale
+	val accessibility = AppAccessibility(
+		fontScale = fontScale,
+		isLargeText = fontScale >= 1.3f,
+		isExtraLargeText = fontScale >= 1.8f
+	)
 	val colorScheme = when {
 		theme.mode == THEME_MODE_CUSTOM -> customColorScheme(theme.customColors)
 		dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -195,7 +202,8 @@ fun AppTheme(
 
 	CompositionLocalProvider(
 		LocalAppExtraColors provides extraColors,
-		LocalAppColors provides colorScheme.toAppColors(theme.darkTheme)
+		LocalAppColors provides colorScheme.toAppColors(theme.darkTheme),
+		LocalAppAccessibility provides accessibility
 	) {
 		MaterialTheme(
 			colorScheme = colorScheme,

@@ -30,6 +30,13 @@ data class AppColors(
     val disabled: Color
 )
 
+@Immutable
+data class AppAccessibility(
+    val fontScale: Float = 1f,
+    val isLargeText: Boolean = false,
+    val isExtraLargeText: Boolean = false
+)
+
 object AppSpacing {
     val xxs = 4.dp
     val xs = 8.dp
@@ -59,6 +66,11 @@ object ApkTheme {
 
     val shapes: AppShapeTokens
         get() = AppShapeTokens
+
+    val accessibility: AppAccessibility
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalAppAccessibility.current
 }
 
 internal val LocalAppColors = staticCompositionLocalOf {
@@ -81,6 +93,8 @@ internal val LocalAppColors = staticCompositionLocalOf {
         disabled = Color(0xFF77817D)
     )
 }
+
+internal val LocalAppAccessibility = staticCompositionLocalOf { AppAccessibility() }
 
 internal fun ColorScheme.toAppColors(darkTheme: Boolean): AppColors {
     val surfaceLayer = if (darkTheme) {

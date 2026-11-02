@@ -65,7 +65,7 @@ fun MediumTitle(text: String, modifier: Modifier = Modifier) = Text(
     style = MaterialTheme.typography.titleMedium,
     fontWeight = FontWeight.Bold,
     color = ApkTheme.colors.textPrimary,
-    maxLines = 2,
+    maxLines = if (ApkTheme.accessibility.isLargeText) 3 else 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
 )
@@ -76,7 +76,7 @@ fun LargeTitle(text: String, modifier: Modifier = Modifier) = Text(
     style = MaterialTheme.typography.titleMedium,
     fontWeight = FontWeight.SemiBold,
     color = ApkTheme.colors.textPrimary,
-    maxLines = 2,
+    maxLines = if (ApkTheme.accessibility.isLargeText) 3 else 2,
     overflow = TextOverflow.Ellipsis,
     modifier = modifier
 )
@@ -157,6 +157,7 @@ fun ExpandingAnnotatedText(
         color = ApkTheme.colors.textSecondary,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            .tvFocusOutline(ApkTheme.shapes.xs)
             .clickable(true) { isExpanded = !isExpanded }
             .animateContentSize(),
     )

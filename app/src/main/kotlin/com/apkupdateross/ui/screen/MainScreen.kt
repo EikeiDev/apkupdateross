@@ -20,14 +20,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
+import com.apkupdateross.ui.component.TvAwareButton as Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,7 +37,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.apkupdateross.ui.component.TvAwareTextButton as TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -55,6 +57,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.util.Consumer
@@ -70,6 +73,9 @@ import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.ui.component.BadgeText
+import com.apkupdateross.ui.component.LocalTvMode
+import com.apkupdateross.ui.component.tvContentPadding
+import com.apkupdateross.ui.component.tvFocusOutline
 import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.ui.theme.AppTheme
 import com.apkupdateross.ui.theme.LocalAppExtraColors
@@ -131,13 +137,37 @@ fun MainScreen(mainViewModel: MainViewModel = koinViewModel()) {
 	AppTheme(theme) {
 		ApplySystemBarColors()
 		DebugReleaseMigrationDialog(mainViewModel)
-		Scaffold(
-			snackbarHost = { SnackbarHost(snackBarHostState) },
-			bottomBar = { BottomBar(mainViewModel, navController) },
-			containerColor = ApkTheme.colors.background,
-			contentWindowInsets = WindowInsets(0)
-		) { padding ->
-			NavHost(navController, padding, mainViewModel, appsViewModel, updatesViewModel, searchViewModel, settingsViewModel)
+		val isTv = LocalTvMode.current
+		val appContent: @Composable (Modifier) -> Unit = { modifier ->
+			Scaffold(
+				modifier = modifier,
+				snackbarHost = { SnackbarHost(snackBarHostState) },
+				bottomBar = {
+					if (!isTv) BottomBar(mainViewModel, navController)
+				},
+				containerColor = ApkTheme.colors.background,
+				contentWindowInsets = WindowInsets(0)
+			) { padding ->
+				NavHost(
+					navController,
+					padding,
+					mainViewModel,
+					appsViewModel,
+					updatesViewModel,
+					searchViewModel,
+					settingsViewModel,
+					Modifier.padding(tvContentPadding())
+				)
+			}
+		}
+
+		if (isTv) {
+			Row(Modifier.fillMaxSize()) {
+				TvNavigationRail(mainViewModel, navController)
+				appContent(Modifier.weight(1f))
+			}
+		} else {
+			appContent(Modifier.fillMaxSize())
 		}
 	}
 }
@@ -317,8 +347,9 @@ fun BottomBarItem(
 	val itemColor = if (selected) selectedTextColor else navigationContentColor.copy(alpha = 0.78f)
 	Column(
 		modifier = modifier
-			.height(60.dp)
+			.heightIn(min = 60.dp)
 			.clip(ApkTheme.shapes.md)
+			.tvFocusOutline(ApkTheme.shapes.md)
 			.clickable(
 				interactionSource = remember { MutableInteractionSource() },
 				indication = null,
@@ -348,7 +379,93 @@ fun BottomBarItem(
 			stringResource(screen.resourceId),
 			color = itemColor,
 			style = MaterialTheme.typography.labelSmall,
-			maxLines = 1,
+			maxLines = if (ApkTheme.accessibility.isExtraLargeText) 3 else 2,
+			textAlign = TextAlign.Center,
+			overflow = TextOverflow.Ellipsis
+		)
+	}
+}
+
+@Composable
+private fun TvNavigationRail(
+	mainViewModel: MainViewModel,
+	navController: NavController
+) {
+	val badges = koinInject<Badger>().flow().collectAsStateWithLifecycle().value
+	val extraColors = LocalAppExtraColors.current
+	val containerColor = extraColors.navigationBar ?: ApkTheme.colors.surfaceElevated
+	Surface(
+		modifier = Modifier
+			.fillMaxHeight()
+			.width(112.dp)
+			.padding(start = 18.dp, top = 20.dp, bottom = 20.dp),
+		shape = ApkTheme.shapes.lg,
+		color = containerColor,
+		border = BorderStroke(1.dp, ApkTheme.colors.divider)
+	) {
+		Column(
+			modifier = Modifier
+				.fillMaxSize()
+				.padding(horizontal = 8.dp, vertical = 12.dp),
+			verticalArrangement = Arrangement.Center,
+			horizontalAlignment = Alignment.CenterHorizontally
+		) {
+			mainViewModel.screens.forEach { screen ->
+				val state = navController.currentBackStackEntryAsState().value
+				val selected = state?.destination?.route == screen.route
+				TvNavigationItem(
+					screen = screen,
+					selected = selected,
+					badge = badges[screen.route].orEmpty(),
+					onClick = { mainViewModel.navigateTo(navController, screen.route) }
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun TvNavigationItem(
+	screen: Screen,
+	selected: Boolean,
+	badge: String,
+	onClick: () -> Unit
+) {
+	val extraColors = LocalAppExtraColors.current
+	val selectedContainer = extraColors.navigationIndicator ?: ApkTheme.colors.surfaceHighlight
+	val selectedIconColor = extraColors.onNavigationIndicator ?: ApkTheme.colors.accent
+	val contentColor = if (selected) {
+		extraColors.selectedNavigationText ?: ApkTheme.colors.accent
+	} else {
+		(extraColors.onNavigationBar ?: ApkTheme.colors.textSecondary).copy(alpha = 0.82f)
+	}
+	Column(
+		modifier = Modifier
+			.fillMaxWidth()
+			.heightIn(min = 82.dp)
+			.clip(ApkTheme.shapes.md)
+			.tvFocusOutline(ApkTheme.shapes.md, scale = 1.05f)
+			.background(if (selected) selectedContainer else Color.Transparent)
+			.clickable(onClick = onClick)
+			.padding(horizontal = 4.dp, vertical = 8.dp),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.Center
+	) {
+		BadgedBox({ BadgeText(badge) }) {
+			Icon(
+				imageVector = if (selected) screen.iconSelected else screen.icon,
+				contentDescription = stringResource(screen.resourceId),
+				modifier = Modifier.size(26.dp),
+				tint = if (selected) selectedIconColor else contentColor
+			)
+		}
+		Text(
+			text = stringResource(screen.resourceId),
+			modifier = Modifier.padding(top = 5.dp),
+			color = contentColor,
+			style = MaterialTheme.typography.labelMedium,
+			maxLines = 2,
+			textAlign = TextAlign.Center,
 			overflow = TextOverflow.Ellipsis
 		)
 	}
@@ -362,11 +479,12 @@ fun NavHost(
 	appsViewModel: AppsViewModel,
 	updatesViewModel: UpdatesViewModel,
 	searchViewModel: SearchViewModel,
-	settingsViewModel: SettingsViewModel
+	settingsViewModel: SettingsViewModel,
+	modifier: Modifier = Modifier
 ) = NavHost(
 	navController = navController,
 	startDestination = mainViewModel.getLastRoute(),
-	modifier = Modifier.padding(padding)
+	modifier = modifier.padding(padding)
 ) {
 	composable(Screen.Apps.route) { AppsScreen(appsViewModel) }
 	composable(Screen.Search.route) { SearchScreen(searchViewModel) }

@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
 
@@ -44,7 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.apkupdateross.ui.component.TvAwareIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -54,15 +55,17 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider as Divider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.apkupdateross.ui.component.TvAwareTextButton as TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +74,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
@@ -92,11 +97,13 @@ import com.apkupdateross.ui.component.AppScreen
 import com.apkupdateross.ui.component.AppTopBar
 import com.apkupdateross.ui.component.LargeTitle
 import com.apkupdateross.ui.component.LoadingImageApp
+import com.apkupdateross.ui.component.LocalTvMode
 import com.apkupdateross.ui.component.SegmentedButtonSetting
 import com.apkupdateross.ui.component.SliderSetting
 import com.apkupdateross.ui.component.SourceIcon
 import com.apkupdateross.ui.component.SettingsIcon
 import com.apkupdateross.ui.component.SwitchSetting
+import com.apkupdateross.ui.component.tvFocusOutline
 import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_ACCENT
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_BACKGROUND
@@ -125,6 +132,15 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = AppScreen {
 	var dialogFdroidRepo by remember { mutableStateOf<FdroidRepo?>(null) }
 	var dialogIgnoredUpdates by remember { mutableStateOf(false) }
 	var selectedSection by rememberSaveable { mutableStateOf(SettingsSection.Home) }
+	var lastHomeSelection by rememberSaveable { mutableStateOf<SettingsSection?>(null) }
+	val isTv = LocalTvMode.current
+	val sectionFocusRequester = remember { FocusRequester() }
+
+	LaunchedEffect(isTv, uiState, selectedSection) {
+		if (isTv && (uiState != SettingsUiState.Settings || selectedSection != SettingsSection.Home)) {
+			sectionFocusRequester.requestFocus()
+		}
+	}
 
 	val alarmPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 	BackHandler(enabled = uiState != SettingsUiState.Settings || selectedSection != SettingsSection.Home) {
@@ -141,7 +157,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = AppScreen {
 		}
 		SettingsTopBar(
 			title = stringResource(selectedSection.titleRes),
-			onBack = if (selectedSection == SettingsSection.Home) null else ({ selectedSection = SettingsSection.Home })
+			onBack = if (selectedSection == SettingsSection.Home) null else ({ selectedSection = SettingsSection.Home }),
+			focusRequester = sectionFocusRequester
 		)
 		Settings(
 			viewModel,
@@ -159,11 +176,18 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = AppScreen {
 			notificationPermissionLauncher = alarmPermissionLauncher,
 			onManageIgnoredUpdates = { dialogIgnoredUpdates = true },
 			selectedSection = selectedSection,
-			onSelectSection = { selectedSection = it },
-			onAbout = { viewModel.setAbout() }
+			onSelectSection = {
+				lastHomeSelection = it
+				selectedSection = it
+			},
+			onAbout = {
+				lastHomeSelection = SettingsSection.Home
+				viewModel.setAbout()
+			},
+			homeFocusTarget = if (isTv) lastHomeSelection else null
 		)
 	} else {
-		AboutTopBar(onBack = { viewModel.setSettings() })
+		AboutTopBar(onBack = { viewModel.setSettings() }, focusRequester = sectionFocusRequester)
 		About()
 	}
 	dialogRepo?.let { repo ->
@@ -230,6 +254,7 @@ fun About() = Column(
 
 	AssistChip(
 		onClick = {},
+		enabled = false,
 		label = { Text("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
 		leadingIcon = {
 			Icon(
@@ -243,7 +268,9 @@ fun About() = Column(
 		border = null,
 		colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
 			containerColor = ApkTheme.colors.surfaceHighlight,
-			labelColor = ApkTheme.colors.accent
+			labelColor = ApkTheme.colors.accent,
+			disabledContainerColor = ApkTheme.colors.surfaceHighlight,
+			disabledLabelColor = ApkTheme.colors.accent
 		)
 	)
 
@@ -301,8 +328,9 @@ private fun SocialButton(
 			}
 		},
 		modifier = Modifier
-			.fillMaxWidth(0.7f)
-			.height(56.dp),
+			.fillMaxWidth(if (ApkTheme.accessibility.isLargeText) 1f else 0.7f)
+			.heightIn(min = 56.dp)
+			.tvFocusOutline(ApkTheme.shapes.md),
 		shape = ApkTheme.shapes.md,
 		colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
 			containerColor = ApkTheme.colors.surfaceSecondary,
@@ -365,7 +393,8 @@ private fun Settings(
 	onManageIgnoredUpdates: () -> Unit,
 	selectedSection: SettingsSection,
 	onSelectSection: (SettingsSection) -> Unit,
-	onAbout: () -> Unit
+	onAbout: () -> Unit,
+	homeFocusTarget: SettingsSection?
 ) {
 	val installMode = viewModel.installModeFlow.collectAsStateWithLifecycle().value
 	val context = LocalContext.current
@@ -381,7 +410,7 @@ private fun Settings(
 	}
 
 	when (selectedSection) {
-		SettingsSection.Home -> SettingsHome(onSelectSection, onAbout)
+		SettingsSection.Home -> SettingsHome(onSelectSection, onAbout, homeFocusTarget)
 		SettingsSection.Sources -> SourcesSettings(
 			viewModel = viewModel,
 			ruStore404Count = ruStore404Count,
@@ -420,23 +449,41 @@ private fun Settings(
 @Composable
 private fun SettingsHome(
 	onSelectSection: (SettingsSection) -> Unit,
-	onAbout: () -> Unit
-) = LazyColumn {
-	item { Spacer(Modifier.height(12.dp)) }
-	listOf(
+	onAbout: () -> Unit,
+	focusTarget: SettingsSection?
+) {
+	val sections = listOf(
 		SettingsSection.Sources,
 		SettingsSection.Updates,
 		SettingsSection.Install,
 		SettingsSection.Interface,
 		SettingsSection.Network,
 		SettingsSection.DataLogs
-	).forEach { section ->
+	)
+	val homeFocusRequester = remember(focusTarget) { FocusRequester() }
+	val listState = rememberLazyListState()
+	LaunchedEffect(focusTarget) {
+		if (focusTarget != null) {
+			val targetIndex = if (focusTarget == SettingsSection.Home) {
+				sections.size + 1
+			} else {
+				sections.indexOf(focusTarget).coerceAtLeast(0) + 1
+			}
+			listState.scrollToItem(targetIndex)
+			withFrameNanos { }
+			homeFocusRequester.requestFocus()
+		}
+	}
+	LazyColumn(state = listState) {
+	item { Spacer(Modifier.height(12.dp)) }
+	sections.forEach { section ->
 		item {
 			SettingsCategoryItem(
 				title = stringResource(section.titleRes),
 				subtitle = stringResource(section.subtitleRes),
 				icon = section.iconRes,
-				onClick = { onSelectSection(section) }
+				onClick = { onSelectSection(section) },
+				modifier = if (focusTarget == section) Modifier.focusRequester(homeFocusRequester) else Modifier
 			)
 		}
 	}
@@ -445,10 +492,12 @@ private fun SettingsHome(
 			title = stringResource(R.string.about),
 			subtitle = stringResource(R.string.settings_category_about_subtitle),
 			icon = R.drawable.ic_info,
-			onClick = onAbout
+			onClick = onAbout,
+			modifier = if (focusTarget == SettingsSection.Home) Modifier.focusRequester(homeFocusRequester) else Modifier
 		)
 	}
 	item { Spacer(Modifier.height(24.dp)) }
+	}
 }
 
 @Composable
@@ -456,9 +505,10 @@ private fun SettingsCategoryItem(
 	title: String,
 	subtitle: String,
 	@DrawableRes icon: Int,
-	onClick: () -> Unit
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier
 ) = AppListSurface(
-	modifier = Modifier
+	modifier = modifier
 		.fillMaxWidth()
 		.padding(horizontal = 16.dp, vertical = 6.dp),
 	onClick = onClick
@@ -480,9 +530,7 @@ private fun SettingsCategoryItem(
 			Text(
 				subtitle,
 				style = MaterialTheme.typography.bodyMedium,
-				color = ApkTheme.colors.textSecondary,
-				maxLines = 2,
-				overflow = TextOverflow.Ellipsis
+				color = ApkTheme.colors.textSecondary
 			)
 		}
 		Icon(
@@ -719,7 +767,7 @@ private fun CustomThemePreview(
 				}
 			}
 			Surface(
-				modifier = Modifier.fillMaxWidth().height(28.dp),
+				modifier = Modifier.fillMaxWidth().heightIn(min = 28.dp),
 				shape = ApkTheme.shapes.sm,
 				color = navigationColor
 			) {
@@ -750,6 +798,11 @@ private fun CustomColorSetting(
 			.padding(horizontal = 16.dp, vertical = 10.dp),
 		verticalArrangement = Arrangement.spacedBy(8.dp)
 	) {
+		Text(
+			text = label,
+			style = MaterialTheme.typography.bodyMedium,
+			color = ApkTheme.colors.textSecondary
+		)
 		Row(verticalAlignment = Alignment.CenterVertically) {
 			Surface(
 				shape = CircleShape,
@@ -762,7 +815,6 @@ private fun CustomColorSetting(
 				value = value,
 				onValueChange = onValueChange,
 				modifier = Modifier.weight(1f),
-				label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
 				singleLine = true,
 				isError = normalized == null,
 				shape = ApkTheme.shapes.sm,
@@ -796,6 +848,7 @@ private fun CustomColorSetting(
 					),
 					modifier = Modifier
 						.size(32.dp)
+						.tvFocusOutline(CircleShape, scale = 1.12f)
 						.clickable { onColorPicked(swatch) }
 				) {}
 			}
@@ -853,6 +906,12 @@ private fun SourcesSettings(
 				exit = shrinkVertically()
 			) {
 				Column {
+					Text(
+						text = stringResource(R.string.github_token_label),
+						style = MaterialTheme.typography.bodyMedium,
+						color = ApkTheme.colors.textSecondary,
+						modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+					)
 					OutlinedTextField(
 						value = githubToken,
 						onValueChange = {
@@ -862,7 +921,6 @@ private fun SourcesSettings(
 						modifier = Modifier
 							.fillMaxWidth()
 							.padding(horizontal = 16.dp, vertical = 8.dp),
-						label = { Text(stringResource(R.string.github_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
 						singleLine = true,
 						visualTransformation = if (githubTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
 						trailingIcon = {
@@ -901,6 +959,12 @@ private fun SourcesSettings(
 				exit = shrinkVertically()
 			) {
 				Column {
+					Text(
+						text = stringResource(R.string.gitlab_token_label),
+						style = MaterialTheme.typography.bodyMedium,
+						color = ApkTheme.colors.textSecondary,
+						modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+					)
 					OutlinedTextField(
 						value = gitlabToken,
 						onValueChange = {
@@ -910,7 +974,6 @@ private fun SourcesSettings(
 						modifier = Modifier
 							.fillMaxWidth()
 							.padding(horizontal = 16.dp, vertical = 8.dp),
-						label = { Text(stringResource(R.string.gitlab_token_label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
 						singleLine = true,
 						visualTransformation = if (gitlabTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
 						trailingIcon = {
@@ -1255,23 +1318,34 @@ private fun CustomRepoCard(
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 8.dp)
 	) {
-		Row(
-			Modifier
-				.fillMaxWidth()
-				.padding(16.dp),
-			verticalAlignment = Alignment.CenterVertically
-		) {
-			SettingsIcon(providerIcon(repo.platform), repo.platform.name)
-			Spacer(Modifier.width(16.dp))
-			Column(Modifier.weight(1f)) {
-				Text("${repo.user}/${repo.repo}", style = MaterialTheme.typography.titleMedium, color = ApkTheme.colors.textPrimary)
-				Text(repo.packageName, style = MaterialTheme.typography.bodyMedium, color = ApkTheme.colors.textSecondary)
-				repo.extraRegex?.takeIf { it.isNotBlank() }?.let {
-					Text(it, style = MaterialTheme.typography.bodySmall, color = ApkTheme.colors.textSecondary)
+		Column(Modifier.fillMaxWidth().padding(16.dp)) {
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				SettingsIcon(providerIcon(repo.platform), repo.platform.name)
+				Spacer(Modifier.width(16.dp))
+				Column(Modifier.weight(1f)) {
+					Text("${repo.user}/${repo.repo}", style = MaterialTheme.typography.titleMedium, color = ApkTheme.colors.textPrimary)
+					Text(repo.packageName, style = MaterialTheme.typography.bodyMedium, color = ApkTheme.colors.textSecondary)
+					repo.extraRegex?.takeIf { it.isNotBlank() }?.let {
+						Text(it, style = MaterialTheme.typography.bodySmall, color = ApkTheme.colors.textSecondary)
+					}
+				}
+				if (!ApkTheme.accessibility.isLargeText) {
+					IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, tint = ApkTheme.colors.textSecondary) }
+					IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, tint = ApkTheme.colors.error) }
 				}
 			}
-			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, tint = ApkTheme.colors.textSecondary) }
-			IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, tint = ApkTheme.colors.error) }
+			if (ApkTheme.accessibility.isLargeText) {
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.End
+				) {
+					IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, tint = ApkTheme.colors.textSecondary) }
+					IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, tint = ApkTheme.colors.error) }
+				}
+			}
 		}
 	}
 }
@@ -1319,7 +1393,10 @@ private fun CustomRepoDialog(
 		},
 		title = { Text(stringResource(if (repo.user.isBlank() && repo.repo.isBlank() && repo.packageName.isBlank()) R.string.settings_custom_repos_add else R.string.settings_custom_repos_edit)) },
 		text = {
-			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			Column(
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+				verticalArrangement = Arrangement.spacedBy(12.dp)
+			) {
 				OutlinedTextField(
 					value = user,
 					onValueChange = {
@@ -1426,9 +1503,10 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 			}
 			if (!notificationStatus.value) {
 				Spacer(Modifier.height(12.dp))
-				FilledTonalButton(onClick = {
-					viewModel.requestNotificationPermission(launcher)
-				}) {
+				FilledTonalButton(
+					modifier = Modifier.tvFocusOutline(ApkTheme.shapes.md),
+					onClick = { viewModel.requestNotificationPermission(launcher) }
+				) {
 					Text(stringResource(R.string.notifications_enable_action))
 				}
 			}
@@ -1440,12 +1518,16 @@ private fun NotificationStatusCard(viewModel: SettingsViewModel) {
 @Composable
 fun SettingsTopBar(
 	title: String,
-	onBack: (() -> Unit)? = null
+	onBack: (() -> Unit)? = null,
+	focusRequester: FocusRequester? = null
 ) = AppTopBar(
 	title = title,
 	navigationIcon = {
 		if (onBack != null) {
-			IconButton(onClick = onBack) {
+			IconButton(
+				onClick = onBack,
+				modifier = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+			) {
 				Icon(
 					Icons.AutoMirrored.Filled.KeyboardArrowLeft,
 					stringResource(R.string.back),
@@ -1458,10 +1540,13 @@ fun SettingsTopBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutTopBar(onBack: () -> Unit) = AppTopBar(
+fun AboutTopBar(onBack: () -> Unit, focusRequester: FocusRequester? = null) = AppTopBar(
 	title = stringResource(R.string.about),
 	navigationIcon = {
-		IconButton(onClick = onBack) {
+		IconButton(
+			onClick = onBack,
+			modifier = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+		) {
 			Icon(
 				Icons.AutoMirrored.Filled.KeyboardArrowLeft,
 				stringResource(R.string.back),
@@ -1512,26 +1597,24 @@ private fun FdroidRepoCard(
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp, vertical = 4.dp)
 	) {
-		Row(
-			Modifier
-				.fillMaxWidth()
-				.padding(12.dp),
-			verticalAlignment = Alignment.CenterVertically
-		) {
-			androidx.compose.material3.Switch(
-				checked = repo.isEnabled,
-				onCheckedChange = onToggle,
-				modifier = Modifier.padding(end = 12.dp)
-			)
-			Column(Modifier.weight(1f)) {
-				Row(verticalAlignment = Alignment.CenterVertically) {
+		Column(Modifier.fillMaxWidth().padding(12.dp)) {
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				androidx.compose.material3.Switch(
+					checked = repo.isEnabled,
+					onCheckedChange = onToggle,
+					modifier = Modifier.padding(end = 12.dp)
+				)
+				Column(Modifier.weight(1f)) {
 					Text(repo.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
 					if (repo.isDefault) {
-						Spacer(Modifier.width(8.dp))
 						Surface(
 							color = ApkTheme.colors.surfaceHighlight,
 							shape = ApkTheme.shapes.xs,
-							border = BorderStroke(1.dp, ApkTheme.colors.accent.copy(alpha = 0.28f))
+							border = BorderStroke(1.dp, ApkTheme.colors.accent.copy(alpha = 0.28f)),
+							modifier = Modifier.padding(top = 4.dp)
 						) {
 							Text(
 								stringResource(R.string.settings_fdroid_repo_default),
@@ -1541,12 +1624,31 @@ private fun FdroidRepoCard(
 							)
 						}
 					}
+					Text(
+						repo.url,
+						style = MaterialTheme.typography.bodySmall,
+						color = ApkTheme.colors.textSecondary,
+						maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
+						overflow = TextOverflow.Ellipsis
+					)
 				}
-				Text(repo.url, style = MaterialTheme.typography.bodySmall, color = ApkTheme.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+				if (!ApkTheme.accessibility.isLargeText) {
+					IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.textSecondary) }
+					if (!repo.isDefault) {
+						IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.error) }
+					}
+				}
 			}
-			IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.textSecondary) }
-			if (!repo.isDefault) {
-				IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.error) }
+			if (ApkTheme.accessibility.isLargeText) {
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.End
+				) {
+					IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.textSecondary) }
+					if (!repo.isDefault) {
+						IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApkTheme.colors.error) }
+					}
+				}
 			}
 		}
 	}
@@ -1580,7 +1682,10 @@ private fun FdroidRepoDialog(
 		},
 		title = { Text(stringResource(if (repo.name.isBlank() && repo.url.isBlank()) R.string.settings_custom_repos_add else R.string.settings_custom_repos_edit)) },
 		text = {
-			Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			Column(
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+				verticalArrangement = Arrangement.spacedBy(12.dp)
+			) {
 				OutlinedTextField(
 					value = name,
 					onValueChange = { name = it; showError = false },
@@ -1651,14 +1756,14 @@ fun IgnoredUpdatesDialog(
 										}
 									},
 									style = MaterialTheme.typography.bodyLarge,
-									maxLines = 1,
+									maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
 									overflow = TextOverflow.Ellipsis
 								)
 								Text(
 									text = info.packageName,
 									style = MaterialTheme.typography.bodyMedium,
 									color = ApkTheme.colors.textSecondary,
-									maxLines = 1,
+									maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
 									overflow = TextOverflow.Ellipsis
 								)
 							}

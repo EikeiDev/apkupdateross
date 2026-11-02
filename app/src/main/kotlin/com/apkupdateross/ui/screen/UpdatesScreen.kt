@@ -14,14 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
+import com.apkupdateross.ui.component.TvAwareIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.apkupdateross.ui.component.TvAwareButton as Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
+import com.apkupdateross.ui.component.TvAwareTextButton as TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +68,7 @@ import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
 import com.apkupdateross.ui.component.RefreshIcon
 import com.apkupdateross.ui.component.SwipeToIgnoreBox
+import com.apkupdateross.ui.component.tvFocusOutline
 import com.apkupdateross.ui.component.UpdateItem
 import androidx.compose.ui.unit.dp
 import com.apkupdateross.ui.theme.ApkTheme
@@ -124,17 +125,21 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 				items(loadingSources.toList(), key = { "loading_${it.name}" }) { source ->
 					AssistChip(
 						onClick = {},
+						enabled = false,
 						label = { Text(source.name, style = MaterialTheme.typography.labelSmall) },
 						leadingIcon = { CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp) },
 						colors = AssistChipDefaults.assistChipColors(
 							containerColor = ApkTheme.colors.surfaceSecondary,
-							labelColor = ApkTheme.colors.textSecondary
+							labelColor = ApkTheme.colors.textSecondary,
+							disabledContainerColor = ApkTheme.colors.surfaceSecondary,
+							disabledLabelColor = ApkTheme.colors.textSecondary
 						)
 					)
 				}
 				items(failedSources.toList(), key = { "failed_${it.name}" }) { source ->
 					AssistChip(
 						onClick = {},
+						enabled = false,
 						label = { Text(source.name, style = MaterialTheme.typography.labelSmall) },
 						leadingIcon = {
 							Icon(
@@ -146,7 +151,9 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 						},
 						colors = AssistChipDefaults.assistChipColors(
 							containerColor = ApkTheme.colors.error.copy(alpha = 0.18f),
-							labelColor = ApkTheme.colors.error
+							labelColor = ApkTheme.colors.error,
+							disabledContainerColor = ApkTheme.colors.error.copy(alpha = 0.18f),
+							disabledLabelColor = ApkTheme.colors.error
 						)
 					)
 				}
@@ -163,8 +170,16 @@ fun UpdatesScreen(viewModel: UpdatesViewModel) {
 				DefaultErrorScreen()
 			}.onSuccess {
 				when {
-					it.updates.isEmpty() && isRefreshing -> EmptyGrid(text = stringResource(R.string.checking_updates))
-					it.updates.isEmpty() -> EmptyGrid(text = stringResource(R.string.updates_empty))
+					it.updates.isEmpty() && isRefreshing -> EmptyGrid(
+						text = stringResource(R.string.checking_updates),
+						tone = AppTone.Accent,
+						loading = true
+					)
+					it.updates.isEmpty() -> EmptyGrid(
+						text = stringResource(R.string.updates_empty),
+						icon = R.drawable.ic_state_up_to_date,
+						tone = AppTone.Success
+					)
 					else -> Grid(
 						viewModel = viewModel,
 						updates = it.updates,
@@ -520,7 +535,9 @@ private fun InstallAllButton(
 ) {
 	val enabled = count > 0 && !isInstalling
 	Surface(
-		modifier = Modifier.fillMaxWidth(),
+		modifier = Modifier
+			.fillMaxWidth()
+			.tvFocusOutline(ApkTheme.shapes.lg, enabled),
 		shape = ApkTheme.shapes.lg,
 		color = if (enabled) ApkTheme.colors.surfaceHighlight else ApkTheme.colors.surfaceSecondary,
 		contentColor = if (enabled) ApkTheme.colors.accent else ApkTheme.colors.disabled,

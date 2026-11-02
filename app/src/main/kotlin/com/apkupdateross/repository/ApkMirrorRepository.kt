@@ -18,6 +18,8 @@ import com.apkupdateross.data.ui.getVersionCode
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.ApkMirrorService
 import com.apkupdateross.util.AbiMatcher
+import com.apkupdateross.util.ApkMirrorChallengeCoordinator
+import com.apkupdateross.util.ApkMirrorSession
 import com.apkupdateross.util.AppUserAgent
 import com.apkupdateross.util.combine
 import com.apkupdateross.util.orFalse
@@ -26,11 +28,20 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import retrofit2.HttpException
+import java.io.IOException
 
 class ApkMirrorRepository(
     private val service: ApkMirrorService,
-    private val prefs: Prefs
+    private val prefs: Prefs,
+    private val client: OkHttpClient,
+    private val session: ApkMirrorSession,
+    private val challengeCoordinator: ApkMirrorChallengeCoordinator
 ) {
 
     private val api = Build.VERSION.SDK_INT
@@ -43,16 +54,13 @@ class ApkMirrorRepository(
     }
 
     suspend fun search(text: String) = flow {
-        val baseUrl = "https://www.apkmirror.com"
-        val searchQuery = "/?post_type=app_release&searchtype=app&s="
-        val doc = withContext(Dispatchers.IO) {
-            Jsoup
-                .connect("$baseUrl$searchQuery$text")
-                .userAgent(AppUserAgent.value)
-                .referrer(baseUrl)
-                .timeout(15000)
-                .get()
-        }
+        val searchUrl = "$APKMIRROR_BASE_URL/".toHttpUrl().newBuilder()
+            .addQueryParameter("post_type", "app_release")
+            .addQueryParameter("searchtype", "app")
+            .addQueryParameter("s", text)
+            .build()
+            .toString()
+        val doc = requestHtml(searchUrl, APKMIRROR_BASE_URL)
         val row = doc.select("div.appRow")
         val aLinks = row.select("a.byDeveloper")
         val titles = row.select("h5.appRowTitle")
@@ -74,14 +82,14 @@ class ApkMirrorRepository(
             AppUpdate(
                 name = titles[i].attr("title").ifBlank { titles[i].text() },
                 link = Link.Empty,
-                iconUri = Uri.parse("$baseUrl${images[i].attr("src")}".replace("=32", "=128")),
+                iconUri = Uri.parse("$APKMIRROR_BASE_URL${images[i].attr("src")}".replace("=32", "=128")),
                 version = "",
                 oldVersion = "",
                 versionCode = 0L,
                 oldVersionCode = 0L,
                 source = ApkMirrorSource,
                 packageName = pseudoPackage,
-                sourceUrl = if (detailsLink.startsWith("http")) detailsLink else "$baseUrl$detailsLink"
+                sourceUrl = if (detailsLink.startsWith("http")) detailsLink else "$APKMIRROR_BASE_URL$detailsLink"
             )
         }
         emit(Result.success(result))
@@ -91,7 +99,21 @@ class ApkMirrorRepository(
     }
 
     private fun appExists(apps: List<String>) = flow {
-        emit(service.appExists(AppExistsRequest(apps, buildIgnoreList())).data)
+        val request = AppExistsRequest(apps, buildIgnoreList())
+        var lastError: Throwable? = null
+        repeat(MAX_APKMIRROR_VERIFICATION_ATTEMPTS + 1) { attempt ->
+            try {
+                emit(service.appExists(request).data)
+                return@flow
+            } catch (error: HttpException) {
+                lastError = error
+                if (error.code() != 403 || attempt >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                    throw error
+                }
+                verifyInForeground(APKMIRROR_BASE_URL, APKMIRROR_BASE_URL)
+            }
+        }
+        throw lastError ?: IOException("APKMirror update check failed")
     }.catch {
         emit(emptyList())
         Log.e("ApkMirrorRepository", "Error getting updates.", it)
@@ -152,4 +174,47 @@ class ApkMirrorRepository(
         if (prefs.ignoreBeta.get()) add("beta")
     }
 
+    private suspend fun requestHtml(url: String, referer: String): Document =
+        withContext(Dispatchers.IO) {
+            repeat(MAX_APKMIRROR_VERIFICATION_ATTEMPTS + 1) { attempt ->
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Referer", referer)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.code == 403) {
+                        if (attempt >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                            throw IOException("APKMirror Cloudflare verification did not clear HTTP 403")
+                        }
+                        verifyInForeground(response.request.url.toString(), referer)
+                    } else {
+                        if (!response.isSuccessful) {
+                            throw IOException("APKMirror HTTP ${response.code}: $url")
+                        }
+                        return@withContext Jsoup.parse(
+                            response.body?.string().orEmpty(),
+                            response.request.url.toString()
+                        )
+                    }
+                }
+            }
+            throw IOException("APKMirror search failed")
+        }
+
+    private suspend fun verifyInForeground(challengeUrl: String, referer: String) =
+        withContext(Dispatchers.IO) {
+            challengeCoordinator.requestVerification(
+                challengeUrl = challengeUrl,
+                referer = referer,
+                userAgent = session.userAgentOr(AppUserAgent.value)
+            ) ?: throw IOException(
+                "APKMirror requires Cloudflare verification; keep APKUpdater OSS open to continue"
+            )
+        }
+
 }
+
+private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
+private const val MAX_APKMIRROR_VERIFICATION_ATTEMPTS = 2

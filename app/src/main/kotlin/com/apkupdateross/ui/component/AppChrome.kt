@@ -69,46 +69,86 @@ fun AppTopBar(
 	navigationIcon: (@Composable () -> Unit)? = null,
 	actions: @Composable RowScope.() -> Unit = {}
 ) {
-	Row(
-		modifier = modifier
-			.fillMaxWidth()
-			.statusBarsPadding()
-			.heightIn(min = 64.dp)
-			.padding(horizontal = ApkTheme.spacing.md, vertical = ApkTheme.spacing.sm),
-		verticalAlignment = Alignment.CenterVertically
-	) {
-		if (navigationIcon != null) {
-			navigationIcon()
-			Spacer(modifier = Modifier.width(ApkTheme.spacing.xs))
-		}
+	val containerModifier = modifier
+		.fillMaxWidth()
+		.statusBarsPadding()
+		.heightIn(min = 64.dp)
+		.padding(horizontal = ApkTheme.spacing.md, vertical = ApkTheme.spacing.sm)
+
+	if (ApkTheme.accessibility.isLargeText) {
 		Column(
-			modifier = Modifier.weight(1f),
-			verticalArrangement = Arrangement.Center
+			modifier = containerModifier,
+			verticalArrangement = Arrangement.spacedBy(ApkTheme.spacing.xxs)
 		) {
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				TopBarHeading(title, subtitle, navigationIcon)
+			}
+			TopBarActions(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.End,
+				actions = actions
+			)
+		}
+	} else {
+		Row(
+			modifier = containerModifier,
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			TopBarHeading(title, subtitle, navigationIcon)
+			TopBarActions(actions = actions)
+		}
+	}
+}
+
+@Composable
+private fun RowScope.TopBarHeading(
+	title: String,
+	subtitle: String?,
+	navigationIcon: (@Composable () -> Unit)?
+) {
+	if (navigationIcon != null) {
+		navigationIcon()
+		Spacer(modifier = Modifier.width(ApkTheme.spacing.xs))
+	}
+	Column(
+		modifier = Modifier.weight(1f),
+		verticalArrangement = Arrangement.Center
+	) {
+		Text(
+			text = title,
+			color = ApkTheme.colors.textOnBackground,
+			style = MaterialTheme.typography.titleLarge,
+			maxLines = if (ApkTheme.accessibility.isExtraLargeText) 3 else 2,
+			overflow = TextOverflow.Ellipsis
+		)
+		if (subtitle != null) {
 			Text(
-				text = title,
-				color = ApkTheme.colors.textOnBackground,
-				style = MaterialTheme.typography.titleLarge,
-				maxLines = 1,
+				text = subtitle,
+				color = ApkTheme.colors.textOnBackground.copy(alpha = 0.68f),
+				style = MaterialTheme.typography.bodySmall,
+				maxLines = 2,
 				overflow = TextOverflow.Ellipsis
 			)
-			if (subtitle != null) {
-				Text(
-					text = subtitle,
-					color = ApkTheme.colors.textOnBackground.copy(alpha = 0.68f),
-					style = MaterialTheme.typography.bodySmall,
-					maxLines = 1,
-					overflow = TextOverflow.Ellipsis
-				)
-			}
 		}
-		CompositionLocalProvider(LocalContentColor provides ApkTheme.colors.textOnBackground.copy(alpha = 0.78f)) {
-			Row(
-				horizontalArrangement = Arrangement.spacedBy(ApkTheme.spacing.xxs),
-				verticalAlignment = Alignment.CenterVertically,
-				content = actions
-			)
-		}
+	}
+}
+
+@Composable
+private fun TopBarActions(
+	modifier: Modifier = Modifier,
+	horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(ApkTheme.spacing.xxs),
+	actions: @Composable RowScope.() -> Unit
+) {
+	CompositionLocalProvider(LocalContentColor provides ApkTheme.colors.textOnBackground.copy(alpha = 0.78f)) {
+		Row(
+			modifier = modifier,
+			horizontalArrangement = horizontalArrangement,
+			verticalAlignment = Alignment.CenterVertically,
+			content = actions
+		)
 	}
 }
 
@@ -141,6 +181,7 @@ fun AppIconButton(
 			.size(48.dp)
 			.clip(ApkTheme.shapes.md)
 			.background(if (enabled) container else Color.Transparent)
+			.tvFocusOutline(ApkTheme.shapes.md, enabled)
 			.clickable(
 				enabled = enabled,
 				interactionSource = remember { MutableInteractionSource() },
@@ -184,7 +225,9 @@ fun AppActionButton(
 		AppTone.Neutral -> colors.textPrimary
 	}
 	Surface(
-		modifier = modifier.size(size),
+		modifier = modifier
+			.size(size)
+			.tvFocusOutline(ApkTheme.shapes.md, enabled),
 		shape = ApkTheme.shapes.md,
 		color = if (enabled) container else colors.surfaceSecondary,
 		border = if (tone == AppTone.Neutral) BorderStroke(1.dp, colors.divider) else null
@@ -238,7 +281,8 @@ fun AppStatusBadge(
 			color = content,
 			style = MaterialTheme.typography.labelSmall,
 			fontWeight = FontWeight.SemiBold,
-			maxLines = 1
+			maxLines = if (ApkTheme.accessibility.isLargeText) 2 else 1,
+			textAlign = TextAlign.Center
 		)
 	}
 }
@@ -257,7 +301,9 @@ fun AppListSurface(
 		Modifier
 	}
 	Surface(
-		modifier = modifier.then(clickableModifier),
+		modifier = modifier
+			.then(if (onClick != null) Modifier.tvFocusOutline(ApkTheme.shapes.md) else Modifier)
+			.then(clickableModifier),
 		shape = ApkTheme.shapes.md,
 		color = ApkTheme.colors.surface,
 		border = BorderStroke(1.dp, ApkTheme.colors.divider)
@@ -285,27 +331,29 @@ fun AppStateMessage(
 			horizontalAlignment = Alignment.CenterHorizontally,
 			verticalArrangement = Arrangement.spacedBy(ApkTheme.spacing.sm)
 		) {
-			Surface(
-				shape = ApkTheme.shapes.lg,
-				color = toneContainer(tone)
-			) {
-				Box(
-					modifier = Modifier.size(64.dp),
-					contentAlignment = Alignment.Center
+			if (loading || icon != null) {
+				Surface(
+					shape = ApkTheme.shapes.lg,
+					color = toneContainer(tone)
 				) {
-					if (loading) {
-						CircularProgressIndicator(
-							modifier = Modifier.size(26.dp),
-							color = ApkTheme.colors.accent,
-							strokeWidth = 2.5.dp
-						)
-					} else if (icon != null) {
-						Icon(
-							painter = painterResource(icon),
-							contentDescription = null,
-							modifier = Modifier.size(28.dp),
-							tint = toneContent(tone)
-						)
+					Box(
+						modifier = Modifier.size(64.dp),
+						contentAlignment = Alignment.Center
+					) {
+						if (loading) {
+							CircularProgressIndicator(
+								modifier = Modifier.size(26.dp),
+								color = ApkTheme.colors.accent,
+								strokeWidth = 2.5.dp
+							)
+						} else if (icon != null) {
+							Icon(
+								painter = painterResource(icon),
+								contentDescription = null,
+								modifier = Modifier.size(28.dp),
+								tint = toneContent(tone)
+							)
+						}
 					}
 				}
 			}

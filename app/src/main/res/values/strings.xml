@@ -253,6 +253,10 @@
     <string name="donate">Donate</string>
     <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
     <string name="checking_updates">Checking for updates&#8230;</string>
+    <string name="apkmirror_verification_title">APKMirror verification</string>
+    <string name="apkmirror_verification_message">Complete the Cloudflare check. The download will resume automatically.</string>
+    <string name="apkmirror_verification_complete">Verification complete. Resuming download&#8230;</string>
+    <string name="apkmirror_verification_close">Cancel verification</string>
     <string name="settings_network">Network</string>
     <string name="settings_global_timeout">Global timeout (sec)</string>
     <string name="settings_play_timeout">Play Store timeout (sec)</string>

@@ -5,15 +5,11 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Preferences may contain repository access tokens and Google Play auth data. -->
+        <exclude domain="sharedpref" path="."/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Tokens and device-specific auth data must not move to another device. -->
+        <exclude domain="sharedpref" path="."/>
     </device-transfer>
-    -->
 </data-extraction-rules>

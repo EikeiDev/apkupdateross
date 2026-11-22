@@ -173,6 +173,11 @@ class ApkMirrorChallengeActivity : Activity() {
             domStorageEnabled = true
             userAgentString = browserUserAgent
             loadsImagesAutomatically = true
+            allowFileAccess = false
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             browser.settings.safeBrowsingEnabled = true
@@ -185,11 +190,11 @@ class ApkMirrorChallengeActivity : Activity() {
         }
         browser.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
-                handlePotentialDownload(request?.url?.toString())
+                handleNavigation(request?.url?.toString())
 
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
-                handlePotentialDownload(url)
+                handleNavigation(url)
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
@@ -249,6 +254,12 @@ class ApkMirrorChallengeActivity : Activity() {
         if (!cookies.contains("cf_clearance=", ignoreCase = true)) return false
         completeVerification(url)
         return true
+    }
+
+    private fun handleNavigation(url: String?): Boolean {
+        if (url.isNullOrBlank()) return true
+        if (handlePotentialDownload(url)) return true
+        return !isApkMirrorUrl(url)
     }
 
     private fun inspectDownloadRequest(url: String?) {

@@ -2,6 +2,19 @@ import java.util.Properties
 import java.io.FileInputStream
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 
+val releaseSigningProperties = Properties()
+val releasePropertiesFile = rootProject.file("local.properties")
+if (releasePropertiesFile.isFile) {
+    FileInputStream(releasePropertiesFile).use(releaseSigningProperties::load)
+}
+val releaseKeystorePath = releaseSigningProperties.getProperty("keystore.file").orEmpty()
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseSigningProperties.getProperty("keystore.password").orEmpty(),
+    releaseSigningProperties.getProperty("keystore.keyalias").orEmpty(),
+    releaseSigningProperties.getProperty("keystore.keypassword").orEmpty()
+).all { it.isNotBlank() } && file(releaseKeystorePath).isFile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -18,7 +31,7 @@ android {
         minSdk = 24
         targetSdk = 35
         
-        val currentVersion = "1.3.2"
+        val currentVersion = "1.3.3"
         val versionParts = (if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber").split('.')
         val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
         val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -33,29 +46,18 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            try {
-                val props = Properties()
-                props.load(FileInputStream(file("../local.properties")))
-                storeFile = file(props.getProperty("keystore.file"))
-                storePassword = props.getProperty("keystore.password")
-                keyAlias = props.getProperty("keystore.keyalias")
-                keyPassword = props.getProperty("keystore.keypassword")
-            } catch (ignored: Exception) {
-                val config = signingConfigs.getByName("debug")
-                storeFile = config.storeFile
-                storePassword = config.storePassword
-                keyAlias = config.keyAlias
-                keyPassword = config.keyPassword
-                println("Signing config not found. Using debug settings.")
-            }
+        if (hasReleaseSigning) create("release") {
+            storeFile = file(releaseKeystorePath)
+            storePassword = releaseSigningProperties.getProperty("keystore.password")
+            keyAlias = releaseSigningProperties.getProperty("keystore.keyalias")
+            keyPassword = releaseSigningProperties.getProperty("keystore.keypassword")
             enableV3Signing = true
         }
     }
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -86,6 +88,17 @@ android {
 
     lint {
         warning.addAll(arrayOf("ExtraTranslation", "MissingTranslation", "MissingQuantity"))
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease" || name == "packageRelease") {
+        doFirst {
+            check(hasReleaseSigning) {
+                "Release signing is not configured. Add a valid keystore.file, keystore.password, " +
+                    "keystore.keyalias and keystore.keypassword to local.properties."
+            }
+        }
     }
 }
 

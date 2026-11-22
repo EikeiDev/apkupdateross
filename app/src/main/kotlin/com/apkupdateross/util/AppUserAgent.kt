@@ -1,8 +1,9 @@
 package com.apkupdateross.util
 
-import com.apkupdateross.BuildConfig
+import android.os.Build
 
 object AppUserAgent {
     val value: String
-        get() = "APKUpdaterOSS-v${BuildConfig.VERSION_NAME}"
+        get() = "Dalvik/2.1.0 (Linux; U; Android ${Build.VERSION.RELEASE}; " +
+            "${Build.MODEL} Build/${Build.ID})"
 }

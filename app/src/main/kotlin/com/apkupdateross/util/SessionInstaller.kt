@@ -22,9 +22,11 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.UUID.randomUUID
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.yield
 
 
 class SessionInstaller(
@@ -35,9 +37,12 @@ class SessionInstaller(
     companion object {
         const val INSTALL_ACTION = "com.apkupdateross.INSTALL_ACTION"
         const val INSTALL_ID = "installId"
+        private const val MAX_SPLIT_APK_COUNT = 256
+        private const val MAX_SPLIT_APK_BYTES = 2L * 1024L * 1024L * 1024L
+        private const val NO_INSTALL_OWNER = Long.MIN_VALUE
     }
 
-    private val installMutex = AtomicBoolean(false)
+    private val installOwner = AtomicLong(NO_INSTALL_OWNER)
 
     suspend fun install(id: Int, packageName: String, stream: InputStream, total: Long = 0L) =
         installList(id, packageName, listOf(stream), total)
@@ -59,43 +64,52 @@ class SessionInstaller(
 
         val sessionId = packageInstaller.createSession(params)
         var bytes = 0L
-        packageInstaller.openSession(sessionId).use { session ->
-            streams.forEach { stream ->
-                stream.use { input ->
-                    session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
-                        val copied = input.copyToAndNotify(output, id, installLog, total, bytes) ?: throw Exception("Cancelled")
-                        bytes += copied
-                        session.fsync(output)
+        var committed = false
+        var mutexLocked = false
+        try {
+            packageInstaller.openSession(sessionId).use { session ->
+                streams.forEach { stream ->
+                    stream.use { input ->
+                        session.openWrite("$packageName.${randomUUID()}", 0, -1).use { output ->
+                            val copied = input.copyToAndNotify(output, id, installLog, total, bytes)
+                                ?: throw CancellationException("Installation cancelled")
+                            bytes += copied
+                            session.fsync(output)
+                        }
                     }
                 }
-            }
-            if (total > 0) {
-                installLog.emitProgress(AppInstallProgress(id, total, total))
-            }
+                if (total > 0) {
+                    installLog.emitProgress(AppInstallProgress(id, total, total))
+                }
 
-            val intent = Intent(context, InstallReceiver::class.java).apply {
-                action = INSTALL_ACTION
-                putExtra(INSTALL_ID, id)
-            }
+                val intent = Intent(context, InstallReceiver::class.java).apply {
+                    action = INSTALL_ACTION
+                    putExtra(INSTALL_ID, id)
+                }
 
-            installMutex.lock()
-            try {
+                acquireInstall(id)
+                mutexLocked = true
                 val pending = PendingIntent.getBroadcast(
-                    context, 
-                    id, 
-                    intent, 
+                    context,
+                    id,
+                    intent,
                     FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
                 session.commit(pending.intentSender)
-            } catch (e: Exception) {
-                installMutex.unlock()
-                throw e
+                committed = true
             }
+        } catch (error: Throwable) {
+            if (mutexLocked) finish(id)
+            if (!committed) runCatching { packageInstaller.abandonSession(sessionId) }
+            throw error
         }
     }
 
-    fun rootInstall(file: File): Boolean {
-        val res = Shell.cmd("pm install -r -d ${file.absolutePath}").exec().isSuccess
+    fun rootInstall(file: File, expectedPackageName: String? = null): Boolean {
+        if (!expectedPackageName.isNullOrBlank()) {
+            validateApkFile(file, expectedPackageName, null, 0L)
+        }
+        val res = Shell.cmd("pm install $PRIVILEGED_INSTALL_FLAGS ${file.absolutePath}").exec().isSuccess
         file.delete()
         return res
     }
@@ -116,6 +130,8 @@ class SessionInstaller(
                 throw Exception("APK SHA-256 mismatch")
             }
         }
+
+        validateApkStructure(file)
 
         expectedPackageName?.takeIf { it.isNotBlank() }?.let { expected ->
             val actual = archivePackageName(file) ?: throw Exception("Could not read APK package name")
@@ -142,45 +158,95 @@ class SessionInstaller(
             }
         }
 
-        val expected = expectedPackageName?.takeIf { it.isNotBlank() } ?: return
         ZipFile(file).use { zip ->
             val apks = zip.apkEntries()
             if (apks.isEmpty()) {
                 throw Exception("Split package has no APK entries")
             }
 
-            var lastError: Throwable? = null
+            val expected = expectedPackageName?.takeIf { it.isNotBlank() }
+            var packageVerified = expected == null
             for (entry in apks) {
                 val tempApk = File(context.cacheDir, "${randomUUID()}.apk")
                 try {
                     zip.getInputStream(entry).use { input ->
                         tempApk.outputStream().use { output -> input.copyTo(output) }
                     }
-                    runCatching {
-                        validateApkFile(tempApk, expected, null, 0L)
-                    }.onSuccess {
-                        return
-                    }.onFailure {
-                        lastError = it
+                    validateApkFile(tempApk, null, null, 0L)
+                    archivePackageName(tempApk)?.let { actual ->
+                        if (expected != null && !actual.equals(expected, ignoreCase = true)) {
+                            throw Exception("APK package mismatch: expected $expected, got $actual")
+                        }
+                        packageVerified = true
                     }
                 } finally {
                     tempApk.delete()
                 }
             }
-            throw Exception(lastError?.message ?: "Split package mismatch: expected $expected")
+            if (!packageVerified) {
+                throw Exception("Could not read base APK package name")
+            }
         }
     }
 
-    private fun archivePackageName(file: File): String? =
-        if (Build.VERSION.SDK_INT >= 33) {
-            context.packageManager.getPackageArchiveInfo(
-                file.absolutePath,
-                PackageManager.PackageInfoFlags.of(0)
-            )?.packageName
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName
+    fun isSplitPackageFile(file: File): Boolean = file.containsNestedApkFiles()
+
+    private fun validateApkStructure(file: File) {
+        if (!file.isFile || file.length() <= 0L) {
+            throw Exception("APK file is empty")
         }
+        try {
+            ZipFile(file).use { zip ->
+                if (zip.getEntry("AndroidManifest.xml") == null) {
+                    throw Exception("Downloaded file is not a valid APK")
+                }
+            }
+        } catch (error: Exception) {
+            if (error.message == "Downloaded file is not a valid APK") throw error
+            throw Exception("Downloaded file is not a valid APK", error)
+        }
+    }
+
+    private fun validateApkSet(files: List<File>, expectedPackageName: String?) {
+        if (files.isEmpty()) throw Exception("APK set is empty")
+        val expected = expectedPackageName?.takeIf { it.isNotBlank() }
+        var packageVerified = expected == null
+        files.forEach { file ->
+            validateApkFile(file, null, null, 0L)
+            archivePackageName(file)?.let { actual ->
+                if (expected != null && !actual.equals(expected, ignoreCase = true)) {
+                    throw Exception("APK package mismatch: expected $expected, got $actual")
+                }
+                packageVerified = true
+            }
+        }
+        if (!packageVerified) throw Exception("Could not read base APK package name")
+    }
+
+    private fun archivePackageName(file: File): String? {
+        val archive = if (file.extension.equals("apk", ignoreCase = true)) {
+            file
+        } else {
+            File.createTempFile("package_", ".apk", context.cacheDir).also { temp ->
+                file.inputStream().use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+        return try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                context.packageManager.getPackageArchiveInfo(
+                    archive.absolutePath,
+                    PackageManager.PackageInfoFlags.of(0)
+                )?.packageName
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageArchiveInfo(archive.absolutePath, 0)?.packageName
+            }
+        } finally {
+            if (archive !== file) archive.delete()
+        }
+    }
 
     private fun File.sha256(): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -195,54 +261,88 @@ class SessionInstaller(
         return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
-    private fun ZipFile.apkEntries(): List<ZipEntry> =
-        entries().asSequence()
+    private fun ZipFile.apkEntries(): List<ZipEntry> {
+        val apks = entries().asSequence()
             .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
             .sortedWith(compareBy({ !it.name.substringAfterLast('/').equals("base.apk", ignoreCase = true) }, { it.name }))
             .toList()
+        if (apks.size > MAX_SPLIT_APK_COUNT) {
+            throw Exception("Split package contains too many APK entries: ${apks.size}")
+        }
+        var uncompressedSize = 0L
+        apks.forEach { entry ->
+            if (entry.size < 0L) {
+                throw Exception("Split package contains an APK with unknown size")
+            }
+            if (entry.size > MAX_SPLIT_APK_BYTES - uncompressedSize) {
+                throw Exception("Split package is too large after extraction")
+            }
+            uncompressedSize += entry.size
+        }
+        return apks
+    }
 
-    fun rootInstallXapk(file: File): Boolean {
+    fun rootInstallApks(files: List<File>, expectedPackageName: String? = null): Boolean {
         return try {
-            ZipFile(file).use { zip ->
-                val apks = zip.apkEntries()
-                when {
-                    apks.isEmpty() -> false
-                    apks.size == 1 -> {
-                        val tempApk = File(file.parentFile, "${randomUUID()}.apk")
-                        try {
-                            zip.getInputStream(apks[0]).use { input ->
-                                tempApk.outputStream().use { output -> input.copyTo(output) }
-                            }
-                            Shell.cmd("pm install -r -d ${tempApk.absolutePath}").exec().isSuccess
-                        } finally {
-                            tempApk.delete()
+            validateApkSet(files, expectedPackageName)
+            when (files.size) {
+                0 -> false
+                1 -> Shell.cmd("pm install $PRIVILEGED_INSTALL_FLAGS ${files[0].absolutePath}").exec().isSuccess
+                else -> {
+                    val createResult = Shell.cmd("pm install-create $PRIVILEGED_INSTALL_FLAGS").exec()
+                    val sessionId = Regex("Success:.*?\\[?(\\d+)]?")
+                        .find(createResult.out.joinToString(""))
+                        ?.groupValues
+                        ?.get(1)
+                        ?: return false
+                    var committed = false
+                    try {
+                        files.forEachIndexed { index, apk ->
+                            val writeResult = Shell.cmd(
+                                "pm install-write -S ${apk.length()} $sessionId split_$index ${apk.absolutePath}"
+                            ).exec()
+                            if (!writeResult.isSuccess) return false
                         }
-                    }
-                    else -> {
-                        val createResult = Shell.cmd("pm install-create -r -d").exec()
-                        val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out.joinToString(""))?.groupValues?.get(1)
-                            ?: return@use false
-                        apks.forEachIndexed { index, entry ->
-                            val tempApk = File(file.parentFile, "${randomUUID()}_$index.apk")
-                            try {
-                                zip.getInputStream(entry).use { input ->
-                                    tempApk.outputStream().use { output -> input.copyTo(output) }
-                                }
-                                Shell.cmd("pm install-write -S ${tempApk.length()} $sessionId $index ${tempApk.absolutePath}").exec()
-                            } finally {
-                                tempApk.delete()
-                            }
-                        }
-                        Shell.cmd("pm install-commit $sessionId").exec().isSuccess
+                        committed = Shell.cmd("pm install-commit $sessionId").exec().isSuccess
+                        committed
+                    } finally {
+                        if (!committed) Shell.cmd("pm install-abandon $sessionId").exec()
                     }
                 }
             }
         } finally {
+            files.forEach { it.delete() }
+        }
+    }
+
+    fun rootInstallXapk(file: File, expectedPackageName: String? = null): Boolean {
+        val extracted = mutableListOf<File>()
+        return try {
+            ZipFile(file).use { zip ->
+                val apks = zip.apkEntries()
+                if (apks.isEmpty()) return@use false
+                apks.forEachIndexed { index, entry ->
+                    val tempApk = File(file.parentFile ?: context.cacheDir, "${randomUUID()}_$index.apk")
+                    zip.getInputStream(entry).use { input ->
+                        tempApk.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    extracted += tempApk
+                }
+                rootInstallApks(extracted, expectedPackageName)
+            }
+        } finally {
+            extracted.forEach { it.delete() }
             file.delete()
         }
     }
 
-    fun finish() = installMutex.unlock()
+    private suspend fun acquireInstall(id: Int) {
+        while (!installOwner.compareAndSet(NO_INSTALL_OWNER, id.toLong())) yield()
+    }
+
+    fun finish(id: Int) {
+        installOwner.compareAndSet(id.toLong(), NO_INSTALL_OWNER)
+    }
 
     fun checkPermission(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -257,20 +357,11 @@ class SessionInstaller(
         return true
     }
 
-    @Suppress("BlockingMethodInNonBlockingContext")
-    suspend fun installXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
-        val file = File(context.cacheDir, randomUUID().toString())
-        try {
-            stream.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            }
-            ZipFile(file).use { zip ->
-                val apks = zip.apkEntries().map { zip.getInputStream(it) }
-                if (apks.isEmpty()) throw Exception("Split package has no APK entries")
-                installList(id, packageName, apks, total)
-            }
-        } finally {
-            file.delete()
+    suspend fun installXapk(id: Int, packageName: String, file: File, total: Long = file.length()) {
+        ZipFile(file).use { zip ->
+            val apks = zip.apkEntries().map { zip.getInputStream(it) }
+            if (apks.isEmpty()) throw Exception("Split package has no APK entries")
+            installList(id, packageName, apks, total)
         }
     }
 
@@ -291,14 +382,16 @@ class SessionInstaller(
             var bytes = 0L
             tempFile.outputStream().use { output ->
                 stream.use { input ->
-                    bytes = input.copyToAndNotify(output, id, installLog, total, 0L) ?: throw Exception("Cancelled")
+                    bytes = input.copyToAndNotify(output, id, installLog, total, 0L)
+                        ?: throw CancellationException("Installation cancelled")
                     if (total > 0) {
                         installLog.emitProgress(AppInstallProgress(id, total, total))
                     }
                 }
             }
             try {
-                val result = shizukuExec("pm install -r -d -S $bytes", tempFile)
+                validateApkFile(tempFile, packageName, null, 0L)
+                val result = shizukuExec("pm install $PRIVILEGED_INSTALL_FLAGS -S $bytes", tempFile)
                 if (!result.isSuccess) {
                     val message = result.message()
                     Log.e("SessionInstaller", "Shizuku install failed: $message")
@@ -309,38 +402,49 @@ class SessionInstaller(
                 tempFile.delete()
             }
         } else {
-            val createResult = shizukuExec("pm install-create -r -d")
-            val sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out)?.groupValues?.get(1)
-                ?: throw Exception("Failed to create install session: ${createResult.out}")
-
-            var totalBytes = 0L
-            streams.forEachIndexed { index, stream ->
-                val tempFile = File(context.cacheDir, "${randomUUID()}_$index.apk")
-                var bytes = 0L
-                tempFile.outputStream().use { output ->
-                    stream.use { input ->
-                        bytes = input.copyToAndNotify(output, id, installLog, total, totalBytes) ?: throw Exception("Cancelled")
-                        totalBytes += bytes
+            val prepared = mutableListOf<Pair<File, Long>>()
+            var sessionId: String? = null
+            var committed = false
+            try {
+                var totalBytes = 0L
+                streams.forEachIndexed { index, stream ->
+                    val tempFile = File(context.cacheDir, "${randomUUID()}_$index.apk")
+                    var bytes = 0L
+                    tempFile.outputStream().use { output ->
+                        stream.use { input ->
+                            bytes = input.copyToAndNotify(output, id, installLog, total, totalBytes)
+                                ?: throw CancellationException("Installation cancelled")
+                            totalBytes += bytes
+                        }
                     }
+                    prepared += tempFile to bytes
                 }
-                try {
-                    val result = shizukuExec("pm install-write -S $bytes $sessionId $index", tempFile)
-                    if (!result.isSuccess) {
-                        val message = result.message()
-                        throw Exception("Shizuku install-write failed: $message")
-                    }
-                } finally {
-                    tempFile.delete()
-                }
-            }
-            if (total > 0) {
-                installLog.emitProgress(AppInstallProgress(id, total, total))
-            }
+                validateApkSet(prepared.map { it.first }, packageName)
 
-            val commitResult = shizukuExec("pm install-commit $sessionId")
-            if (!commitResult.isSuccess) {
-                val message = commitResult.message()
-                throw Exception("Shizuku install-commit failed: $message")
+                val createResult = shizukuExec("pm install-create $PRIVILEGED_INSTALL_FLAGS")
+                sessionId = Regex("Success:.*?\\[?(\\d+)]?").find(createResult.out)?.groupValues?.get(1)
+                    ?: throw Exception("Failed to create install session: ${createResult.out}")
+
+                prepared.forEachIndexed { index, (tempFile, bytes) ->
+                    val result = shizukuExec("pm install-write -S $bytes $sessionId split_$index", tempFile)
+                        if (!result.isSuccess) {
+                            val message = result.message()
+                            throw Exception("Shizuku install-write failed: $message")
+                        }
+                }
+                if (total > 0) {
+                    installLog.emitProgress(AppInstallProgress(id, total, total))
+                }
+
+                val commitResult = shizukuExec("pm install-commit $sessionId")
+                if (!commitResult.isSuccess) {
+                    val message = commitResult.message()
+                    throw Exception("Shizuku install-commit failed: $message")
+                }
+                committed = true
+            } finally {
+                if (!committed && sessionId != null) shizukuExec("pm install-abandon $sessionId")
+                prepared.forEach { (file, _) -> file.delete() }
             }
         }
     }
@@ -386,21 +490,27 @@ class SessionInstaller(
         }
     }
 
-    @Suppress("BlockingMethodInNonBlockingContext")
-    suspend fun shizukuInstallXapk(id: Int, packageName: String, stream: InputStream, total: Long = 0L) {
-        val file = File(context.cacheDir, randomUUID().toString())
-        try {
-            stream.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            }
-            ZipFile(file).use { zip ->
-                val apks = zip.apkEntries().map { zip.getInputStream(it) }
-                if (apks.isEmpty()) throw Exception("Split package has no APK entries")
-                shizukuInstall(id, packageName, apks, total)
-            }
-        } finally {
-            file.delete()
+    suspend fun shizukuInstallXapk(id: Int, packageName: String, file: File, total: Long = file.length()) {
+        ZipFile(file).use { zip ->
+            val apks = zip.apkEntries().map { zip.getInputStream(it) }
+            if (apks.isEmpty()) throw Exception("Split package has no APK entries")
+            shizukuInstall(id, packageName, apks, total)
         }
     }
 
 }
+
+internal const val PRIVILEGED_INSTALL_FLAGS = "-r -d"
+
+internal fun File.containsNestedApkFiles(): Boolean = runCatching {
+    ZipFile(this).use { zip ->
+        // A regular APK may legitimately embed companion APK payloads (for example,
+        // MT Manager includes FileTransfer). A root manifest identifies the outer
+        // archive as the installable APK, so it must not be unpacked as an APK set.
+        if (zip.getEntry("AndroidManifest.xml") != null) return@use false
+
+        zip.entries().asSequence().any { entry ->
+            !entry.isDirectory && entry.name.endsWith(".apk", ignoreCase = true)
+        }
+    }
+}.getOrDefault(false)

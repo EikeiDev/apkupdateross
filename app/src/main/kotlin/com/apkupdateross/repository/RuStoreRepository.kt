@@ -19,6 +19,7 @@ import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
@@ -77,6 +78,7 @@ class RuStoreRepository(
                     val app = apps.getApp(batchApp.packageName)
                     ruStoreApp.toAppUpdate(app, downloadUrl)
                 }.onFailure { exception ->
+					exception.rethrowIfCancellation()
                     when {
                         exception is HttpException && exception.code() == 429 -> {
                             hitRateLimit = true
@@ -123,6 +125,7 @@ class RuStoreRepository(
                             details.toAppUpdate(null, downloadUrl)
                         } else null
                     }.onFailure { exception ->
+						exception.rethrowIfCancellation()
                         if (exception is HttpException && exception.code() == 429) {
                             hitRateLimit = true
                             Log.w("RuStoreRepository", "Rate limit hit for ${searchApp.packageName}, skipping")
@@ -183,12 +186,16 @@ class RuStoreRepository(
     }
 
     private suspend fun getDownloadUrl(appId: Long, minSdkVersion: Int): String {
+        if (minSdkVersion > Build.VERSION.SDK_INT) {
+            Log.d("RuStoreRepository", "Skipping appId=$appId: requires SDK $minSdkVersion")
+            return ""
+        }
         return retryOnRateLimit {
             var hitRateLimit = false
             val result = runCatching {
                 val request = RuStoreDownloadRequest(
                     appId = appId,
-                    sdkVersion = Build.VERSION.SDK_INT.coerceAtLeast(minSdkVersion),
+                    sdkVersion = Build.VERSION.SDK_INT,
                     supportedAbis = Build.SUPPORTED_ABIS.toList()
                 )
                 val response = service.getDownloadLink(request)
@@ -200,6 +207,7 @@ class RuStoreRepository(
                     ""
                 }
             }.onFailure { exception ->
+				exception.rethrowIfCancellation()
                 if (exception is HttpException && exception.code() == 429) {
                     hitRateLimit = true
                     Log.w("RuStoreRepository", "Rate limit hit getting download link for appId=$appId")
@@ -217,6 +225,10 @@ class RuStoreRepository(
     }
 
     private data class AttemptResult<R>(val value: R?, val hitRateLimit: Boolean)
+
+    private fun Throwable.rethrowIfCancellation() {
+        if (this is CancellationException) throw this
+    }
 
     private suspend fun <T, R> processAppsWithRateLimiting(
         items: List<T>,

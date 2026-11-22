@@ -8,7 +8,7 @@ import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
-import com.apkupdateross.data.ui.PlaySource
+import com.apkupdateross.data.ui.preferredUpdateComparator
 import com.apkupdateross.data.ui.UpdatesUiState
 import com.apkupdateross.data.ui.indexOf
 import com.apkupdateross.data.ui.removeId
@@ -265,7 +265,7 @@ class UpdatesViewModel(
 			.setIsInstalling(id, false)
 			.setIsDownloading(id, false)
 		cancelDownload(id)
-		installer.finish()
+		installer.finish(id)
 	}
 
 	override fun finishInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
@@ -273,7 +273,7 @@ class UpdatesViewModel(
 		val finishedUpdate = current.find { it.id == id }
 		_updates.value = finishedUpdate?.let { current.removePackageName(it.packageName) } ?: current.removeId(id)
 		clearDownload(id)
-		installer.finish()
+		installer.finish(id)
 		finishedUpdate?.let {
 			if (it.packageName == BuildConfig.APPLICATION_ID) {
 				markSelfUpdateInstalled(it.versionCode)
@@ -331,10 +331,7 @@ class UpdatesViewModel(
 			.map { (packageName, list) ->
 				GroupedAppUpdate(
 					packageName = packageName,
-					updates = list.sortedWith(
-						compareByDescending<AppUpdate> { it.versionCode }
-							.thenBy { it.source != PlaySource }
-					)
+					updates = list.sortedWith(preferredUpdateComparator)
 				)
 			}.sortedBy { it.primary.name }
 	}
@@ -380,8 +377,8 @@ class UpdatesViewModel(
 			try {
 				runCatching {
 					when (val link = update.link) {
-						is Link.Url -> saveStream(update, link.link)
-						is Link.Xapk -> saveStream(update, link.link)
+						is Link.Url -> saveStream(update, link)
+						is Link.Xapk -> saveStream(update, link.link, forceSplitPackage = true)
 						is Link.Play -> savePlayFiles(update, link)
 						else -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_not_supported_for_source)))
 					}

@@ -7,7 +7,7 @@ import com.apkupdateross.data.snack.TextSnack
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.Link
-import com.apkupdateross.data.ui.PlaySource
+import com.apkupdateross.data.ui.preferredUpdateComparator
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SearchUiState
 import com.apkupdateross.data.ui.indexOf
@@ -81,15 +81,15 @@ class SearchViewModel(
             changed = true
         }
 
-        if (!prefs.searchFiltersApkComboMigrated.get()) {
-            filters = filters + SearchSourceFilter.APKCOMBO
-            prefs.searchFiltersApkComboMigrated.put(true)
-            changed = true
-        }
-
         if (!prefs.searchFiltersUptodownMigrated.get()) {
             filters = filters + SearchSourceFilter.UPTODOWN
             prefs.searchFiltersUptodownMigrated.put(true)
+            changed = true
+        }
+
+        if (!prefs.searchFiltersApk20Migrated.get()) {
+            filters = filters + SearchSourceFilter.APK20
+            prefs.searchFiltersApk20Migrated.put(true)
             changed = true
         }
 
@@ -143,10 +143,7 @@ class SearchViewModel(
             .map { (packageName, list) ->
                 GroupedAppUpdate(
                     packageName = packageName,
-                    updates = list.sortedWith(
-                        compareByDescending<AppUpdate> { it.versionCode }
-                            .thenBy { it.source != PlaySource }
-                    )
+                    updates = list.sortedWith(preferredUpdateComparator)
                 )
             }.sortedWith(
                 compareByDescending<GroupedAppUpdate> { it.primary.name.equals(query, ignoreCase = true) }
@@ -164,7 +161,7 @@ class SearchViewModel(
             _state.value.mutableUpdates().setIsInstalling(id, false).toMutableList().setIsDownloading(id, false)
         )
         cancelDownload(id)
-        installer.finish()
+        installer.finish(id)
     }
 
     override fun finishInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
@@ -174,7 +171,7 @@ class SearchViewModel(
         _state.value = SearchUiState.Success(updates)
         badger.changeSearchBadge(updates.size.toString())
         clearDownload(id)
-        installer.finish()
+        installer.finish(id)
     }
 
     override fun downloadAndRootInstall(update: AppUpdate): Job =
@@ -203,8 +200,8 @@ class SearchViewModel(
             try {
                 runCatching {
                     when (val link = update.link) {
-                        is Link.Url -> saveStream(update, link.link)
-                        is Link.Xapk -> saveStream(update, link.link)
+                        is Link.Url -> saveStream(update, link)
+                        is Link.Xapk -> saveStream(update, link.link, forceSplitPackage = true)
                         is Link.Play -> savePlayFiles(update, link)
                         else -> snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_not_supported_for_source)))
                     }

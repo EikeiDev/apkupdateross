@@ -24,7 +24,11 @@ fun FdroidUpdate.toAppUpdate(current: AppInstalled?, source: Source, url: String
         "https://f-droid.org/assets/ic_repo_app_default.png".toUri()
     else
         "${url}icons-640/${app.icon}".toUri(),
-    Link.Url("$url${apk.apkName}"),
+    Link.Url(
+        link = "$url${apk.apkName}",
+        expectedPackageName = app.packageName,
+        sha256 = apk.hash.takeIf { apk.hashType.equals("sha256", ignoreCase = true) && it.isNotBlank() }
+    ),
     sourceUrl = "${url}packages/${app.packageName}/",
     releaseUrl = "${url}packages/${app.packageName}/",
     whatsNew = if (current != null) app.localized["en-US"]?.whatsNew.orEmpty() else app.localized["en-US"]?.summary.orEmpty(),

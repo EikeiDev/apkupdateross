@@ -1,19 +1,23 @@
 package com.apkupdateross.util
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.InstallLog
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.IOException
 import java.io.OutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
@@ -27,16 +31,18 @@ class DownloadStorage(
 ) {
 
     suspend fun save(fileName: String, mimeType: String, inputStream: InputStream, id: Int = 0, installLog: InstallLog? = null, total: Long = 0L, offset: Long = 0L): Boolean = withContext(Dispatchers.IO) {
-        val safeFileName = fileName.safeFileName()
-        val customFolderUri = prefs.downloadFolderUri.get().takeIf { it.isNotBlank() }
-        if (customFolderUri != null) {
-            return@withContext saveToDocumentTree(customFolderUri, safeFileName, mimeType, inputStream, id, installLog, total, offset)
-        }
+        inputStream.use { input ->
+            val safeFileName = fileName.safeDownloadFileName()
+            val customFolderUri = prefs.downloadFolderUri.get().takeIf { it.isNotBlank() }
+            if (customFolderUri != null) {
+                return@withContext saveToDocumentTree(customFolderUri, safeFileName, mimeType, input, id, installLog, total, offset)
+            }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveScoped(safeFileName, mimeType, inputStream, id, installLog, total, offset)
-        } else {
-            saveLegacy(safeFileName, inputStream, id, installLog, total, offset)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                saveScoped(safeFileName, mimeType, input, id, installLog, total, offset)
+            } else {
+                saveLegacy(safeFileName, input, id, installLog, total, offset)
+            }
         }
     }
 
@@ -48,14 +54,16 @@ class DownloadStorage(
         val uri = DocumentsContract.createDocument(resolver, parentUri, mimeType, fileName) ?: return false
 
         return runCatching {
-            resolver.openOutputStream(uri, "w")?.use { output ->
+            val output = resolver.openOutputStream(uri, "w")
+                ?: throw IOException("Could not open the selected folder for writing")
+            output.use {
                 inputStream.use { input ->
-                    if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
+                    if (input.copyToAndNotify(it, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
                     if (total > 0) {
                         installLog?.emitProgress(AppInstallProgress(id, total, total))
                     }
                 }
-            } ?: return false
+            }
             true
         }.getOrElse {
             resolver.delete(uri, null, null)
@@ -77,17 +85,21 @@ class DownloadStorage(
 
         val uri: Uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues) ?: return false
         return runCatching {
-            resolver.openOutputStream(uri)?.use { output ->
+            val output = resolver.openOutputStream(uri)
+                ?: throw IOException("Could not open the Downloads item for writing")
+            output.use {
                 inputStream.use { input ->
-                    if (input.copyToAndNotify(output, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
+                    if (input.copyToAndNotify(it, id, installLog, total, offset) == null) throw CancellationException("Cancelled")
                     if (total > 0) {
                          installLog?.emitProgress(AppInstallProgress(id, total, total))
                     }
                 }
-            } ?: return false
+            }
             contentValues.clear()
             contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
-            resolver.update(uri, contentValues, null, null)
+            if (resolver.update(uri, contentValues, null, null) <= 0) {
+                throw IOException("Could not finalize the Downloads item")
+            }
             true
         }.getOrElse {
             resolver.delete(uri, null, null)
@@ -97,9 +109,13 @@ class DownloadStorage(
     }
 
     private suspend fun saveLegacy(fileName: String, inputStream: InputStream, id: Int, installLog: InstallLog?, total: Long, offset: Long): Boolean {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return false
         val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val targetDir = File(downloads, "APKUpdaterOSS").apply { if (!exists()) mkdirs() }
-        val targetFile = File(targetDir, fileName)
+        val targetDir = File(downloads, "APKUpdaterOSS")
+        if (!targetDir.exists() && !targetDir.mkdirs()) return false
+        val targetFile = runCatching { createUniqueFile(targetDir, fileName) }.getOrElse { return false }
         return try {
             FileOutputStream(targetFile).use { output ->
                 inputStream.use { input ->
@@ -119,12 +135,48 @@ class DownloadStorage(
 
 }
 
-private fun String.safeFileName(): String {
+private fun createUniqueFile(directory: File, fileName: String): File {
+    val extension = fileName.substringAfterLast('.', missingDelimiterValue = "")
+        .takeIf { it.isNotBlank() }
+        ?.let { ".$it" }
+        .orEmpty()
+    val base = fileName.removeSuffix(extension)
+    repeat(1_000) { index ->
+        val suffix = if (index == 0) "" else " ($index)"
+        val candidate = File(directory, "$base$suffix$extension")
+        if (candidate.createNewFile()) return candidate
+    }
+    throw IOException("Could not create a unique download file")
+}
+
+internal fun String.safeDownloadFileName(): String {
     val cleaned = replace(Regex("""[\\/:*?"<>|\u0000-\u001F]"""), "_")
         .trim()
         .trim('.')
-    return cleaned.takeIf { it.isNotBlank() } ?: "download.apk"
+    val fallback = cleaned.takeIf { it.isNotBlank() } ?: "download.apk"
+    val extension = fallback.substringAfterLast('.', missingDelimiterValue = "")
+        .takeIf { it.length in 1..10 }
+        ?.let { ".$it" }
+        .orEmpty()
+    if (fallback.toByteArray(Charsets.UTF_8).size <= MAX_FILE_NAME_BYTES) return fallback
+    val base = fallback.removeSuffix(extension)
+        .takeUtf8Bytes(MAX_FILE_NAME_BYTES - extension.toByteArray(Charsets.UTF_8).size)
+        .trimEnd('.')
+    return base.ifBlank { "download" } + extension
 }
+
+private fun String.takeUtf8Bytes(maxBytes: Int): String = buildString {
+    var usedBytes = 0
+    for (codePoint in this@takeUtf8Bytes.codePoints().toArray()) {
+        val text = String(Character.toChars(codePoint))
+        val bytes = text.toByteArray(Charsets.UTF_8).size
+        if (usedBytes + bytes > maxBytes) break
+        append(text)
+        usedBytes += bytes
+    }
+}
+
+private const val MAX_FILE_NAME_BYTES = 240
 
 suspend fun InputStream.copyToAndNotify(
     out: OutputStream,

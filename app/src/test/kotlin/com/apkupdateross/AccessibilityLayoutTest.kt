@@ -21,4 +21,10 @@ class AccessibilityLayoutTest {
     fun largeFontScaleStillUsesAvailableLandscapeWidth() {
         assertEquals(4, accessibleColumnCount(6, 720, 1.5f))
     }
+
+    @Test
+    fun invalidImportedColumnCountsAreClamped() {
+        assertEquals(1, accessibleColumnCount(0, 320, 1f))
+        assertEquals(12, accessibleColumnCount(10_000, 2_000, 1f))
+    }
 }

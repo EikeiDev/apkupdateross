@@ -86,6 +86,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.fdroid.FdroidRepo
+import com.apkupdateross.data.fdroid.normalizeFdroidRepoUrl
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.git.parseRepoUrl
@@ -1052,7 +1053,7 @@ private fun SourcesSettings(
 			SwitchSetting({ viewModel.getUseApkMirror() }, { viewModel.setUseApkMirror(it) }, stringResource(R.string.source_apkmirror), R.drawable.ic_apkmirror)
 			SwitchSetting({ viewModel.getUseAptoide() }, { viewModel.setUseAptoide(it) }, stringResource(R.string.source_aptoide), R.drawable.ic_aptoide)
 			SwitchSetting({ viewModel.getUseApkPure() }, { viewModel.setUseApkPure(it) }, stringResource(R.string.source_apkpure), R.drawable.ic_apkpure)
-			SwitchSetting({ viewModel.getUseApkCombo() }, { viewModel.setUseApkCombo(it) }, stringResource(R.string.source_apkcombo), R.drawable.ic_apkcombo)
+			SwitchSetting({ viewModel.getUseApk20() }, { viewModel.setUseApk20(it) }, stringResource(R.string.source_apk20), R.drawable.ic_apk20)
 			SwitchSetting({ viewModel.getUseUptodown() }, { viewModel.setUseUptodown(it) }, stringResource(R.string.source_uptodown), R.drawable.ic_uptodown)
 			SwitchSetting({ viewModel.getUsePlay() }, { viewModel.setUsePlay(it) }, stringResource(R.string.source_play), R.drawable.ic_play)
 
@@ -1663,6 +1664,7 @@ private fun FdroidRepoDialog(
 	var name by remember(repo.id) { mutableStateOf(repo.name) }
 	var url by remember(repo.id) { mutableStateOf(repo.url) }
 	var showError by remember { mutableStateOf(false) }
+	var showUrlError by remember { mutableStateOf(false) }
 
 	AlertDialog(
 		onDismissRequest = onDismiss,
@@ -1672,7 +1674,12 @@ private fun FdroidRepoDialog(
 					showError = true
 					return@TextButton
 				}
-				onSave(repo.copy(name = name, url = url))
+				val normalizedUrl = normalizeFdroidRepoUrl(url)
+				if (normalizedUrl == null) {
+					showUrlError = true
+					return@TextButton
+				}
+				onSave(repo.copy(name = name.trim(), url = normalizedUrl))
 			}) {
 				Text(stringResource(R.string.settings_custom_repo_save))
 			}
@@ -1695,14 +1702,17 @@ private fun FdroidRepoDialog(
 				)
 				OutlinedTextField(
 					value = url,
-					onValueChange = { url = it; showError = false },
+					onValueChange = { url = it; showError = false; showUrlError = false },
 					label = { Text(stringResource(R.string.settings_fdroid_repo_url)) },
 					singleLine = true,
 					modifier = Modifier.fillMaxWidth()
 				)
-				if (showError) {
+				if (showError || showUrlError) {
 					Text(
-						text = stringResource(R.string.settings_fdroid_repo_error_required),
+						text = stringResource(
+							if (showUrlError) R.string.settings_fdroid_repo_error_invalid_url
+							else R.string.settings_fdroid_repo_error_required
+						),
 						color = MaterialTheme.colorScheme.error,
 						style = MaterialTheme.typography.bodySmall
 					)

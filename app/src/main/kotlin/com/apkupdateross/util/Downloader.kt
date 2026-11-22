@@ -5,13 +5,16 @@ import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,111 +31,143 @@ class Downloader(
     private val apkMirrorChallengeCoordinator: ApkMirrorChallengeCoordinator
 ) {
 
-    data class DownloadResult(val stream: InputStream, val contentLength: Long, val url: String = "")
+    init {
+        dir.mkdirs()
+        dir.listFiles()?.forEach { staleFile -> staleFile.delete() }
+    }
+
     data class FileDownloadResult(val file: File, val contentLength: Long, val url: String = "")
 
-    private val calls = ConcurrentHashMap<Int, MutableList<Call>>()
+    private val calls = ConcurrentHashMap<Int, CopyOnWriteArrayList<Call>>()
     private val cancelledIds = ConcurrentSkipListSet<Int>()
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private fun registerCall(id: Int, call: Call): Call {
-        if (cancelledIds.contains(id)) {
-            call.cancel()
-            return call
-        }
         calls.compute(id) { _, list ->
-            (list ?: mutableListOf()).apply { add(call) }
+            if (cancelledIds.contains(id)) {
+                call.cancel()
+                list
+            } else {
+                (list ?: CopyOnWriteArrayList()).apply { add(call) }
+            }
         }
         return call
     }
 
+    private fun unregisterCall(id: Int, call: Call) {
+        calls.computeIfPresent(id) { _, list ->
+            list.remove(call)
+            list.takeIf { it.isNotEmpty() }
+        }
+    }
+
     fun download(id: Int, url: String): File {
-        val file = File(dir, "cache_${id}_${randomUUID()}")
-        val c = when {
-            url.contains("apkpure") -> apkPureClient
-            url.contains("aurora") -> auroraClient
-            else -> client
-        }
-        executeDownload(id, url, c).use { response ->
-            if (response.isSuccessful) {
-                file.outputStream().use { os ->
-                    response.body?.byteStream()?.copyTo(os)
-                }
-            }
-        }
-        return file
+        return downloadFileWithSize(id, url)?.file
+            ?: throw IOException("Download failed: $url")
     }
 
-    fun downloadStream(id: Int, url: String): InputStream? = downloadWithSize(id, url)?.stream
+    fun createTempFile(id: Int, suffix: String): File =
+        File.createTempFile("cache_${id}_", suffix, dir)
 
-    fun downloadWithSize(id: Int, url: String): DownloadResult? = runCatching {
-        val c = when {
-            url.contains("apkpure") -> apkPureClient
-            url.contains("aurora") -> auroraClient
-            else -> client
-        }
-        val response = executeDownload(id, url, c)
-        if (response.isSuccessful) {
-            val body = response.body
-            if (body != null) {
-                return DownloadResult(body.byteStream(), body.contentLength(), response.request.url.toString())
+    fun downloadFileWithSize(
+        id: Int,
+        url: String,
+        onProgress: ((downloaded: Long, total: Long) -> Unit)? = null
+    ): FileDownloadResult? {
+        // PackageManager refuses to inspect extensionless APKs on some Android builds.
+        // The file is internal and may still contain an APKM/APKS archive; split detection
+        // uses its contents rather than this temporary suffix.
+        val file = File(dir, downloadCacheFileName(id, randomUUID().toString()))
+        return runCatching {
+        val initialUrl = url.trim().toHttpUrlOrNull()
+            ?.takeIf { it.isHttps }
+            ?: throw IOException("Only HTTPS download URLs are allowed")
+        val c = clientFor(url)
+        val activeResponse = executeDownload(id, initialUrl.toString(), c)
+        try {
+        activeResponse.response.use { response ->
+            if (!response.request.url.isHttps) {
+                throw IOException("Download redirected to an insecure URL")
             }
-            response.close()
-            Log.e("Downloader", "Download failed with an empty response body")
-        } else {
-            response.close()
-            Log.e("Downloader", "Download failed with error code: ${response.code}")
-        }
-        return null
-    }.getOrElse {
-        Log.e("Downloader", "Error downloading", it)
-        null
-    }
-
-    fun downloadFileWithSize(id: Int, url: String): FileDownloadResult? = runCatching {
-        val file = File(dir, "cache_${id}_${randomUUID()}")
-        val c = when {
-            url.contains("apkpure") -> apkPureClient
-            url.contains("aurora") -> auroraClient
-            else -> client
-        }
-        executeDownload(id, url, c).use { response ->
             if (response.isSuccessful) {
                 val body = response.body
                 if (body != null) {
                     val contentLength = body.contentLength()
                     file.outputStream().use { output ->
-                        body.byteStream().use { input -> input.copyTo(output) }
+                        body.byteStream().use { input ->
+                            input.copyToWithProgress(
+                                output,
+                                contentLength.coerceAtLeast(0L),
+                                onProgress
+                            )
+                        }
+                    }
+                    if (file.length() == 0L) {
+                        throw IOException("Download returned an empty file")
+                    }
+                    if (contentLength > 0L && file.length() != contentLength) {
+                        throw IOException("Incomplete download: expected $contentLength bytes, got ${file.length()}")
                     }
                     return FileDownloadResult(file, contentLength, response.request.url.toString())
                 }
                 Log.e("Downloader", "Download failed with an empty response body")
             } else {
-                Log.e("Downloader", "Download failed with error code: ${response.code}")
+                val bodyPreview = response.body?.string()
+                    ?.replace(Regex("\\s+"), " ")
+                    ?.take(160)
+                    .orEmpty()
+                Log.e(
+                    "Downloader",
+                    "Download failed: HTTP ${response.code}, host=${response.request.url.host}, " +
+                        "type=${response.header("Content-Type").orEmpty()}, body=$bodyPreview"
+                )
             }
+        }
+        } finally {
+            unregisterCall(id, activeResponse.call)
         }
         if (file.exists()) file.delete()
         null
-    }.getOrElse {
-        Log.e("Downloader", "Error downloading file", it)
-        null
+        }.getOrElse {
+            file.delete()
+            Log.e("Downloader", "Error downloading file", it)
+            null
+        }
     }
 
-    private fun executeDownload(id: Int, url: String, httpClient: OkHttpClient): Response {
+    private fun clientFor(url: String): OkHttpClient {
+        val host = url.trim().toHttpUrlOrNull()?.host.orEmpty().lowercase(Locale.ROOT)
+        return when {
+            host == "apkpure.com" || host.endsWith(".apkpure.com") -> apkPureClient
+            host == "auroraoss.com" || host.endsWith(".auroraoss.com") -> auroraClient
+            else -> client
+        }
+    }
+
+    private data class ActiveResponse(val call: Call, val response: Response)
+
+    private fun executeDownload(id: Int, url: String, httpClient: OkHttpClient): ActiveResponse {
         var verifiedUrl: String? = null
         var verificationAttempts = 0
 
         while (true) {
             try {
                 val request = downloadRequest(id, url, verifiedUrl)
-                val response = registerCall(id, httpClient.newCall(request)).execute()
+                val call = registerCall(id, httpClient.newCall(request))
+                val response = try {
+                    call.execute()
+                } catch (error: Throwable) {
+                    unregisterCall(id, call)
+                    throw error
+                }
                 val responseUrl = response.request.url.toString()
                 val isApkMirrorRequest = isApkMirrorUrl(url) || isApkMirrorUrl(responseUrl)
-                if (response.code != 403 || !isApkMirrorRequest) return response
+                if (response.code != 403 || !isApkMirrorRequest) return ActiveResponse(call, response)
 
                 val referer = request.header("Referer") ?: url
                 val userAgent = request.header("User-Agent") ?: APKMIRROR_USER_AGENT
                 response.close()
+                unregisterCall(id, call)
                 if (verificationAttempts >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
                     throw IOException("APKMirror Cloudflare verification did not clear HTTP 403")
                 }
@@ -216,14 +251,19 @@ class Downloader(
             .get()
             .build()
 
-        return registerCall(id, client.newCall(request)).execute().use { response ->
-            if (response.code == 403) {
-                throw ApkMirrorChallengeRequired(url, referer)
+        val call = registerCall(id, client.newCall(request))
+        return try {
+            call.execute().use { response ->
+                if (response.code == 403) {
+                    throw ApkMirrorChallengeRequired(url, referer)
+                }
+                if (!response.isSuccessful) {
+                    throw IOException("APKMirror HTTP ${response.code}: $url")
+                }
+                Jsoup.parse(response.body?.string().orEmpty(), url)
             }
-            if (!response.isSuccessful) {
-                throw IOException("APKMirror HTTP ${response.code}: $url")
-            }
-            Jsoup.parse(response.body?.string().orEmpty(), url)
+        } finally {
+            unregisterCall(id, call)
         }
     }
 
@@ -276,3 +316,41 @@ private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
 private const val MAX_APKMIRROR_VERIFICATION_ATTEMPTS = 2
 private val APKMIRROR_USER_AGENT: String
     get() = AppUserAgent.value
+
+internal fun downloadCacheFileName(id: Int, token: String): String = "cache_${id}_$token.apk"
+
+internal fun InputStream.copyToWithProgress(
+    output: OutputStream,
+    total: Long,
+    onProgress: ((downloaded: Long, total: Long) -> Unit)?,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    nanoTime: () -> Long = System::nanoTime
+): Long {
+    require(bufferSize > 0) { "bufferSize must be positive" }
+    val buffer = ByteArray(bufferSize)
+    var copied = 0L
+    var lastReported = -1L
+    var lastReportTime = nanoTime()
+
+    fun report(force: Boolean = false) {
+        if (onProgress == null || copied == lastReported) return
+        val now = nanoTime()
+        if (!force && now - lastReportTime < PROGRESS_UPDATE_INTERVAL_NANOS) return
+        lastReported = copied
+        lastReportTime = now
+        onProgress(copied, total)
+    }
+
+    report(force = true)
+    while (true) {
+        val read = read(buffer)
+        if (read < 0) break
+        output.write(buffer, 0, read)
+        copied += read
+        report()
+    }
+    report(force = true)
+    return copied
+}
+
+private const val PROGRESS_UPDATE_INTERVAL_NANOS = 100_000_000L

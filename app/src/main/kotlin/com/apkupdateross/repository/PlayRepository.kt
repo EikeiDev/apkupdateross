@@ -138,7 +138,8 @@ class PlayRepository(
     }
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
-        val timeout = prefs.playTimeoutSec.get() * 1000L
+        val timeoutSeconds = prefs.playTimeoutSec.get().coerceIn(5, 300)
+        val timeout = timeoutSeconds * 1000L
         withTimeoutOrNull(timeout) {
             val authData = auth()
             val details = AppDetailsHelper(authData)
@@ -169,7 +170,7 @@ class PlayRepository(
                     )
                 }
             emit(updates)
-        } ?: throw IllegalStateException("PlayStore update check timed out after ${prefs.playTimeoutSec.get()} seconds")
+        } ?: throw IllegalStateException("PlayStore update check timed out after $timeoutSeconds seconds")
     }
 
     private fun getInstallFiles(app: App) = PurchaseHelper(auth())

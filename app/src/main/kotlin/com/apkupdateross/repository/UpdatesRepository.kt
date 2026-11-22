@@ -7,6 +7,7 @@ import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.FdroidService
 import com.apkupdateross.repository.FdroidRepository
+import com.apkupdateross.data.fdroid.normalizeFdroidRepoUrl
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -26,8 +27,8 @@ import com.apkupdateross.data.ui.Source
 import com.apkupdateross.data.ui.ApkMirrorSource
 import com.apkupdateross.data.ui.GitHubSource
 import com.apkupdateross.data.ui.AptoideSource
-import com.apkupdateross.data.ui.ApkComboSource
 import com.apkupdateross.data.ui.ApkPureSource
+import com.apkupdateross.data.ui.Apk20Source
 import com.apkupdateross.data.ui.GitLabSource
 import com.apkupdateross.data.ui.PlaySource
 import com.apkupdateross.data.ui.RuStoreSource
@@ -42,7 +43,7 @@ class UpdatesRepository(
     private val fdroidService: FdroidService,
     private val aptoideRepository: AptoideRepository,
     private val apkPureRepository: ApkPureRepository,
-    private val apkComboRepository: ApkComboRepository,
+    private val apk20Repository: Apk20Repository,
     private val uptodownRepository: UptodownRepository,
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
@@ -50,6 +51,12 @@ class UpdatesRepository(
     private val huaweiRepository: HuaweiRepository,
     private val prefs: Prefs
 ) {
+
+    private companion object {
+        const val MAX_SOURCE_CONCURRENCY = 8
+        const val MIN_TIMEOUT_SECONDS = 5
+        const val MAX_TIMEOUT_SECONDS = 300
+    }
 
     private val fdroidRepoCache = mutableMapOf<String, FdroidRepository>()
 
@@ -71,9 +78,11 @@ class UpdatesRepository(
         }
         .onCompletion { _loadingSources.update { it - source } }
 
-    private fun getFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo): FdroidRepository {
-        return fdroidRepoCache.getOrPut(repo.id) {
-            FdroidRepository(fdroidService, repo.url, com.apkupdateross.data.ui.Source(repo.name, R.drawable.ic_fdroid), prefs)
+    private fun getFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo): FdroidRepository? {
+        val normalizedUrl = normalizeFdroidRepoUrl(repo.url) ?: return null
+        val cacheKey = "${repo.id}|$normalizedUrl|${repo.name}"
+        return fdroidRepoCache.getOrPut(cacheKey) {
+            FdroidRepository(fdroidService, normalizedUrl, com.apkupdateross.data.ui.Source(repo.name, R.drawable.ic_fdroid), prefs)
         }
     }
 
@@ -92,13 +101,15 @@ class UpdatesRepository(
                 if (prefs.useFdroid.get()) {
                     prefs.fdroidRepos.get().filter { it.isEnabled }.forEach { repo ->
                         val source = Source(repo.name, R.drawable.ic_fdroid)
-                        sources.add(getFdroidRepo(repo).updates(filtered).trackLoading(source))
+                        getFdroidRepo(repo)?.let {
+                            sources.add(it.updates(filtered).trackLoading(source))
+                        }
                     }
                 }
                 
                 if (prefs.useAptoide.get()) sources.add(aptoideRepository.updates(filtered).trackLoading(AptoideSource))
                 if (prefs.useApkPure.get()) sources.add(apkPureRepository.updates(filtered).trackLoading(ApkPureSource))
-                if (prefs.useApkCombo.get()) sources.add(apkComboRepository.updates(filtered).trackLoading(ApkComboSource))
+                if (prefs.useApk20.get()) sources.add(apk20Repository.updates(filtered).trackLoading(Apk20Source))
                 if (prefs.useUptodown.get()) sources.add(uptodownRepository.updates(filtered).trackLoading(UptodownSource))
                 if (prefs.useGitLab.get()) sources.add(gitLabRepository.updates(filtered).trackLoading(GitLabSource))
                 if (prefs.usePlay.get()) sources.add(playRepository.updates(filtered).trackLoading(PlaySource))
@@ -110,15 +121,18 @@ class UpdatesRepository(
 
                 if (sources.isNotEmpty()) {
                     val accumulatedList = mutableListOf<AppUpdate>()
-                    
-                    withTimeoutOrNull(prefs.globalTimeoutSec.get() * 1000L) {
-                        sources.asFlow().flattenMerge(concurrency = sources.size).collect { newUpdates ->
+                    val timeoutSeconds = prefs.globalTimeoutSec.get()
+                        .coerceIn(MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)
+                    val concurrency = sources.size.coerceAtMost(MAX_SOURCE_CONCURRENCY)
+
+                    withTimeoutOrNull(timeoutSeconds * 1000L) {
+                        sources.asFlow().flattenMerge(concurrency = concurrency).collect { newUpdates ->
                             if (newUpdates.isNotEmpty()) {
                                 accumulatedList.addAll(newUpdates)
                                 emit(accumulatedList.toList())
                             }
                         }
-                    } ?: Log.w("UpdatesRepository", "Update check timed out after ${prefs.globalTimeoutSec.get()} seconds")
+                    } ?: Log.w("UpdatesRepository", "Update check timed out after $timeoutSeconds seconds")
                     
                     emit(accumulatedList.toList())
                 } else {

@@ -444,6 +444,15 @@ fun Grid(
 	val landscapeColumns by viewModel.landscapeColumns.collectAsStateWithLifecycle()
 	val swipeIgnoreEnabled by viewModel.swipeIgnoreEnabled.collectAsStateWithLifecycle()
 	val swipeIgnoreDirection by viewModel.swipeIgnoreDirection.collectAsStateWithLifecycle()
+	var pendingDownload by remember { mutableStateOf<AppUpdate?>(null) }
+	val requestStoragePermission = rememberStoragePermissionAction {
+		pendingDownload?.let { downloadUpdate(context, viewModel, it) }
+		pendingDownload = null
+	}
+	val downloadAction: (AppUpdate) -> Unit = { update ->
+		pendingDownload = update
+		requestStoragePermission()
+	}
 
 	InstalledGrid(
 		compactMode = compactMode,
@@ -493,7 +502,7 @@ fun Grid(
 						{ installUpdate(context, viewModel, it, handler) },
 						{ viewModel.ignoreVersion(it)},
 						{ viewModel.cancel(it) },
-						onDownload = { downloadUpdate(context, viewModel, it) },
+						onDownload = downloadAction,
 						onOpenPage = { viewModel.openSourcePage(it, handler) }
 					)
 				}

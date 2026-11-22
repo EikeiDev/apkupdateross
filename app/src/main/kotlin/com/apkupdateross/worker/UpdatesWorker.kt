@@ -3,7 +3,9 @@ package com.apkupdateross.worker
 import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -12,6 +14,7 @@ import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.UpdatesNotification
 import com.apkupdateross.util.millisUntilHour
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.lastOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -21,11 +24,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
-import com.apkupdateross.data.ui.hasValidationMetadata
 import com.apkupdateross.data.ui.isSplitPackageDownloadUrl
+import com.apkupdateross.data.ui.resolvedUrl
 import com.apkupdateross.data.ui.totalSize
 import com.apkupdateross.data.ui.validationPackageName
 import com.apkupdateross.data.ui.validationSize
+import com.apkupdateross.data.ui.preferredUpdateComparator
 import com.apkupdateross.util.Downloader
 import com.apkupdateross.util.SessionInstaller
 import kotlinx.coroutines.withTimeoutOrNull
@@ -43,9 +47,17 @@ class UpdatesWorker(
         fun cancel(workManager: WorkManager) = workManager.cancelUniqueWork(TAG)
 
         fun launch(workManager: WorkManager) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiresStorageNotLow(true)
+                .apply {
+                    if (prefs.autoUpdateBackground.get()) setRequiresBatteryNotLow(true)
+                }
+                .build()
             val request = PeriodicWorkRequestBuilder<UpdatesWorker>(getDays(), TimeUnit.DAYS)
+                .setConstraints(constraints)
                 .setInitialDelay(
-                    millisUntilHour(prefs.alarmHour.get()) + randomDelay(),
+                    (millisUntilHour(prefs.alarmHour.get()) + randomDelay()).coerceAtLeast(0L),
                     TimeUnit.MILLISECONDS
                 ).build()
             workManager.enqueueUniquePeriodicWork(TAG, ExistingPeriodicWorkPolicy.UPDATE, request)
@@ -82,11 +94,15 @@ class UpdatesWorker(
                     val shizuku = installer.isShizukuAvailable()
                     if ((mode == 1) || (mode == 2 && shizuku)) {
                         var remainingCount = uniqueUpdatesCount
-                        val distinctUpdates = filteredUpdates.distinctBy { it.packageName }
+                        val distinctUpdates = filteredUpdates
+                            .groupBy { it.packageName }
+                            .mapNotNull { (_, candidates) -> candidates.sortedWith(preferredUpdateComparator).firstOrNull() }
                         for (update in distinctUpdates) {
                             val success = withTimeoutOrNull(5 * 60 * 1000L) { // 5 minutes per app max
                                 try {
                                     downloadAndInstallSilently(update, mode)
+                                } catch (e: CancellationException) {
+                                    throw e
                                 } catch (e: Exception) {
                                     Log.e("UpdatesWorker", "Failed to auto-update ${update.packageName}", e)
                                     false
@@ -112,6 +128,8 @@ class UpdatesWorker(
                 }
             }
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("UpdatesWorker", "Error checking updates", e)
             if (isRetryable(e)) Result.retry() else Result.failure()
@@ -119,103 +137,101 @@ class UpdatesWorker(
     }
 
     private suspend fun downloadAndInstallSilently(update: AppUpdate, mode: Int): Boolean {
-        return runCatching {
+        return try {
             when (val link = update.link) {
                 Link.Empty -> false
                 is Link.BrowserDownload -> false
                 is Link.Play -> {
                     val files = link.getInstallFiles()
+                    if (files.count { it.type == com.aurora.gplayapi.data.models.File.FileType.BASE } != 1) {
+                        throw Exception("Google Play APK set must contain exactly one base APK")
+                    }
                     val total = files.sumOf { it.size }
-                    val streams = files.map { downloader.downloadStream(update.id, it.url) ?: throw Exception("Failed to open stream") }
-                    if (mode == 1) throw Exception("Root Play install not supported natively in worker")
-                    else installer.shizukuInstall(update.id, update.packageName, streams, total)
-                    downloader.cleanup(update.id)
-                    true
+                    val results = files.map { file ->
+                        val result = downloader.downloadFileWithSize(update.id, file.url)
+                            ?: throw Exception("Failed to download ${file.name}")
+                        installer.validateApkFile(
+                            result.file,
+                            update.packageName.takeIf {
+                                file.type == com.aurora.gplayapi.data.models.File.FileType.BASE
+                            },
+                            null,
+                            file.size.coerceAtLeast(0L)
+                        )
+                        result
+                    }
+                    if (mode == 1) {
+                        installer.rootInstallApks(results.map { it.file }, update.packageName)
+                    } else {
+                        installer.shizukuInstall(
+                            update.id,
+                            update.packageName,
+                            results.map { it.file.inputStream() },
+                            total
+                        )
+                        true
+                    }
                 }
                 is Link.Url -> {
+                    val url = link.resolvedUrl()
+                    val result = downloader.downloadFileWithSize(update.id, url) ?: throw Exception("Download failed")
+                    val isSplitPackage = link.isSplitPackage(url, result.url) || installer.isSplitPackageFile(result.file)
+                    if (isSplitPackage) {
+                        installer.validateSplitPackageFile(
+                            result.file,
+                            link.validationPackageName(update.packageName) ?: update.packageName,
+                            link.sha256,
+                            link.validationSize()
+                        )
+                    } else {
+                        installer.validateApkFile(
+                            result.file,
+                            link.validationPackageName(update.packageName) ?: update.packageName,
+                            link.sha256,
+                            link.validationSize()
+                        )
+                    }
                     if (mode == 1) {
-                        val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
-                        val isSplitPackage = link.isSplitPackage(result.url)
-                        if (isSplitPackage) {
-                            installer.validateSplitPackageFile(
-                                result.file,
-                                link.validationPackageName(update.packageName) ?: update.packageName,
-                                link.sha256,
-                                link.validationSize()
-                            )
-                        } else if (link.hasValidationMetadata()) {
-                            installer.validateApkFile(
-                                result.file,
-                                link.validationPackageName(update.packageName),
-                                link.sha256,
-                                link.validationSize()
-                            )
-                        }
                         val success = if (isSplitPackage) {
-                            installer.rootInstallXapk(result.file)
+                            installer.rootInstallXapk(result.file, update.packageName)
                         } else {
-                            installer.rootInstall(result.file)
+                            installer.rootInstall(result.file, update.packageName)
                         }
-                        downloader.cleanup(update.id)
                         success
                     } else {
-                        if (link.hasValidationMetadata()) {
-                            val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
-                            val isSplitPackage = link.isSplitPackage(result.url)
-                            if (isSplitPackage) {
-                                installer.validateSplitPackageFile(
-                                    result.file,
-                                    link.validationPackageName(update.packageName) ?: update.packageName,
-                                    link.sha256,
-                                    link.validationSize()
-                                )
-                            } else {
-                                installer.validateApkFile(
-                                    result.file,
-                                    link.validationPackageName(update.packageName),
-                                    link.sha256,
-                                    link.validationSize()
-                                )
-                            }
-                            val total = link.totalSize(result.contentLength, result.file.length())
-                            if (isSplitPackage) {
-                                installer.shizukuInstallXapk(update.id, update.packageName, result.file.inputStream(), total)
-                            } else {
-                                installer.shizukuInstall(update.id, update.packageName, result.file.inputStream(), total)
-                            }
+                        val total = link.totalSize(result.contentLength, result.file.length())
+                        if (isSplitPackage) {
+                            installer.shizukuInstallXapk(update.id, update.packageName, result.file, total)
                         } else {
-                            val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
-                            val total = link.totalSize(result.contentLength)
-                            if (link.isSplitPackage(result.url)) {
-                                installer.shizukuInstallXapk(update.id, update.packageName, result.stream, total)
-                            } else {
-                                installer.shizukuInstall(update.id, update.packageName, result.stream, total)
-                            }
+                            installer.shizukuInstall(update.id, update.packageName, result.file.inputStream(), total)
                         }
-                        downloader.cleanup(update.id)
                         true
                     }
                 }
                 is Link.Xapk -> {
-                    val result = downloader.downloadWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                    val result = downloader.downloadFileWithSize(update.id, link.link) ?: throw Exception("Download failed")
+                    installer.validateSplitPackageFile(result.file, update.packageName)
                     if (mode == 1) {
-                        val file = java.io.File(applicationContext.cacheDir, "${java.util.UUID.randomUUID()}.xapk")
-                        result.stream.use { input -> file.outputStream().use { output -> input.copyTo(output) } }
-                        val success = installer.rootInstallXapk(file)
-                        downloader.cleanup(update.id)
-                        success
+                        installer.rootInstallXapk(result.file, update.packageName)
                     } else {
-                        installer.shizukuInstallXapk(update.id, update.packageName, result.stream, result.contentLength)
-                        downloader.cleanup(update.id)
+                        installer.shizukuInstallXapk(
+                            update.id,
+                            update.packageName,
+                            result.file,
+                            result.file.length()
+                        )
                         true
                     }
                 }
                 else -> false
             }
-        }.getOrElse {
-            downloader.cleanup(update.id)
-            Log.e("UpdatesWorker", "downloadAndInstallSilently failed", it)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.e("UpdatesWorker", "downloadAndInstallSilently failed", error)
             false
+        } finally {
+            downloader.cleanup(update.id)
         }
     }
 
@@ -227,5 +243,7 @@ class UpdatesWorker(
     }
 }
 
-private fun Link.Url.isSplitPackage(resolvedUrl: String): Boolean =
-    link.isSplitPackageDownloadUrl() || resolvedUrl.isSplitPackageDownloadUrl()
+private fun Link.Url.isSplitPackage(requestUrl: String, resolvedUrl: String): Boolean =
+    link.isSplitPackageDownloadUrl() ||
+        requestUrl.isSplitPackageDownloadUrl() ||
+        resolvedUrl.isSplitPackageDownloadUrl()

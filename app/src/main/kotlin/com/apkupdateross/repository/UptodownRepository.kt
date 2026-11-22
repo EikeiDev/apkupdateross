@@ -1,8 +1,12 @@
 package com.apkupdateross.repository
 
+import android.app.ActivityManager
+import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import com.apkupdateross.BuildConfig
 import com.apkupdateross.data.ui.AppInstalled
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
@@ -10,6 +14,11 @@ import com.apkupdateross.data.ui.ReleaseType
 import com.apkupdateross.data.ui.UptodownSource
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.util.AbiMatcher
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import io.github.g00fy2.versioncompare.Version
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -19,37 +28,53 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
+import okhttp3.RequestBody
 import java.io.IOException
+import java.security.SecureRandom
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
-
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class UptodownRepository(
     private val client: OkHttpClient,
-    private val prefs: Prefs
+    private val prefs: Prefs,
+    private val context: Context
 ) {
-
-    private val appUrlCache = ConcurrentHashMap<String, String>()
+    @Volatile private var accessToken: String? = null
+    @Volatile private var accessTokenExpiresAt = 0L
+    @Volatile private var registeredIdentifier: String? = null
+    private val authLock = Any()
+    private val registrationLock = Any()
+    private val apiClient = client.newBuilder()
+        .apply { networkInterceptors().clear() }
+        .cache(null)
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .build()
 
     suspend fun updates(apps: List<AppInstalled>) = flow {
+        withContext(Dispatchers.IO) { ensureDeviceRegistered() }
         val limiter = Semaphore(UPDATE_CONCURRENCY)
         val updates = coroutineScope {
             apps.map { app ->
                 async(Dispatchers.IO) {
-                    limiter.withPermit { checkUpdate(app) }
+                    limiter.withPermit {
+                        runCatching { checkUpdate(app) }
+                            .onFailure { Log.w(TAG, "Could not check ${app.packageName}", it) }
+                            .getOrNull()
+                    }
                 }
             }.awaitAll().filterNotNull()
         }
         emit(updates)
     }.catch {
         emit(emptyList())
-        Log.e("UptodownRepository", "Error looking for updates.", it)
+        Log.e(TAG, "Error looking for updates", it)
     }
 
     suspend fun search(text: String) = flow {
@@ -58,368 +83,541 @@ class UptodownRepository(
             emit(Result.success(emptyList()))
             return@flow
         }
-
+        val results = withContext(Dispatchers.IO) {
+            ensureDeviceRegistered()
+            searchItems(query)
+        }
         val limiter = Semaphore(SEARCH_CONCURRENCY)
         val updates = coroutineScope {
-            searchResults(query)
-                .take(MAX_SEARCH_RESULTS)
-                .map { result ->
-                    async(Dispatchers.IO) {
-                        limiter.withPermit {
-                            loadDetails(result.url, searchResult = result)?.toAppUpdate(null)
-                        }
+            results.take(MAX_SEARCH_RESULTS).map { item ->
+                async(Dispatchers.IO) {
+                    limiter.withPermit {
+                        runCatching { loadUpdate(item, null) }
+                            .onFailure { Log.w(TAG, "Could not load ${item.packageName}", it) }
+                            .getOrNull()
                     }
                 }
-                .awaitAll()
-                .filterNotNull()
+            }.awaitAll().filterNotNull()
         }
         emit(Result.success(updates))
     }.catch {
         emit(Result.failure(it))
-        Log.e("UptodownRepository", "Error searching.", it)
+        Log.e(TAG, "Error searching", it)
     }
 
     private fun checkUpdate(app: AppInstalled): AppUpdate? {
-        val details = findDetailsForPackage(app.packageName) ?: return null
-        if (!details.packageName.equals(app.packageName, ignoreCase = true)) return null
-        if (!details.isCompatible()) return null
-        if (!details.isNewerThan(app)) return null
-        if (!shouldInclude(details.releaseType)) return null
-        return details.toAppUpdate(app)
-    }
-
-    private fun findDetailsForPackage(packageName: String): UptodownDetails? {
-        appUrlCache[packageName]?.let { cachedUrl ->
-            loadDetails(cachedUrl, expectedPackageName = packageName)?.let { cachedDetails ->
-                if (cachedDetails.packageName.equals(packageName, ignoreCase = true)) return cachedDetails
-            }
-            appUrlCache.remove(packageName)
-        }
-
-        val details = searchResults(packageName)
-            .take(MAX_UPDATE_CANDIDATES)
-            .firstNotNullOfOrNull { result ->
-                loadDetails(result.url, expectedPackageName = packageName, searchResult = result)
-                    ?.takeIf { it.packageName.equals(packageName, ignoreCase = true) }
-            }
-
-        details?.let { appUrlCache[packageName] = it.sourceUrl }
-        return details
-    }
-
-    private fun searchResults(text: String): List<UptodownSearchResult> {
-        val url = BASE_URL.toHttpUrl().newBuilder()
-            .addPathSegment("android")
-            .addPathSegment("search")
-            .addQueryParameter("query", text.trim())
-            .build()
-            .toString()
-
-        val doc = requestDocument(url)
-        return doc.select("#content-list > div.item, #content-list div.item")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url.lowercase(Locale.ROOT) }
-    }
-
-    private fun loadDetails(
-        pageUrl: String,
-        expectedPackageName: String? = null,
-        searchResult: UptodownSearchResult? = null
-    ): UptodownDetails? {
-        val appPageUrl = pageUrl.toAppPageUrl()
-        val downloadPageUrl = pageUrl.toDownloadPageUrl()
-        val doc = requestDocument(downloadPageUrl, referer = appPageUrl)
-        val info = doc.technicalInfo()
-
-        val packageName = info["package name"]
-            ?.takeIf { packageRegex.matches(it) }
-            ?: doc.selectFirst("#gplay-url")
-                ?.attr("data-url")
-                ?.substringAfter("id=", missingDelimiterValue = "")
-                ?.substringBefore("&")
-                ?.takeIf { packageRegex.matches(it) }
-            ?: expectedPackageName?.takeIf { packageRegex.matches(it) }
-            ?: return null
-
-        val nameElement = doc.selectFirst("#detail-app-name")
-        val rawVersion = doc.selectFirst(".detail .info .version, div.version")
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: return null
-        val parsedVersion = rawVersion.toUptodownVersion()
-        val version = parsedVersion.name
-        val fileId = nameElement?.attr("data-file-id")?.takeIf { it.isNotBlank() }
-            ?: doc.selectFirst("#detail-download-button")?.attr("data-file-id")?.takeIf { it.isNotBlank() }
-        val appId = nameElement?.attr("data-code")?.takeIf { it.isNotBlank() }
-            ?: doc.selectFirst("#detail-download-button")?.attr("data-app-id")?.takeIf { it.isNotBlank() }
-        val versionCode = parsedVersion.code
-        val name = nameElement
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: searchResult?.name
-            ?: packageName
-        val author = doc.selectFirst("#author-link")
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: searchResult?.author
-            ?: name
-        val iconUri = doc.selectFirst("meta[property=og:image], meta[name=twitter:image]")
-            ?.attr("content")
-            ?.takeIf { it.isNotBlank() }
-            ?: searchResult?.iconUrl.orEmpty()
-        val fileType = info["file type"]?.uppercase(Locale.ROOT).orEmpty()
-        val size = parseSize(info["size"].orEmpty())
-        val sha256 = info["sha256"]?.takeIf { sha256Regex.matches(it) }
-        val arches = parseArches(info["architecture"].orEmpty())
-        val releaseUrl = fileId?.let { "$downloadPageUrl/$it-x" } ?: downloadPageUrl
-        val description = searchResult?.description.orEmpty()
-
-        return UptodownDetails(
-            packageName = packageName,
-            name = name,
-            author = author,
-            version = version,
-            versionCode = versionCode,
-            appId = appId,
-            fileId = fileId,
-            fileType = fileType,
-            size = size,
-            sha256 = sha256,
-            arches = arches,
-            iconUri = iconUri.toUriOrEmpty(),
-            sourceUrl = appPageUrl,
-            releaseUrl = releaseUrl,
-            whatsNew = description,
-            releaseType = ReleaseType.from(version, name)
+        val appId = resolveAppId(app.packageName) ?: return null
+        val metadata = loadMetadata(appId)
+        val packageName = metadata?.packageName.orEmpty().ifBlank { app.packageName }
+        if (!packageName.equals(app.packageName, ignoreCase = true)) return null
+        val selected = selectLatestUptodownVersion(
+            loadVersions(appId), Build.SUPPORTED_ABIS.toList(), Build.VERSION.SDK_INT
+        ) ?: return null
+        if (!selected.isNewerThan(app)) return null
+        val releaseType = ReleaseType.from(selected.version, metadata?.name ?: app.name)
+        if (!shouldInclude(releaseType)) return null
+        return selected.toAppUpdate(
+            item = UptodownSearchItem(
+                appId, app.packageName, metadata?.name ?: app.name,
+                metadata?.author.orEmpty(), metadata?.description.orEmpty(), metadata?.iconUrl.orEmpty()
+            ),
+            metadata = metadata,
+            installed = app,
+            releaseType = releaseType
         )
     }
 
-    private fun UptodownDetails.toAppUpdate(app: AppInstalled?): AppUpdate =
-        AppUpdate(
+    private fun loadUpdate(item: UptodownSearchItem, installed: AppInstalled?): AppUpdate? {
+        if (!PACKAGE_REGEX.matches(item.packageName)) return null
+        val metadata = loadMetadata(item.appId)
+        val actualPackage = metadata?.packageName.orEmpty().ifBlank { item.packageName }
+        if (!actualPackage.equals(item.packageName, ignoreCase = true)) return null
+        val selected = selectLatestUptodownVersion(
+            loadVersions(item.appId), Build.SUPPORTED_ABIS.toList(), Build.VERSION.SDK_INT
+        ) ?: return null
+        val name = metadata?.name.orEmpty().ifBlank { item.name }
+        return selected.toAppUpdate(
+            item = item.copy(name = name, packageName = actualPackage),
+            metadata = metadata,
+            installed = installed,
+            releaseType = ReleaseType.from(selected.version, name)
+        )
+    }
+
+    private fun UptodownRemoteVersion.toAppUpdate(
+        item: UptodownSearchItem,
+        metadata: UptodownAppMetadata?,
+        installed: AppInstalled?,
+        releaseType: ReleaseType
+    ): AppUpdate {
+        val name = metadata?.name.orEmpty().ifBlank { item.name.ifBlank { item.packageName } }
+        val iconUrl = metadata?.iconUrl.orEmpty().ifBlank { item.iconUrl }
+        val sourceUrl = metadata?.sourceUrl.orEmpty()
+        val whatsNew = metadata?.whatsNew.orEmpty()
+            .ifBlank { metadata?.description.orEmpty() }
+            .ifBlank { item.description }
+        return AppUpdate(
             name = name,
-            packageName = packageName,
+            packageName = item.packageName,
             version = version,
-            oldVersion = app?.version ?: "?",
+            oldVersion = installed?.version ?: "?",
             versionCode = versionCode,
-            oldVersionCode = app?.versionCode ?: 0L,
+            oldVersionCode = installed?.versionCode ?: 0L,
             source = UptodownSource,
-            iconUri = if (iconUri != Uri.EMPTY) iconUri else app?.iconUri ?: Uri.EMPTY,
-            link = Link.BrowserDownload(
-                pageUrl = releaseUrl,
-                expectedPackageName = packageName,
+            iconUri = iconUrl.toUriOrEmpty().takeUnless { it == Uri.EMPTY }
+                ?: installed?.iconUri ?: Uri.EMPTY,
+            link = Link.Url(
+                link = sourceUrl.ifBlank { UPTODOWN_HOME },
+                size = size,
+                expectedPackageName = item.packageName,
                 sha256 = sha256,
-                suggestedFileName = suggestedFileName(),
-                isXapk = fileType.contains("XAPK", ignoreCase = true)
+                resolveUrl = {
+                    withContext(Dispatchers.IO) { loadDownloadUrl(item.appId, fileId) }
+                }
             ),
             sourceUrl = sourceUrl,
-            releaseUrl = releaseUrl,
+            releaseUrl = sourceUrl,
             whatsNew = whatsNew,
             releaseType = releaseType
         )
-
-    private fun UptodownDetails.suggestedFileName(): String {
-        val extension = when {
-            fileType.contains("XAPK", ignoreCase = true) -> "xapk"
-            fileType.contains("APKS", ignoreCase = true) -> "apks"
-            else -> "apk"
-        }
-        return "${packageName.toSafeFileNamePart()}-${version.toSafeFileNamePart()}.$extension"
     }
 
-    private fun UptodownDetails.isCompatible(): Boolean {
-        if (arches.isNotEmpty() && !AbiMatcher.isCompatible(arches, Build.SUPPORTED_ABIS.toList())) {
-            return false
-        }
-        val text = "$name $sourceUrl $releaseUrl"
-        return !text.contains("Android TV", ignoreCase = true)
-                && !text.contains("Wear OS", ignoreCase = true)
-                && !text.contains("Android Wear", ignoreCase = true)
+    private fun searchItems(query: String): List<UptodownSearchItem> {
+        val identifier = deviceIdentifier()
+        val url = "$API_BASE/v1/app/search".toHttpUrl().newBuilder()
+            .addQueryParameter("query", query)
+            .addCommonParameters(identifier)
+            .build()
+        return parseUptodownSearchResults(requestJson(url.toString()))
     }
 
-    private fun UptodownDetails.isNewerThan(app: AppInstalled): Boolean {
-        val comparison = runCatching { Version(version).compareTo(Version(app.version)) }.getOrNull()
-        return when {
-            comparison == null -> versionCode > 0L && versionCode > app.versionCode
-            comparison > 0 -> true
-            comparison < 0 -> false
-            else -> versionCode > 0L && versionCode > app.versionCode
+    private fun resolveAppId(packageName: String): String? {
+        val root = try {
+            requestJson("$EAPI_BASE/apps/byPackagename/$packageName")
+        } catch (error: UptodownApiException) {
+            if (error.errorCode == APP_NOT_FOUND_ERROR) return null
+            throw error
+        }
+        return root.objectOrNull("data")?.stringOrNull("appID", "id")
+    }
+
+    private fun loadMetadata(appId: String): UptodownAppMetadata? {
+        val identifier = deviceIdentifier()
+        val url = "$EAPI_BASE/v3/apps/$appId/device/$identifier".toHttpUrl().newBuilder()
+            .addCommonParameters(identifier)
+            .build()
+        val data = requestJson(url.toString()).objectOrNull("data") ?: return null
+        return UptodownAppMetadata(
+            packageName = data.stringOrNull("packagename", "packageName") ?: return null,
+            name = data.stringOrNull("name").orEmpty(),
+            author = data.stringOrNull("author", "authorName").orEmpty(),
+            description = data.stringOrNull("shortDescription", "description").orEmpty(),
+            whatsNew = data.stringOrNull("newFeatures").orEmpty(),
+            iconUrl = data.stringOrNull("icon", "iconURL").orEmpty(),
+            sourceUrl = data.stringOrNull("urlShare").orEmpty()
+        )
+    }
+
+    private fun loadVersions(appId: String): List<UptodownRemoteVersion> {
+        val identifier = deviceIdentifier()
+        val url = "$EAPI_BASE/v3/app/$appId/device/$identifier/compatible/versions"
+            .toHttpUrl().newBuilder()
+            .addQueryParameter("page[limit]", MAX_VERSION_RESULTS.toString())
+            .addQueryParameter("page[offset]", "0")
+            .addCommonParameters(identifier)
+            .build()
+        val root = try {
+            requestJson(url.toString())
+        } catch (error: UptodownApiException) {
+            if (error.errorCode in NO_VERSIONS_ERRORS) return emptyList()
+            throw error
+        }
+        return parseUptodownVersions(root)
+    }
+
+    private fun loadDownloadUrl(appId: String, fileId: String): String {
+        val identifier = deviceIdentifier()
+        val url = "$EAPI_BASE/apps/$appId/file/$fileId/downloadUrl".toHttpUrl().newBuilder()
+            .addQueryParameter("update", "0")
+            .addCommonParameters(identifier)
+            .build()
+        val root = requestJson(url.toString())
+        val downloadUrl = root.stringOrNull("downloadURL")
+            ?: root.objectOrNull("data")?.stringOrNull("downloadURL")
+            ?: throw IOException("Uptodown response has no download URL")
+        Log.d(TAG, "Resolved download host=${downloadUrl.toHttpUrl().host}")
+        return downloadUrl
+    }
+
+    private fun ensureDeviceRegistered() {
+        val identifier = deviceIdentifier()
+        if (registeredIdentifier == identifier) return
+        synchronized(registrationLock) {
+            if (registeredIdentifier == identifier) return
+            val response = requestJson(
+                "$TRACKER_BASE/v2/tracker/device",
+                method = "POST",
+                body = FormBody.Builder().add("device", buildDeviceJson(identifier).toString()).build(),
+                retryAfterDeviceRegistration = false
+            )
+            if (response.intOrNull("success") != 1) {
+                throw IOException(response.stringOrNull("errorMsg") ?: "Uptodown registration failed")
+            }
+            registeredIdentifier = identifier
         }
     }
 
-    private fun shouldInclude(releaseType: ReleaseType): Boolean = when (releaseType) {
+    private fun buildDeviceJson(identifier: String): JsonObject {
+        val metrics = context.resources.displayMetrics
+        val memoryInfo = ActivityManager.MemoryInfo()
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.getMemoryInfo(memoryInfo)
+        return JsonObject().apply {
+            addProperty("identifier", identifier)
+            add("userID", JsonNull.INSTANCE)
+            addProperty("country", countryCode())
+            addProperty("language", languageCode())
+            addProperty("brand", Build.BRAND.orEmpty())
+            addProperty("model", Build.MODEL.orEmpty())
+            addProperty("manufacturer", Build.MANUFACTURER.orEmpty())
+            addProperty("sdk", Build.VERSION.SDK_INT)
+            addProperty("displayWidth", metrics.widthPixels)
+            addProperty("displayHeight", metrics.heightPixels)
+            addProperty("displayDensity", metrics.density)
+            addProperty("density", densityQualifier(metrics.densityDpi))
+            addProperty("ram", memoryInfo.totalMem)
+            addProperty("operador", "")
+            add("supportedABIs", Build.SUPPORTED_ABIS.toJsonArray())
+            add("supported32BitsABIs", Build.SUPPORTED_32_BIT_ABIS.toJsonArray())
+            add("supported64BitsABIs", Build.SUPPORTED_64_BIT_ABIS.toJsonArray())
+            addProperty("appVersion", OFFICIAL_APP_VERSION)
+            addProperty("rooted", 0)
+            addProperty("isTV", if (isTelevision) 1 else 0)
+        }
+    }
+
+    private fun requestJson(
+        url: String,
+        method: String = "GET",
+        body: RequestBody? = null,
+        retryAfterUnauthorized: Boolean = true,
+        retryAfterDeviceRegistration: Boolean = true
+    ): JsonObject {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", userAgent())
+            .header("Accept", "application/json")
+            .header("Accept-Language", languageCode())
+            .header("Client-Version", CLIENT_VERSION)
+            .header("Identificador", IDENTIFIER_HEADER)
+            .header("Identificador-Version", CLIENT_VERSION)
+            .header("Authorization", "Bearer ${token()}")
+            .method(method, body)
+            .build()
+        return apiClient.newCall(request).execute().use { response ->
+            if (response.code == 401 && retryAfterUnauthorized) {
+                invalidateToken()
+                return requestJson(url, method, body, false, retryAfterDeviceRegistration)
+            }
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val errorJson = runCatching { parseJsonObject(responseBody) }.getOrNull()
+                if (
+                    errorJson?.intOrNull("errorCode") == DEVICE_NOT_FOUND_ERROR &&
+                    retryAfterDeviceRegistration
+                ) {
+                    synchronized(registrationLock) { registeredIdentifier = null }
+                    ensureDeviceRegistered()
+                    return requestJson(url, method, body, retryAfterUnauthorized, false)
+                }
+                throw UptodownApiException(
+                    statusCode = response.code,
+                    errorCode = errorJson?.intOrNull("errorCode"),
+                    detail = errorJson?.stringOrNull("errorMsg")
+                        ?: responseBody.take(MAX_ERROR_LENGTH)
+                )
+            }
+            parseJsonObject(responseBody)
+        }
+    }
+
+    private fun token(): String {
+        val now = System.currentTimeMillis()
+        accessToken?.takeIf { now < accessTokenExpiresAt }?.let { return it }
+        synchronized(authLock) {
+            val lockedNow = System.currentTimeMillis()
+            accessToken?.takeIf { lockedNow < accessTokenExpiresAt }?.let { return it }
+            val timestamp = System.currentTimeMillis() / 1000L
+            val body = FormBody.Builder()
+                .add("hmac", timestamp.hmacSha256(API_AUTH_SECRET))
+                .add("unixtime", timestamp.toString())
+                .add("clientID", AUTH_CLIENT_ID)
+                .add("lang", languageCode())
+                .add("id_plataforma", PLATFORM_ID)
+                .add("identifier", deviceIdentifier())
+                .build()
+            val request = Request.Builder()
+                .url("$API_BASE/auth/token")
+                .header("User-Agent", userAgent())
+                .header("Accept", "application/json")
+                .header("Client-Version", CLIENT_VERSION)
+                .post(body)
+                .build()
+            val token = apiClient.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw IOException(
+                        "Uptodown auth HTTP ${response.code} (${response.protocol}): " +
+                            responseBody.take(MAX_ERROR_LENGTH)
+                    )
+                }
+                parseJsonObject(responseBody).stringOrNull("token")
+                    ?: throw IOException("Uptodown authentication returned no token")
+            }
+            accessToken = token
+            accessTokenExpiresAt = lockedNow + TOKEN_CACHE_MILLIS
+            return token
+        }
+    }
+
+    private fun invalidateToken() = synchronized(authLock) {
+        accessToken = null
+        accessTokenExpiresAt = 0L
+    }
+
+    private fun deviceIdentifier(): String {
+        prefs.uptodownDeviceIdentifier.get().takeIf(DEVICE_ID_REGEX::matches)?.let { return it }
+        synchronized(registrationLock) {
+            prefs.uptodownDeviceIdentifier.get().takeIf(DEVICE_ID_REGEX::matches)?.let { return it }
+            val bytes = ByteArray(8).also(SecureRandom()::nextBytes)
+            val generated = bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            prefs.uptodownDeviceIdentifier.put(generated)
+            return generated
+        }
+    }
+
+    private fun shouldInclude(type: ReleaseType): Boolean = when (type) {
         ReleaseType.Alpha -> !prefs.ignoreAlpha.get()
         ReleaseType.Beta -> !prefs.ignoreBeta.get()
         ReleaseType.PreRelease -> !prefs.ignorePreRelease.get()
         ReleaseType.Stable -> true
     }
 
-    private fun Element.toSearchResult(): UptodownSearchResult? {
-        val anchor = selectFirst(".name a[href], a[href]") ?: return null
-        val url = anchor.attr("abs:href")
-            .ifBlank { anchor.attr("href").toAbsoluteUrl() }
-            .ifBlank { onclickUrl().orEmpty() }
-            .takeIf { it.isNotBlank() }
-            ?: return null
-        if (!url.contains(".uptodown.com/android", ignoreCase = true)) return null
+    private val isTelevision: Boolean
+        get() = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
-        val name = anchor.selectFirst("h2")
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: anchor.attr("title").removePrefix("Download ").trim().takeIf { it.isNotBlank() }
-            ?: return null
-        val author = selectFirst(".author")?.text()?.trim().orEmpty()
-        val description = selectFirst(".description")?.text()?.trim().orEmpty()
-        val iconUrl = selectFirst("img.app_card_img, figure img")?.bestImageUrl().orEmpty()
-        return UptodownSearchResult(
-            name = name,
-            author = author,
-            description = description,
-            iconUrl = iconUrl,
-            url = url.toAppPageUrl()
-        )
+    private fun languageCode() = Locale.getDefault().language.takeIf(String::isNotBlank) ?: "en"
+    private fun countryCode() = Locale.getDefault().country.takeIf(String::isNotBlank)
+        ?.uppercase(Locale.ROOT) ?: "US"
+
+    private fun okhttp3.HttpUrl.Builder.addCommonParameters(identifier: String) = apply {
+        addQueryParameter("lang", languageCode())
+        addQueryParameter("id_plataforma", PLATFORM_ID)
+        addQueryParameter("identifier", identifier)
+        addQueryParameter("countryIsoCode", countryCode())
     }
 
-    private fun Element.onclickUrl(): String? =
-        onclickUrlRegex.find(attr("onclick"))
-            ?.groupValues
-            ?.getOrNull(1)
-
-    private fun Document.technicalInfo(): Map<String, String> =
-        select("#technical-information tr").mapNotNull { row ->
-            val label = row.selectFirst("th")?.text()?.trim()?.lowercase(Locale.ROOT)
-                ?: return@mapNotNull null
-            val value = row.select("td").lastOrNull()?.text()?.trim()
-                ?: return@mapNotNull null
-            if (label.isBlank() || value.isBlank()) null else label to value
-        }.toMap()
-
-    private fun requestDocument(url: String, referer: String = BASE_URL): Document {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Referer", referer)
-            .get()
-            .build()
-
-        return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("Uptodown HTTP ${response.code}: $url")
-            }
-            Jsoup.parse(response.body?.string().orEmpty(), url)
-        }
-    }
-
-    private fun Element.bestImageUrl(): String =
-        attr("abs:data-src").ifBlank { attr("data-src").toAbsoluteUrl() }
-            .ifBlank { attr("abs:src") }
-            .ifBlank { attr("src").toAbsoluteUrl() }
-
-    private fun String.toAbsoluteUrl(): String = when {
-        isBlank() -> ""
-        startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true) -> this
-        startsWith("//") -> "https:$this"
-        startsWith("/") -> "$BASE_URL$this"
-        else -> "$BASE_URL/$this"
-    }
-
-    private fun String.toAppPageUrl(): String {
-        val trimmed = trimEnd('/')
-        return when {
-            trimmed.contains("/android/download", ignoreCase = true) ->
-                trimmed.substringBefore("/android/download") + "/android"
-            trimmed.endsWith("/android", ignoreCase = true) -> trimmed
-            else -> "$trimmed/android"
-        }
-    }
-
-    private fun String.toDownloadPageUrl(): String =
-        "${toAppPageUrl().trimEnd('/')}/download"
-
-    private fun String.toUriOrEmpty(): Uri =
-        takeIf { it.isNotBlank() }?.let(Uri::parse) ?: Uri.EMPTY
-
-    private fun String.toSafeFileNamePart(): String =
-        replace(unsafeFileNameRegex, "_").trim('_').ifBlank { "file" }
-
-    private fun String.toUptodownVersion(): UptodownVersion {
-        val versionCode = uptodownVersionCodeRegex.find(this)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toLongOrNull()
-            ?: 0L
-        val versionName = replace(uptodownVersionCodeRegex, "")
-            .trim()
-            .ifBlank { this.trim() }
-        return UptodownVersion(versionName, versionCode)
-    }
-
-    private fun parseArches(raw: String): List<String> =
-        raw.split(",", " ", "\n", "\t")
-            .map { it.trim().removeSuffix(":") }
-            .filter { it.isNotBlank() }
-
-    private fun parseSize(raw: String): Long {
-        val match = sizeRegex.find(raw) ?: return 0L
-        val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return 0L
-        val multiplier = when (match.groupValues[2].uppercase(Locale.ROOT)) {
-            "GB" -> 1024L * 1024L * 1024L
-            "MB" -> 1024L * 1024L
-            "KB" -> 1024L
-            else -> 1L
-        }
-        return (value * multiplier).toLong()
-    }
-
-    private data class UptodownSearchResult(
-        val name: String,
-        val author: String,
-        val description: String,
-        val iconUrl: String,
-        val url: String
-    )
-
-    private data class UptodownVersion(
-        val name: String,
-        val code: Long
-    )
-
-    private data class UptodownDetails(
-        val packageName: String,
-        val name: String,
-        val author: String,
-        val version: String,
-        val versionCode: Long,
-        val appId: String?,
-        val fileId: String?,
-        val fileType: String,
-        val size: Long,
-        val sha256: String?,
-        val arches: List<String>,
-        val iconUri: Uri,
-        val sourceUrl: String,
-        val releaseUrl: String,
-        val whatsNew: String,
-        val releaseType: ReleaseType
-    )
+    private fun userAgent() =
+        "APKUpdater OSS/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.RELEASE}; ${Build.MODEL})"
 
     companion object {
-        private const val BASE_URL = "https://en.uptodown.com"
-        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/121 Mobile Safari/537.36"
+        private const val TAG = "UptodownRepository"
+        private const val UPTODOWN_HOME = "https://www.uptodown.com"
+        private const val API_BASE = "https://api.uptodown.app"
+        private const val EAPI_BASE = "https://www.uptodown.app/eapi"
+        private const val TRACKER_BASE = "https://t.uptodown.app/eapi"
+        private const val CLIENT_VERSION = "745"
+        private const val OFFICIAL_APP_VERSION = "Uptodown App Store v.7.45 (745)"
+        private const val IDENTIFIER_HEADER = "Uptodown_Android"
+        private const val PLATFORM_ID = "13"
+        private const val AUTH_CLIENT_ID = "8"
+        private const val API_AUTH_SECRET = "MDGMXUMdvHJBG/vjdFgmqX6LUdy7ecfwvYNd0gyfOCs="
+        private const val TOKEN_CACHE_MILLIS = 25L * 60L * 1000L
         private const val UPDATE_CONCURRENCY = 3
         private const val SEARCH_CONCURRENCY = 4
         private const val MAX_SEARCH_RESULTS = 10
-        private const val MAX_UPDATE_CANDIDATES = 4
-        private val packageRegex = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
-        private val sha256Regex = Regex("^[A-Fa-f0-9]{64}$")
-        private val uptodownVersionCodeRegex = Regex("\\s*\\((\\d+)\\)\\s*$")
-        private val sizeRegex = Regex("(\\d+(?:[\\.,]\\d+)?)\\s*(KB|MB|GB)", RegexOption.IGNORE_CASE)
-        private val onclickUrlRegex = Regex("location\\.href='([^']+)'")
-        private val unsafeFileNameRegex = Regex("[^A-Za-z0-9._-]")
+        private const val MAX_VERSION_RESULTS = 40
+        private const val MAX_ERROR_LENGTH = 300
+        private const val APP_NOT_FOUND_ERROR = -29
+        private const val DEVICE_NOT_FOUND_ERROR = -75
+        private val NO_VERSIONS_ERRORS = setOf(-84, -41)
+        private val PACKAGE_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+        private val DEVICE_ID_REGEX = Regex("^[a-f0-9]{16}$")
     }
 }
+
+private class UptodownApiException(
+    val statusCode: Int,
+    val errorCode: Int?,
+    detail: String
+) : IOException(
+    "Uptodown HTTP $statusCode" +
+        (errorCode?.let { " ($it)" } ?: "") +
+        detail.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+)
+
+internal data class UptodownSearchItem(
+    val appId: String,
+    val packageName: String,
+    val name: String,
+    val author: String,
+    val description: String,
+    val iconUrl: String
+)
+
+internal data class UptodownRemoteVersion(
+    val fileId: String,
+    val version: String,
+    val versionCode: Long,
+    val size: Long,
+    val minSdk: Int?,
+    val arches: List<String>,
+    val fileType: String,
+    val sha256: String?
+) {
+    fun isNewerThan(app: AppInstalled): Boolean {
+        val comparison = runCatching { Version(version).compareTo(Version(app.version)) }.getOrNull()
+        return when {
+            comparison == null -> versionCode > app.versionCode
+            comparison > 0 -> true
+            comparison < 0 -> false
+            else -> versionCode > app.versionCode
+        }
+    }
+}
+
+private data class UptodownAppMetadata(
+    val packageName: String,
+    val name: String,
+    val author: String,
+    val description: String,
+    val whatsNew: String,
+    val iconUrl: String,
+    val sourceUrl: String
+)
+
+internal fun parseUptodownSearchResults(root: JsonObject): List<UptodownSearchItem> =
+    root.arrayOrNull("items")?.mapNotNull { element ->
+        val item = element.asObjectOrNull() ?: return@mapNotNull null
+        val appId = item.stringOrNull("id", "appID") ?: return@mapNotNull null
+        val packageName = item.stringOrNull("packagename", "packageName") ?: return@mapNotNull null
+        if (!PACKAGE_NAME_REGEX.matches(packageName)) return@mapNotNull null
+        UptodownSearchItem(
+            appId, packageName,
+            item.stringOrNull("name").orEmpty().ifBlank { packageName },
+            item.stringOrNull("authorName", "author").orEmpty(),
+            item.stringOrNull("description", "shortDescription").orEmpty(),
+            item.stringOrNull("iconURL", "icon").orEmpty()
+        )
+    }.orEmpty()
+
+internal fun parseUptodownVersions(root: JsonObject): List<UptodownRemoteVersion> =
+    root.arrayOrNull("data")?.mapNotNull { element ->
+        val item = element.asObjectOrNull() ?: return@mapNotNull null
+        val fileId = item.stringOrNull("fileID", "fileId", "fileid") ?: return@mapNotNull null
+        val version = item.stringOrNull("version") ?: return@mapNotNull null
+        val versionCode = item.longOrNull("versionCode") ?: return@mapNotNull null
+        val arches = buildList {
+            item.stringOrNull("abi")?.let(::add)
+            item.arrayOrNull("abis")?.forEach { it.stringValueOrNull()?.let(::add) }
+        }.filter(String::isNotBlank).distinct()
+        UptodownRemoteVersion(
+            fileId = fileId,
+            version = version,
+            versionCode = versionCode,
+            size = item.longOrNull("sizeInBytes", "size") ?: 0L,
+            minSdk = item.intOrNull("sdkVersion")
+                ?: parseUptodownMinSdk(item.stringOrNull("minSDKVersion").orEmpty()),
+            arches = arches,
+            fileType = item.stringOrNull("fileType", "filetype").orEmpty().lowercase(Locale.ROOT),
+            sha256 = item.stringOrNull("sha256", "SHA256")?.takeIf(SHA256_REGEX::matches)
+        )
+    }.orEmpty()
+
+internal fun selectLatestUptodownVersion(
+    versions: List<UptodownRemoteVersion>,
+    supportedAbis: List<String>,
+    sdkInt: Int
+): UptodownRemoteVersion? {
+    val compatible = versions
+        .filter { it.minSdk == null || it.minSdk <= sdkInt }
+        .filter { AbiMatcher.isCompatible(it.arches, supportedAbis) }
+    val latest = compatible.maxWithOrNull(Comparator(::compareUptodownVersions)) ?: return null
+    val releaseVariants = compatible.filter {
+        it.version == latest.version && it.versionCode == latest.versionCode
+    }
+    val pool = releaseVariants.filter { it.fileType == "apk" }.ifEmpty { releaseVariants }
+    return AbiMatcher.selectCompatible(
+        pool, supportedAbis,
+        nameSelector = { it.arches.joinToString(" ") },
+        sizeSelector = { it.size }
+    ) ?: pool.maxByOrNull { it.size }
+}
+
+private fun compareUptodownVersions(a: UptodownRemoteVersion, b: UptodownRemoteVersion): Int {
+    val names = runCatching { Version(a.version).compareTo(Version(b.version)) }.getOrNull()
+    return if (names != null && names != 0) names else a.versionCode.compareTo(b.versionCode)
+}
+
+internal fun parseUptodownMinSdk(raw: String): Int? {
+    val match = Regex("(?i)android\\s*(?:\\+\\s*)?(\\d+)(?:\\.(\\d+))?\\s*(L)?").find(raw)
+        ?: return null
+    val major = match.groupValues[1].toIntOrNull() ?: return null
+    val minor = match.groupValues[2].toIntOrNull() ?: 0
+    val isL = match.groupValues[3].equals("L", true)
+    return when (major) {
+        4 -> when (minor) { 0 -> 14; 1 -> 16; 2 -> 17; 3 -> 18; else -> 19 }
+        5 -> if (minor >= 1) 22 else 21
+        6 -> 23
+        7 -> if (minor >= 1) 25 else 24
+        8 -> if (minor >= 1) 27 else 26
+        9 -> 28
+        10 -> 29
+        11 -> 30
+        12 -> if (isL || minor >= 1) 32 else 31
+        13 -> 33
+        14 -> 34
+        15 -> 35
+        16 -> 36
+        else -> null
+    }
+}
+
+private fun Long.hmacSha256(secret: String): String {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(secret.toByteArray(), "HmacSHA256"))
+    return mac.doFinal(toString().toByteArray()).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
+
+private fun parseJsonObject(raw: String): JsonObject = runCatching {
+    JsonParser.parseString(raw).asJsonObject
+}.getOrElse { throw IOException("Invalid Uptodown JSON response", it) }
+
+private fun JsonObject.objectOrNull(name: String) = get(name)?.takeIf { it.isJsonObject }?.asJsonObject
+private fun JsonObject.arrayOrNull(name: String) = get(name)?.takeIf { it.isJsonArray }?.asJsonArray
+private fun JsonElement.asObjectOrNull() = takeIf { it.isJsonObject }?.asJsonObject
+private fun JsonElement.stringValueOrNull() = runCatching { takeUnless { it.isJsonNull }?.asString }.getOrNull()
+private fun JsonObject.stringOrNull(vararg names: String) = names.firstNotNullOfOrNull {
+    get(it)?.stringValueOrNull()?.trim()?.takeIf(String::isNotBlank)
+}
+private fun JsonObject.longOrNull(vararg names: String) = names.firstNotNullOfOrNull {
+    get(it)?.stringValueOrNull()?.toLongOrNull()
+}
+private fun JsonObject.intOrNull(vararg names: String) = names.firstNotNullOfOrNull {
+    get(it)?.stringValueOrNull()?.toIntOrNull()
+}
+private fun Array<String>.toJsonArray() = JsonArray().also { array -> forEach(array::add) }
+private fun String.toUriOrEmpty() = takeIf(String::isNotBlank)?.let(Uri::parse) ?: Uri.EMPTY
+
+private fun densityQualifier(dpi: Int) = when {
+    dpi <= 120 -> "ldpi"
+    dpi <= 160 -> "mdpi"
+    dpi <= 213 -> "tvdpi"
+    dpi <= 240 -> "hdpi"
+    dpi <= 320 -> "xhdpi"
+    dpi <= 480 -> "xxhdpi"
+    else -> "xxxhdpi"
+}
+
+private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+private val SHA256_REGEX = Regex("^[A-Fa-f0-9]{64}$")

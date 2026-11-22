@@ -1,6 +1,7 @@
 package com.apkupdateross.data.ui
 
 import android.net.Uri
+import io.github.g00fy2.versioncompare.Version
 
 data class AppUpdate(
 	val name: String,
@@ -40,4 +41,35 @@ fun List<AppUpdate>.removePackageName(packageName: String): List<AppUpdate> = fi
 
 fun List<AppUpdate>.setProgress(progress: AppInstallProgress): List<AppUpdate> = map {
 	if (it.id == progress.id) it.copy(progress = progress.progress ?: it.progress, total = progress.total ?: it.total) else it
+}
+
+val preferredUpdateComparator: Comparator<AppUpdate> = Comparator { first, second ->
+	compareUpdatePreference(
+		first.version,
+		first.versionCode,
+		first.source,
+		second.version,
+		second.versionCode,
+		second.source
+	)
+}
+
+internal fun compareUpdatePreference(
+	firstVersion: String,
+	firstVersionCode: Long,
+	firstSource: Source,
+	secondVersion: String,
+	secondVersionCode: Long,
+	secondSource: Source
+): Int {
+	val versionComparison = runCatching {
+		Version(secondVersion).compareTo(Version(firstVersion))
+	}.getOrNull()
+	return if (versionComparison != null && versionComparison != 0) {
+		versionComparison
+	} else {
+		val sourceComparison = secondSource.priority().compareTo(firstSource.priority())
+		if (sourceComparison != 0) sourceComparison
+		else secondVersionCode.compareTo(firstVersionCode)
+	}
 }

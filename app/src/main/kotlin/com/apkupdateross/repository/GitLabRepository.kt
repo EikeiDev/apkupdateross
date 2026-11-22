@@ -17,13 +17,15 @@ import com.apkupdateross.data.ui.getApp
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.service.GitLabService
 import com.apkupdateross.util.AbiMatcher
-import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
 import com.apkupdateross.util.versionCodeFromTag
 import io.github.g00fy2.versioncompare.Version
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flow
 import retrofit2.HttpException
 
@@ -33,8 +35,13 @@ class GitLabRepository(
     private val prefs: Prefs
 ) {
 
+    private companion object {
+        const val MAX_GIT_CONCURRENCY = 6
+    }
+
     private fun authHeader(): String? = prefs.gitlabToken.get().trim().takeIf { it.isNotEmpty() }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun updates(apps: List<AppInstalled>) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
         loadGitLabApps().forEach { app ->
@@ -45,7 +52,9 @@ class GitLabRepository(
         if (checks.isEmpty()) {
             emit(emptyList())
         } else {
-            checks.combine { all -> emit(all.flatMap { it }) }.collect()
+            val updates = mutableListOf<AppUpdate>()
+            checks.asFlow().flattenMerge(MAX_GIT_CONCURRENCY).collect { updates.addAll(it) }
+            emit(updates)
         }
     }
 
@@ -58,6 +67,7 @@ class GitLabRepository(
         extra: Regex?
     ) = flow {
         val releases = service.getReleases(user, repo, authHeader())
+            .filter { shouldInclude(ReleaseType.from(it.tag_name)) }
             .filter { Version(filterVersionTag(it.tag_name)) > Version(currentVersion) }
 
         if (releases.isNotEmpty()) {
@@ -92,6 +102,7 @@ class GitLabRepository(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun search(text: String) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
 
@@ -104,10 +115,9 @@ class GitLabRepository(
         if (checks.isEmpty()) {
             emit(Result.success(emptyList()))
         } else {
-            checks.combine { all ->
-                val r = all.flatMap { it }
-                emit(Result.success(r))
-            }.collect()
+            checks.asFlow().flattenMerge(MAX_GIT_CONCURRENCY).collect {
+                emit(Result.success(it))
+            }
         }
     }.catch {
         emit(Result.failure(it))
@@ -124,6 +134,13 @@ class GitLabRepository(
             nameSelector = { it },
             sizeSelector = { it.length.toLong() }
         )
+    }
+
+    private fun shouldInclude(releaseType: ReleaseType): Boolean = when (releaseType) {
+        ReleaseType.Alpha -> !prefs.ignoreAlpha.get()
+        ReleaseType.Beta -> !prefs.ignoreBeta.get()
+        ReleaseType.PreRelease -> !prefs.ignorePreRelease.get()
+        ReleaseType.Stable -> true
     }
 
     private fun loadGitLabApps(): List<GitLabApp> {

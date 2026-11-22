@@ -1,6 +1,7 @@
 package com.apkupdateross.data.ui
 
 import com.aurora.gplayapi.data.models.File
+import java.net.URI
 import java.util.Locale
 
 
@@ -10,7 +11,8 @@ sealed class Link {
         val link: String,
         val size: Long = 0L,
         val expectedPackageName: String? = null,
-        val sha256: String? = null
+        val sha256: String? = null,
+        val resolveUrl: (suspend () -> String)? = null
     ): Link()
     data class BrowserDownload(
         val pageUrl: String,
@@ -34,7 +36,10 @@ fun Link.Url.validationPackageName(fallbackPackageName: String): String? =
     }
 
 fun Link.Url.validationSize(): Long =
-    if (hasValidationMetadata()) size else 0L
+    if (!sha256.isNullOrBlank()) size else 0L
+
+suspend fun Link.Url.resolvedUrl(): String =
+    resolveUrl?.invoke()?.takeIf { it.isNotBlank() } ?: link
 
 fun Link.Url.totalSize(contentLength: Long, fallbackSize: Long = 0L): Long = when {
     size > 0L -> size
@@ -44,6 +49,13 @@ fun Link.Url.totalSize(contentLength: Long, fallbackSize: Long = 0L): Long = whe
 }
 
 fun String.isSplitPackageDownloadUrl(): Boolean {
-    val lower = lowercase(Locale.ROOT)
-    return lower.contains(".xapk") || lower.contains(".apks") || lower.contains(".apkm")
+    val normalized = trim()
+    val path = runCatching { URI(normalized).path }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: normalized.substringBefore('?').substringBefore('#')
+    val lowerPath = path.trimEnd('/').lowercase(Locale.ROOT)
+    return SPLIT_PACKAGE_EXTENSIONS.any(lowerPath::endsWith)
 }
+
+private val SPLIT_PACKAGE_EXTENSIONS = listOf(".xapk", ".apks", ".apkm")

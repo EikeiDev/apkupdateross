@@ -7,7 +7,7 @@ import com.apkupdateross.data.ui.FdroidSource
 import com.apkupdateross.data.ui.IzzySource
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.ApkMirrorRepository
-import com.apkupdateross.repository.ApkComboRepository
+import com.apkupdateross.repository.Apk20Repository
 import com.apkupdateross.repository.ApkPureRepository
 import com.apkupdateross.repository.AppsRepository
 import com.apkupdateross.repository.AptoideRepository
@@ -85,7 +85,6 @@ val mainModule = module {
 			.connectTimeout(10, TimeUnit.SECONDS)
 			.readTimeout(20, TimeUnit.SECONDS)
 			.writeTimeout(10, TimeUnit.SECONDS)
-			.callTimeout(25, TimeUnit.SECONDS)
 			.addUserAgentInterceptor(AppUserAgent.value)
 			.addNetworkInterceptor { chain ->
 				val original = chain.request()
@@ -148,7 +147,6 @@ val mainModule = module {
 			.connectTimeout(10, TimeUnit.SECONDS)
 			.readTimeout(20, TimeUnit.SECONDS)
 			.writeTimeout(10, TimeUnit.SECONDS)
-			.callTimeout(25, TimeUnit.SECONDS)
 			.addUserAgentInterceptor(AptoideRepository.UserAgent)
 			.build()
 
@@ -170,18 +168,25 @@ val mainModule = module {
 	}
 
 	single {
-		val client = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).build()
+		val client = OkHttpClient.Builder()
+			.followRedirects(true)
+			.cache(get())
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(30, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.addUserAgentInterceptor(AppUserAgent.value)
+			.build()
 		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
 		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
 		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
 		Downloader(client, apkPureClient, auroraClient, dir, get(), get())
 	}
 
-	single { ApkMirrorRepository(get(), get(), get(), get(), get()) }
+	single { ApkMirrorRepository(get(), get(), get(), get(), get(), androidContext()) }
 
-	single { ApkComboRepository(get(), get()) }
+	single { Apk20Repository(get(), get()) }
 
-	single { UptodownRepository(get(), get()) }
+	single { UptodownRepository(get(), get(), androidContext()) }
 
 	single { AppsRepository(get(), get()) }
 

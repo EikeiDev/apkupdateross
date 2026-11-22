@@ -10,8 +10,8 @@ import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppInstallStatus
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.Link
-import com.apkupdateross.data.ui.hasValidationMetadata
 import com.apkupdateross.data.ui.isSplitPackageDownloadUrl
+import com.apkupdateross.data.ui.resolvedUrl
 import com.apkupdateross.data.ui.totalSize
 import com.apkupdateross.data.ui.validationPackageName
 import com.apkupdateross.data.ui.validationSize
@@ -25,11 +25,15 @@ import com.apkupdateross.util.Stringer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import com.apkupdateross.util.copyToAndNotify
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 
 abstract class InstallViewModel(
@@ -79,11 +83,27 @@ abstract class InstallViewModel(
         block(it)
     }.launchIn(viewModelScope)
 
-    protected fun downloadAndRootInstall(id: Int, packageName: String, link: Link) = runCatching {
+    protected suspend fun downloadAndRootInstall(id: Int, packageName: String, link: Link) = runCatching {
         when (link) {
+            is Link.Play -> {
+                val files = link.getInstallFiles()
+                val results = downloadPlayFiles(id, packageName, files)
+                val success = installer.rootInstallApks(results.map { it.file }, packageName)
+                if (success) {
+                    finishInstall(id)
+                } else {
+                    cancelInstall(id)
+                }
+                downloader.cleanup(id)
+            }
             is Link.Url -> {
-                val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
-                val isSplitPackage = link.isSplitPackage(result.url)
+                val url = link.resolvedUrl()
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    url,
+                    progressCallback(id, link.size)
+                ) ?: throw Exception("Download failed")
+                val isSplitPackage = link.isSplitPackage(url, result.url) || installer.isSplitPackageFile(result.file)
                 if (isSplitPackage) {
                     installer.validateSplitPackageFile(
                         result.file,
@@ -91,18 +111,18 @@ abstract class InstallViewModel(
                         link.sha256,
                         link.validationSize()
                     )
-                } else if (link.hasValidationMetadata()) {
+                } else {
                     installer.validateApkFile(
                         result.file,
-                        link.validationPackageName(packageName),
+                        link.validationPackageName(packageName) ?: packageName,
                         link.sha256,
                         link.validationSize()
                     )
                 }
                 val success = if (isSplitPackage) {
-                    installer.rootInstallXapk(result.file)
+                    installer.rootInstallXapk(result.file, packageName)
                 } else {
-                    installer.rootInstall(result.file)
+                    installer.rootInstall(result.file, packageName)
                 }
                 if (success) {
                     finishInstall(id)
@@ -112,7 +132,13 @@ abstract class InstallViewModel(
                 downloader.cleanup(id)
             }
             is Link.Xapk -> {
-                if (installer.rootInstallXapk(downloader.download(id, link.link))) {
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    link.link,
+                    progressCallback(id)
+                ) ?: throw Exception("Download failed")
+                installer.validateSplitPackageFile(result.file, packageName)
+                if (installer.rootInstallXapk(result.file, packageName)) {
                     finishInstall(id)
                 } else {
                     cancelInstall(id)
@@ -146,59 +172,62 @@ abstract class InstallViewModel(
                 val files = link.getInstallFiles()
                 val total = files.sumOf { it.size }
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                val streams = files.map { downloader.downloadStream(id, it.url) ?: throw Exception("Failed to open stream for ${it.name}") }
+                val streams = downloadPlayFiles(id, packageName, files).map { it.file.inputStream() }
                 installer.shizukuInstall(id, packageName, streams, total)
                 finishInstall(id)
             }
             is Link.Url -> {
-                if (link.hasValidationMetadata()) {
-                    val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
-                    val isSplitPackage = link.isSplitPackage(result.url)
-                    if (isSplitPackage) {
-                        installer.validateSplitPackageFile(
-                            result.file,
-                            link.validationPackageName(packageName) ?: packageName,
-                            link.sha256,
-                            link.validationSize()
-                        )
-                    } else {
-                        installer.validateApkFile(
-                            result.file,
-                            link.validationPackageName(packageName),
-                            link.sha256,
-                            link.validationSize()
-                        )
-                    }
-                    val total = link.totalSize(result.contentLength, result.file.length())
-                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                    if (isSplitPackage) {
-                        installer.shizukuInstallXapk(id, packageName, result.file.inputStream(), total)
-                    } else {
-                        installer.shizukuInstall(id, packageName, result.file.inputStream(), total)
-                    }
+                val url = link.resolvedUrl()
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    url,
+                    progressCallback(id, link.size)
+                ) ?: throw Exception("Download failed")
+                val isSplitPackage = link.isSplitPackage(url, result.url) || installer.isSplitPackageFile(result.file)
+                if (isSplitPackage) {
+                    installer.validateSplitPackageFile(
+                        result.file,
+                        link.validationPackageName(packageName) ?: packageName,
+                        link.sha256,
+                        link.validationSize()
+                    )
                 } else {
-                    val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                    val total = link.totalSize(result.contentLength)
-                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                    if (link.isSplitPackage(result.url)) {
-                        installer.shizukuInstallXapk(id, packageName, result.stream, total)
-                    } else {
-                        installer.shizukuInstall(id, packageName, result.stream, total)
-                    }
+                    installer.validateApkFile(
+                        result.file,
+                        link.validationPackageName(packageName) ?: packageName,
+                        link.sha256,
+                        link.validationSize()
+                    )
+                }
+                val total = link.totalSize(result.contentLength, result.file.length())
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                if (isSplitPackage) {
+                    installer.shizukuInstallXapk(id, packageName, result.file, total)
+                } else {
+                    installer.shizukuInstall(id, packageName, result.file.inputStream(), total)
                 }
                 finishInstall(id)
             }
             is Link.Xapk -> {
-                val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
-                installer.shizukuInstallXapk(id, packageName, result.stream, result.contentLength)
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    link.link,
+                    progressCallback(id)
+                ) ?: throw Exception("Download failed")
+                installer.validateSplitPackageFile(result.file, packageName)
+                installLog.emitProgress(AppInstallProgress(id, 0L, result.file.length()))
+                installer.shizukuInstallXapk(id, packageName, result.file, result.file.length())
                 finishInstall(id)
             }
         }
         downloader.cleanup(id)
-    }.getOrElse {
-        Log.e("InstallViewModel", "Error in downloadAndShizukuInstall.", it)
-        snackBar.snackBar(viewModelScope, TextSnack("${stringer.get(R.string.download_failure_cant_download)}: ${it.message}"))
+    }.getOrElse { error ->
+        if (error is CancellationException) {
+            downloader.cleanup(id)
+            throw error
+        }
+        Log.e("InstallViewModel", "Error in downloadAndShizukuInstall.", error)
+        snackBar.snackBar(viewModelScope, TextSnack("${stringer.get(R.string.download_failure_cant_download)}: ${error.message}"))
         cancelInstall(id)
         downloader.cleanup(id)
     }
@@ -211,57 +240,60 @@ abstract class InstallViewModel(
                 val files = link.getInstallFiles()
                 val total = files.sumOf { it.size }
                 installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                val streams = files.map { downloader.downloadStream(id, it.url) ?: throw Exception("Failed to open stream for ${it.name}") }
+                val streams = downloadPlayFiles(id, packageName, files).map { it.file.inputStream() }
                 installer.playInstall(id, packageName, streams, total)
             }
             is Link.Url -> {
-                if (link.hasValidationMetadata()) {
-                    val result = downloader.downloadFileWithSize(id, link.link) ?: throw Exception("Download failed")
-                    val isSplitPackage = link.isSplitPackage(result.url)
-                    if (isSplitPackage) {
-                        installer.validateSplitPackageFile(
-                            result.file,
-                            link.validationPackageName(packageName) ?: packageName,
-                            link.sha256,
-                            link.validationSize()
-                        )
-                    } else {
-                        installer.validateApkFile(
-                            result.file,
-                            link.validationPackageName(packageName),
-                            link.sha256,
-                            link.validationSize()
-                        )
-                    }
-                    val total = link.totalSize(result.contentLength, result.file.length())
-                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                    if (isSplitPackage) {
-                        installer.installXapk(id, packageName, result.file.inputStream(), total)
-                    } else {
-                        installer.install(id, packageName, result.file.inputStream(), total)
-                    }
+                val url = link.resolvedUrl()
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    url,
+                    progressCallback(id, link.size)
+                ) ?: throw Exception("Download failed")
+                val isSplitPackage = link.isSplitPackage(url, result.url) || installer.isSplitPackageFile(result.file)
+                if (isSplitPackage) {
+                    installer.validateSplitPackageFile(
+                        result.file,
+                        link.validationPackageName(packageName) ?: packageName,
+                        link.sha256,
+                        link.validationSize()
+                    )
                 } else {
-                    val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                    val total = link.totalSize(result.contentLength)
-                    installLog.emitProgress(AppInstallProgress(id, 0L, total))
-                    if (link.isSplitPackage(result.url)) {
-                        installer.installXapk(id, packageName, result.stream, total)
-                    } else {
-                        installer.install(id, packageName, result.stream, total)
-                    }
+                    installer.validateApkFile(
+                        result.file,
+                        link.validationPackageName(packageName) ?: packageName,
+                        link.sha256,
+                        link.validationSize()
+                    )
+                }
+                val total = link.totalSize(result.contentLength, result.file.length())
+                installLog.emitProgress(AppInstallProgress(id, 0L, total))
+                if (isSplitPackage) {
+                    installer.installXapk(id, packageName, result.file, total)
+                } else {
+                    installer.install(id, packageName, result.file.inputStream(), total)
                 }
             }
             is Link.Xapk -> {
-                val result = downloader.downloadWithSize(id, link.link) ?: throw Exception("Download failed")
-                installLog.emitProgress(AppInstallProgress(id, 0L, result.contentLength))
-                installer.installXapk(id, packageName, result.stream, result.contentLength)
+                val result = downloader.downloadFileWithSize(
+                    id,
+                    link.link,
+                    progressCallback(id)
+                ) ?: throw Exception("Download failed")
+                installer.validateSplitPackageFile(result.file, packageName)
+                installLog.emitProgress(AppInstallProgress(id, 0L, result.file.length()))
+                installer.installXapk(id, packageName, result.file, result.file.length())
             }
         }
-    }.getOrElse {
-        Log.e("InstallViewModel", "Error in downloadAndInstall.", it)
-        snackBar.snackBar(viewModelScope, TextSnack("${stringer.get(R.string.download_failure_cant_download)}: ${it.message}"))
+    }.getOrElse { error ->
+        if (error is CancellationException) {
+            downloader.cleanup(id)
+            throw error
+        }
+        Log.e("InstallViewModel", "Error in downloadAndInstall.", error)
+        snackBar.snackBar(viewModelScope, TextSnack("${stringer.get(R.string.download_failure_cant_download)}: ${error.message}"))
         cancelInstall(id)
-        downloader.cleanup(id) // Missing in original snippet, but should be here.
+        downloader.cleanup(id)
     }
 
     private fun sendInstallSnack(updates: List<AppUpdate>, log: AppInstallStatus) {
@@ -282,17 +314,39 @@ abstract class InstallViewModel(
         }
     }
 
-    protected suspend fun saveStream(update: AppUpdate, url: String) {
-        val result = downloader.downloadWithSize(update.id, url)
+    protected suspend fun saveStream(update: AppUpdate, link: Link.Url) {
+        saveStream(
+            update = update,
+            url = link.resolvedUrl(),
+            expectedSha256 = link.sha256,
+            expectedSize = link.validationSize()
+        )
+    }
+
+    protected suspend fun saveStream(
+        update: AppUpdate,
+        url: String,
+        forceSplitPackage: Boolean = false,
+        expectedSha256: String? = null,
+        expectedSize: Long = 0L
+    ) {
+        val result = downloader.downloadFileWithSize(
+            update.id,
+            url,
+            progressCallback(update.id, expectedSize)
+        )
         if (result == null) {
             snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure_cant_download)))
             return
         }
         val lowerUrl = result.url.ifBlank { url }.lowercase()
+        val detectedSplitPackage = forceSplitPackage || installer.isSplitPackageFile(result.file)
         val ext = when {
+            forceSplitPackage -> "xapk"
             lowerUrl.contains(".xapk") -> "xapk"
             lowerUrl.contains(".apks") -> "apks"
             lowerUrl.contains(".apkm") -> "apkm"
+            detectedSplitPackage -> "apks"
             else -> "apk"
         }
         val mime = when (ext) {
@@ -302,7 +356,24 @@ abstract class InstallViewModel(
             else -> "application/vnd.android.package-archive"
         }
         val fileName = "${update.packageName}-${update.version}.$ext"
-        val ok = runCatching { downloadStorage.save(fileName, mime, result.stream, update.id, installLog, result.contentLength) }.getOrElse { false }
+        val ok = runCatching {
+            if (ext == "apk") {
+                installer.validateApkFile(result.file, update.packageName, expectedSha256, expectedSize)
+            } else {
+                installer.validateSplitPackageFile(result.file, update.packageName, expectedSha256, expectedSize)
+            }
+            downloadStorage.save(
+                fileName,
+                mime,
+                result.file.inputStream(),
+                update.id,
+                installLog,
+                result.file.length()
+            )
+        }.getOrElse {
+            Log.e("InstallViewModel", "Downloaded file validation or storage failed", it)
+            false
+        }
         if (ok) {
             snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
         } else {
@@ -313,51 +384,87 @@ abstract class InstallViewModel(
     protected suspend fun savePlayFiles(update: AppUpdate, link: Link.Play) {
         val files = link.getInstallFiles()
         if (files.isEmpty()) return
+        if (files.count { it.type == com.aurora.gplayapi.data.models.File.FileType.BASE } != 1) {
+            throw Exception("Google Play APK set must contain exactly one base APK")
+        }
 
         if (files.size == 1) {
             val file = files.first()
-            val result = downloader.downloadWithSize(update.id, file.url) ?: return
+            val result = downloader.downloadFileWithSize(
+                update.id,
+                file.url,
+                progressCallback(update.id, file.size)
+            ) ?: return
             val fileName = "${update.name}_${update.version}.apk"
-            if (downloadStorage.save(fileName, "application/vnd.android.package-archive", result.stream, update.id, installLog, result.contentLength)) {
+            installer.validateApkFile(result.file, update.packageName, null, 0L)
+            if (downloadStorage.save(
+                    fileName,
+                    "application/vnd.android.package-archive",
+                    result.file.inputStream(),
+                    update.id,
+                    installLog,
+                    result.file.length()
+                )
+            ) {
                 snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_success, fileName)))
             } else {
                 snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_failure, fileName)))
             }
         } else {
             val totalSize = files.sumOf { it.size }
-            val pos = java.io.PipedOutputStream()
-            val pis = java.io.PipedInputStream(pos)
-            
-            val job = viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    java.util.zip.ZipOutputStream(pos).use { zos ->
-                        var currentOffset = 0L
-                        for (file in files) {
-                            if (!isActive) break
-                            zos.putNextEntry(java.util.zip.ZipEntry(file.name))
-                            downloader.downloadStream(update.id, file.url)?.use { input ->
-                                input.copyToAndNotify(zos, update.id, installLog, totalSize, currentOffset) ?: throw Exception("Cancelled")
-                            }
-                            zos.closeEntry()
-                            currentOffset += file.size
-                        }
-                        if (totalSize > 0) {
-                            installLog.emitProgress(AppInstallProgress(update.id, totalSize, totalSize))
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("InstallViewModel", "Error while zipping Split-APKs", e)
-                } finally {
-                    runCatching { pos.close() }
-                }
-            }
-
             val fileName = "${update.name}_${update.version}.apks"
+            val archive = downloader.createTempFile(update.id, ".apks")
             val success = try {
-                downloadStorage.save(fileName, "application/octet-stream", pis, update.id, null, totalSize)
+                var currentOffset = 0L
+                val entryNames = mutableSetOf<String>()
+                ZipOutputStream(archive.outputStream().buffered()).use { zip ->
+                    files.forEachIndexed { index, file ->
+                        currentCoroutineContext().ensureActive()
+                        val preferredName = file.name.substringAfterLast('/').ifBlank { "split_$index.apk" }
+                        val entryName = if (entryNames.add(preferredName)) {
+                            preferredName
+                        } else {
+                            "${index}_$preferredName"
+                        }
+                        zip.putNextEntry(ZipEntry(entryName))
+                        val result = downloader.downloadFileWithSize(
+                            update.id,
+                            file.url,
+                            progressCallback(
+                                id = update.id,
+                                expectedTotal = file.size,
+                                offset = currentOffset,
+                                aggregateTotal = totalSize
+                            )
+                        )
+                            ?: throw Exception("Failed to download ${file.name}")
+                        installer.validateApkFile(
+                            result.file,
+                            update.packageName.takeIf {
+                                file.type == com.aurora.gplayapi.data.models.File.FileType.BASE
+                            },
+                            null,
+                            file.size.coerceAtLeast(0L)
+                        )
+                        val copied = result.file.inputStream().use { input ->
+                            input.copyToAndNotify(zip, update.id, null, totalSize, currentOffset)
+                                ?: throw CancellationException("Cancelled")
+                        }
+                        zip.closeEntry()
+                        currentOffset += copied
+                    }
+                }
+                installer.validateSplitPackageFile(archive, update.packageName)
+                downloadStorage.save(
+                    fileName,
+                    "application/octet-stream",
+                    archive.inputStream(),
+                    update.id,
+                    null,
+                    archive.length()
+                )
             } finally {
-                job.cancel()
-                runCatching { pis.close() }
+                archive.delete()
             }
 
             if (success) {
@@ -378,6 +485,49 @@ abstract class InstallViewModel(
         downloader.clear(id)
     }
 
+    private fun downloadPlayFiles(
+        id: Int,
+        packageName: String,
+        files: List<com.aurora.gplayapi.data.models.File>
+    ): List<Downloader.FileDownloadResult> {
+        val baseCount = files.count { it.type == com.aurora.gplayapi.data.models.File.FileType.BASE }
+        if (baseCount != 1) throw Exception("Google Play APK set must contain exactly one base APK")
+        val total = files.sumOf { it.size.coerceAtLeast(0L) }
+        var offset = 0L
+        return files.map { file ->
+            val result = downloader.downloadFileWithSize(
+                id,
+                file.url,
+                progressCallback(
+                    id = id,
+                    expectedTotal = file.size,
+                    offset = offset,
+                    aggregateTotal = total
+                )
+            )
+                ?: throw Exception("Failed to download ${file.name}")
+            val expectedSize = file.size.coerceAtLeast(0L)
+            val expectedPackage = packageName.takeIf {
+                file.type == com.aurora.gplayapi.data.models.File.FileType.BASE
+            }
+            installer.validateApkFile(result.file, expectedPackage, null, expectedSize)
+            offset += result.file.length()
+            result
+        }
+    }
+
+    private fun progressCallback(
+        id: Int,
+        expectedTotal: Long = 0L,
+        offset: Long = 0L,
+        aggregateTotal: Long = 0L
+    ): (Long, Long) -> Unit = { downloaded, responseTotal ->
+        val total = aggregateTotal.takeIf { it > 0L }
+            ?: expectedTotal.takeIf { it > 0L }
+            ?: responseTotal.coerceAtLeast(0L)
+        installLog.emitProgress(AppInstallProgress(id, offset + downloaded, total))
+    }
+
     abstract fun cancelInstall(id: Int): Job
     protected abstract fun finishInstall(id: Int): Job
     protected abstract fun downloadAndInstall(update: AppUpdate): Job
@@ -385,5 +535,7 @@ abstract class InstallViewModel(
     protected abstract fun downloadAndShizukuInstall(update: AppUpdate): Job
 }
 
-private fun Link.Url.isSplitPackage(resolvedUrl: String): Boolean =
-    link.isSplitPackageDownloadUrl() || resolvedUrl.isSplitPackageDownloadUrl()
+private fun Link.Url.isSplitPackage(requestUrl: String, resolvedUrl: String): Boolean =
+    link.isSplitPackageDownloadUrl() ||
+        requestUrl.isSplitPackageDownloadUrl() ||
+        resolvedUrl.isSplitPackageDownloadUrl()

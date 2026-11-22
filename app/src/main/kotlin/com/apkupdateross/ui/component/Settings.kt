@@ -301,6 +301,12 @@ fun SwitchSetting(
 ) {
     var value by remember { mutableStateOf(getValue()) }
     val alpha = if (enabled) 1f else 0.5f
+
+    fun updateValue(checked: Boolean) {
+        setValue(checked)
+        value = getValue()
+    }
+
     Row(
         Modifier
             .fillMaxWidth()
@@ -310,14 +316,7 @@ fun SwitchSetting(
                 value = value,
                 enabled = enabled,
                 role = Role.Switch,
-                onValueChange = { checked ->
-                    if (onClick != null) {
-                        onClick()
-                    } else {
-                        setValue(checked)
-                        value = getValue()
-                    }
-                }
+                onValueChange = ::updateValue
             )
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
@@ -345,12 +344,17 @@ fun SwitchSetting(
     }
     
     if (onClick != null) {
-        Icon(
-            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-            contentDescription = null,
-            modifier = Modifier.align(CenterVertically).padding(end = 8.dp),
-            tint = ApkTheme.colors.textSecondary
-        )
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.align(CenterVertically).size(40.dp)
+        ) {
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(if (isExpanded) R.string.collapse else R.string.expand),
+                tint = ApkTheme.colors.textSecondary
+            )
+        }
     }
 
     Switch(

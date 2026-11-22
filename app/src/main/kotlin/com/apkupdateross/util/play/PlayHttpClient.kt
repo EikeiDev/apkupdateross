@@ -167,7 +167,8 @@ class PlayHttpClient(
             }
         }.also {
             _responseCode.value = response.code
-            Log.i("PlayHttpClient", "OKHTTP [${response.code}] ${response.request.url}")
+            val url = response.request.url
+            Log.i("PlayHttpClient", "OKHTTP [${response.code}] ${url.scheme}://${url.host}${url.encodedPath}")
         }
     }
 }

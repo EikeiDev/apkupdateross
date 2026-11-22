@@ -34,8 +34,9 @@ class Prefs(
 	val useIzzy = boolean("useIzzy", defValue = true, backed = true)
 	val useAptoide = boolean("useAptoide", defValue = true, backed = true)
 	val useApkPure = boolean("useApkPure", defValue = true, backed = true)
-	val useApkCombo = boolean("useApkCombo", defValue = false, backed = true)
+	val useApk20 = boolean("useApk20", defValue = false, backed = true)
 	val useUptodown = boolean("useUptodown", defValue = false, backed = true)
+	val uptodownDeviceIdentifier = string("uptodownDeviceIdentifier", defValue = "", backed = true)
 	val usePlay = boolean("usePlay", defValue = true, backed = true)
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
 	val useHuawei = boolean("useHuawei", defValue = false, backed = true)
@@ -52,8 +53,8 @@ class Prefs(
 	val playProfileVersion = int("playProfileVersion", 0, true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val searchFiltersHuaweiMigrated = boolean("searchFiltersHuaweiMigrated", defValue = false, backed = true)
-	val searchFiltersApkComboMigrated = boolean("searchFiltersApkComboMigrated", defValue = false, backed = true)
 	val searchFiltersUptodownMigrated = boolean("searchFiltersUptodownMigrated", defValue = false, backed = true)
+	val searchFiltersApk20Migrated = boolean("searchFiltersApk20Migrated", defValue = false, backed = true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)
@@ -88,10 +89,10 @@ class Prefs(
 	private val _useCompactViewFlow = kotlinx.coroutines.flow.MutableStateFlow(useCompactView.get())
 	val useCompactViewFlow = _useCompactViewFlow.asStateFlow()
 
-	private val _portraitColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(portraitColumns.get())
+	private val _portraitColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(portraitColumns.get().coerceIn(1, 6))
 	val portraitColumnsFlow = _portraitColumnsFlow.asStateFlow()
 
-	private val _landscapeColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(landscapeColumns.get())
+	private val _landscapeColumnsFlow = kotlinx.coroutines.flow.MutableStateFlow(landscapeColumns.get().coerceIn(2, 8))
 	val landscapeColumnsFlow = _landscapeColumnsFlow.asStateFlow()
 
 	private val _swipeIgnoreEnabledFlow = kotlinx.coroutines.flow.MutableStateFlow(swipeIgnoreEnabled.get())
@@ -109,13 +110,15 @@ class Prefs(
 	}
 
 	fun setPortraitColumns(i: Int) {
-		portraitColumns.put(i)
-		_portraitColumnsFlow.value = i
+		val value = i.coerceIn(1, 6)
+		portraitColumns.put(value)
+		_portraitColumnsFlow.value = value
 	}
 
 	fun setLandscapeColumns(i: Int) {
-		landscapeColumns.put(i)
-		_landscapeColumnsFlow.value = i
+		val value = i.coerceIn(2, 8)
+		landscapeColumns.put(value)
+		_landscapeColumnsFlow.value = value
 	}
 
 	fun setSwipeIgnoreEnabled(enabled: Boolean) {

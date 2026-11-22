@@ -6,8 +6,6 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Preferences may contain repository access tokens and Google Play auth data. -->
+    <exclude domain="sharedpref" path="."/>
 </full-backup-content>

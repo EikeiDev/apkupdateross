@@ -102,7 +102,8 @@ internal fun accessibleColumnCount(
     screenWidthDp: Int,
     fontScale: Float
 ): Int {
-    if (fontScale < 1.3f) return requested.coerceAtLeast(1)
+    val safeRequested = requested.coerceIn(1, 12)
+    if (fontScale < 1.3f) return safeRequested
 
     val minimumColumnWidth = when {
         fontScale >= 1.8f -> 200
@@ -111,5 +112,5 @@ internal fun accessibleColumnCount(
     }
     val availableWidth = (screenWidthDp - 32).coerceAtLeast(1)
     val accessibleMaximum = (availableWidth / minimumColumnWidth).coerceAtLeast(1)
-    return requested.coerceIn(1, accessibleMaximum)
+    return safeRequested.coerceIn(1, accessibleMaximum)
 }

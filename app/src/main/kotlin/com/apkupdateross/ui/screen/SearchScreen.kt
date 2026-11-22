@@ -107,6 +107,15 @@ fun SearchScreenSuccess(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val updates = state.updates
+    var pendingDownload by remember { mutableStateOf<AppUpdate?>(null) }
+    val requestStoragePermission = rememberStoragePermissionAction {
+        pendingDownload?.let { downloadSearchUpdate(context, viewModel, it) }
+        pendingDownload = null
+    }
+    val downloadAction: (AppUpdate) -> Unit = { update ->
+        pendingDownload = update
+        requestStoragePermission()
+    }
 
     if (updates.isEmpty()) {
         AppStateMessage(
@@ -140,7 +149,7 @@ fun SearchScreenSuccess(
                 SearchItem(grouped, compactMode, {
                     installSearchUpdate(context, viewModel, it, uriHandler)
                 }, { viewModel.cancel(it) },
-                    onDownload = { downloadSearchUpdate(context, viewModel, it) },
+                    onDownload = downloadAction,
                     onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
                 )
             }

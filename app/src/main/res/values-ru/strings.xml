@@ -127,16 +127,13 @@
     <string name="search_filter_fdroid">F-Droid</string>
     <string name="search_filter_aptoide">Aptoide</string>
     <string name="search_filter_apkpure">APKPure</string>
-    <string name="search_filter_apkcombo">APKCombo</string>
+    <string name="search_filter_apk20">APK20</string>
     <string name="search_filter_uptodown">Uptodown</string>
     <string name="search_filter_github">GitHub</string>
     <string name="search_filter_gitlab">GitLab</string>
     <string name="search_filter_play">Google Play</string>
     <string name="search_filter_rustore">RuStore</string>
     <string name="search_filter_huawei">AppGallery</string>
-    <string name="source_huawei" translatable="false">AppGallery</string>
-    <string name="source_apkcombo" translatable="false">APKCombo</string>
-    <string name="source_uptodown" translatable="false">Uptodown</string>
     <string name="settings_huawei_region">Регион AppGallery</string>
     <string name="huawei_region_auto">Авто</string>
     <string name="metric_last_check_duration">Длительность последней проверки</string>
@@ -190,10 +187,12 @@
     <string name="settings_fdroid_repo_name">Название</string>
     <string name="settings_fdroid_repo_url">URL</string>
     <string name="settings_fdroid_repo_error_required">Укажите название и URL.</string>
+    <string name="settings_fdroid_repo_error_invalid_url">Укажите корректный HTTPS-адрес репозитория.</string>
     <string name="settings_fdroid_repo_default_remove_error">Нельзя удалить репозиторий по умолчанию.</string>
     <string name="show_password">Показать пароль</string>
     <string name="hide_password">Скрыть пароль</string>
     <string name="expand">Развернуть</string>
+    <string name="collapse">Свернуть</string>
     <string name="back">Назад</string>
     <string name="clear">Очистить</string>
     <string name="close_search">Закрыть поиск</string>

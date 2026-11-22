@@ -34,14 +34,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.yield
 import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import java.text.DecimalFormatSymbols
 import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
@@ -111,12 +109,6 @@ fun millisUntilHour(hour: Int): Long {
 	calendar.set(Calendar.MINUTE, 0)
 	return calendar.timeInMillis - System.currentTimeMillis()
 }
-
-suspend fun AtomicBoolean.lock() {
-	while (!compareAndSet(false, true)) yield()
-}
-
-fun AtomicBoolean.unlock() = set(false)
 
 fun Intent.getIntentExtra(): Intent? = when {
 	Build.VERSION.SDK_INT >= 33 -> getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)

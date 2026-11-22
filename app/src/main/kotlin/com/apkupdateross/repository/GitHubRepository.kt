@@ -23,13 +23,15 @@ import com.apkupdateross.service.GitHubService
 import com.apkupdateross.util.AbiMatcher
 import com.apkupdateross.util.SnackBar
 import com.apkupdateross.util.Stringer
-import com.apkupdateross.util.combine
 import com.apkupdateross.util.filterVersionTag
 import com.apkupdateross.util.versionCodeFromTag
 import io.github.g00fy2.versioncompare.Version
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.flow
 import retrofit2.HttpException
 import java.util.Scanner
@@ -42,10 +44,15 @@ class GitHubRepository(
     private val snackBar: SnackBar,
     private val stringer: Stringer
 ) {
+    private companion object {
+        const val MAX_GIT_CONCURRENCY = 6
+    }
+
     private val rateLimitShown = AtomicBoolean(false)
 
     private fun authHeader(): String? = prefs.githubToken.get().trim().takeIf { it.isNotEmpty() }?.let { "token $it" }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun updates(apps: List<AppInstalled>) = flow {
         rateLimitShown.set(false)
         val checks = mutableListOf(selfCheck())
@@ -58,11 +65,12 @@ class GitHubRepository(
             }
         }
 
-        checks.combine { all ->
-            emit(all.flatMap { it })
-        }.collect()
+        val updates = mutableListOf<AppUpdate>()
+        checks.asFlow().flattenMerge(MAX_GIT_CONCURRENCY).collect { updates.addAll(it) }
+        emit(updates)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun search(text: String) = flow {
         val checks = mutableListOf<Flow<List<AppUpdate>>>()
 
@@ -75,10 +83,9 @@ class GitHubRepository(
         if (checks.isEmpty()) {
             emit(Result.success(emptyList()))
         } else {
-            checks.combine { all ->
-                val r = all.flatMap { it }
-                emit(Result.success(r))
-            }.collect()
+            checks.asFlow().flattenMerge(MAX_GIT_CONCURRENCY).collect {
+                emit(Result.success(it))
+            }
         }
     }.catch {
         emit(Result.failure(it))
@@ -86,7 +93,7 @@ class GitHubRepository(
     }
 
     private fun selfCheck() = flow {
-        val releases = service.getReleases(authHeader = authHeader()).filter { filterPreRelease(it) }
+        val releases = service.getReleases(authHeader = authHeader()).filter(::filterRelease)
         val release = releases.firstOrNull()
         val assetUrl = release?.let { findApkAsset(it.assets) }?.takeIf { it.isNotEmpty() }
 
@@ -148,7 +155,7 @@ class GitHubRepository(
             // TODO: Find a better way to do this
             r.filter { it.name.contains("CI-Release-3.x")}
         } else {
-            r.filter { filterPreRelease(it) }.filter { findApkAssetArch(it.assets, extra) != null }
+            r.filter(::filterRelease).filter { findApkAssetArch(it.assets, extra) != null }
         }
 
         if (releases.isNotEmpty() && Version(filterVersionTag(releases[0].tag_name)) > Version(currentVersion)) {
@@ -188,9 +195,13 @@ class GitHubRepository(
         }
     }
 
-    private fun filterPreRelease(release: GitHubRelease) = when {
-        prefs.ignorePreRelease.get() && release.prerelease -> false
-        else -> true
+    private fun filterRelease(release: GitHubRelease): Boolean = when (
+        ReleaseType.from(release.tag_name, release.name, release.prerelease)
+    ) {
+        ReleaseType.Alpha -> !prefs.ignoreAlpha.get()
+        ReleaseType.Beta -> !prefs.ignoreBeta.get()
+        ReleaseType.PreRelease -> !prefs.ignorePreRelease.get()
+        ReleaseType.Stable -> true
     }
 
     private fun findApkAsset(assets: List<GitHubReleaseAsset>) = assets

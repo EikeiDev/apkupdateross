@@ -22,6 +22,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.LinearLayout
+import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -63,11 +64,17 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
-import java.util.zip.ZipFile
+import java.util.concurrent.TimeUnit
 
 class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
 
-    private val client: OkHttpClient by inject()
+    private val baseClient: OkHttpClient by inject()
+    private val client: OkHttpClient by lazy {
+        baseClient.newBuilder()
+            .callTimeout(0, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
     private val installer: SessionInstaller by inject()
     private val prefs: Prefs by inject()
     private val downloadStorage: DownloadStorage by inject()
@@ -78,8 +85,8 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
     private var progressBar: ProgressBar? = null
     private var statusText: TextView? = null
     private var downloadJob: Job? = null
-    private var currentCall: Call? = null
-    private var suppressFailureResult = false
+    @Volatile private var currentCall: Call? = null
+    @Volatile private var suppressFailureResult = false
     private var autoClickAttempted = false
     private var downloadStarted = false
     private var browserFallbackLoaded = false
@@ -121,7 +128,13 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         suppressFailureResult = true
         downloadJob?.cancel()
         currentCall?.cancel()
-        webView?.destroy()
+        webView?.let { browser ->
+            (browser.parent as? ViewGroup)?.removeView(browser)
+            browser.stopLoading()
+            browser.removeJavascriptInterface(DOWNLOAD_BRIDGE_NAME)
+            browser.removeAllViews()
+            browser.destroy()
+        }
         webView = null
         super.onDestroy()
     }
@@ -172,14 +185,13 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         }
         textColumn.addView(statusText)
 
-        header.addView(TextView(this).apply {
-            text = "X"
-            setTextColor(Color.rgb(219, 230, 225))
-            textSize = 18f
-            gravity = Gravity.CENTER
+        header.addView(ImageButton(this).apply {
+            setImageResource(R.drawable.ic_close)
+            setColorFilter(Color.rgb(219, 230, 225))
             contentDescription = getString(R.string.close_search)
             isFocusable = true
-            background = getDrawable(R.drawable.tv_view_button_background)
+            setBackgroundResource(R.drawable.tv_view_button_background)
+            setPadding(12.dp, 12.dp, 12.dp, 12.dp)
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(44.dp, 44.dp))
 
@@ -227,8 +239,15 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
             useWideViewPort = true
             userAgentString = USER_AGENT
             cacheMode = WebSettings.LOAD_DEFAULT
+            allowFileAccess = false
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                safeBrowsingEnabled = true
             }
         }
 
@@ -250,12 +269,13 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString().orEmpty()
-                return maybeStartDownload(url, null, null, null)
+                return maybeStartDownload(url, null, null, null) || !url.isUptodownPageUrl()
             }
 
             @Suppress("DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                return maybeStartDownload(url.orEmpty(), null, null, null)
+                val target = url.orEmpty()
+                return maybeStartDownload(target, null, null, null) || !target.isUptodownPageUrl()
             }
         }
 
@@ -353,7 +373,7 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
                     window.__apkUpdaterUptodownCaptureInstalled = true;
 
                     function isTrustedUptodownDownload(url) {
-                        return /^https?:\/\/dw\.uptodown\.(com|net)\//i.test(url)
+                        return /^https:\/\/dw\.uptodown\.(com|net)\//i.test(url)
                             && (/\/dwn\//i.test(url) || /\.(apk|xapk|apks)([?#]|${'$'})/i.test(url));
                     }
 
@@ -454,7 +474,7 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         button.attr("data-url-ext")
             .takeIf { it.isNotBlank() }
             ?.let { url ->
-                return url.takeIf { it.startsWith("http", ignoreCase = true) }
+                return url.takeIf { it.isUptodownDownloadUrl() }
                     ?: throw IOException(getString(R.string.uptodown_download_invalid_url))
             }
 
@@ -483,11 +503,17 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
             .get()
             .build()
 
-        return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("Uptodown HTTP ${response.code}")
+        val call = client.newCall(request)
+        currentCall = call
+        return try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("Uptodown HTTP ${response.code}")
+                }
+                Jsoup.parse(response.body?.string().orEmpty(), url)
             }
-            Jsoup.parse(response.body?.string().orEmpty(), url)
+        } finally {
+            if (currentCall === call) currentCall = null
         }
     }
 
@@ -514,17 +540,23 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
             .post(body)
             .build()
 
-        return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("Uptodown quiet download requires browser verification")
+        val call = client.newCall(request)
+        currentCall = call
+        return try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("Uptodown quiet download requires browser verification")
+                }
+                val payload = response.body?.string().orEmpty()
+                val downloadUrl = JSONObject(payload)
+                    .optJSONObject("data")
+                    ?.optString("downloadURL")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: throw IOException("Uptodown quiet download URL not found")
+                "$UPTODOWN_DOWNLOAD_BASE$downloadUrl"
             }
-            val payload = response.body?.string().orEmpty()
-            val downloadUrl = JSONObject(payload)
-                .optJSONObject("data")
-                ?.optString("downloadURL")
-                ?.takeIf { it.isNotBlank() }
-                ?: throw IOException("Uptodown quiet download URL not found")
-            "$UPTODOWN_DOWNLOAD_BASE$downloadUrl"
+        } finally {
+            if (currentCall === call) currentCall = null
         }
     }
 
@@ -547,30 +579,37 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
 
         val call = client.newCall(builder.build())
         currentCall = call
-        val response = call.execute()
-        return response.use {
-            if (!it.isSuccessful) {
-                throw IOException("Uptodown HTTP ${it.code}")
-            }
-            val finalUrl = it.request.url.toString()
-            if (!finalUrl.isUptodownDownloadUrl()) {
-                throw IOException(getString(R.string.uptodown_download_invalid_url))
-            }
-            if (finalUrl.isUptodownStoreInstaller() && !request.packageName.contains("uptodown", ignoreCase = true)) {
-                throw IOException(getString(R.string.uptodown_download_invalid_url))
-            }
-            val body = it.body ?: throw IOException("Empty Uptodown response")
-            val total = body.contentLength().takeIf { length -> length > 0L } ?: 0L
-            file.outputStream().use { output ->
-                body.byteStream().use { input ->
-                    copyToFile(input, output, total)
+        return try {
+            call.execute().use {
+                if (!it.isSuccessful) {
+                    throw IOException("Uptodown HTTP ${it.code}")
                 }
+                val finalUrl = it.request.url.toString()
+                if (!finalUrl.isUptodownDownloadUrl()) {
+                    throw IOException(getString(R.string.uptodown_download_invalid_url))
+                }
+                if (finalUrl.isUptodownStoreInstaller() && !request.packageName.contains("uptodown", ignoreCase = true)) {
+                    throw IOException(getString(R.string.uptodown_download_invalid_url))
+                }
+                val body = it.body ?: throw IOException("Empty Uptodown response")
+                val total = body.contentLength().takeIf { length -> length > 0L } ?: 0L
+                file.outputStream().use { output ->
+                    body.byteStream().use { input ->
+                        copyToFile(input, output, total)
+                    }
+                }
+                if (file.length() == 0L) throw IOException("Empty Uptodown file")
+                if (total > 0L && file.length() != total) {
+                    throw IOException("Incomplete Uptodown download: expected $total bytes, got ${file.length()}")
+                }
+                installLog.emitProgress(AppInstallProgress(request.installId, file.length(), total))
+                file
             }
-            if (file.length() == 0L) {
-                throw IOException("Empty Uptodown file")
-            }
-            installLog.emitProgress(AppInstallProgress(request.installId, file.length(), total))
-            file
+        } catch (error: Throwable) {
+            file.delete()
+            throw error
+        } finally {
+            if (currentCall === call) currentCall = null
         }
     }
 
@@ -612,41 +651,9 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         }
 
         if (extension.isSplitPackage()) {
-            validateSplitPackage(file, expectedPackageName)
+            installer.validateSplitPackageFile(file, expectedPackageName)
         } else {
             installer.validateApkFile(file, expectedPackageName, null, 0L)
-        }
-    }
-
-    private fun validateSplitPackage(file: File, expectedPackageName: String) {
-        ZipFile(file).use { zip ->
-            val apks = zip.entries().asSequence()
-                .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
-                .sortedWith(compareBy({ !it.name.substringAfterLast('/').equals("base.apk", ignoreCase = true) }, { it.name.length }))
-                .toList()
-            if (apks.isEmpty()) {
-                throw IOException("Uptodown split package has no APK entries")
-            }
-
-            var lastError: Throwable? = null
-            for (entry in apks) {
-                val tempApk = File(cacheDir, "uptodown_${UUID.randomUUID()}.apk")
-                try {
-                    zip.getInputStream(entry).use { input ->
-                        tempApk.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    runCatching {
-                        installer.validateApkFile(tempApk, expectedPackageName, null, 0L)
-                    }.onSuccess {
-                        return
-                    }.onFailure {
-                        lastError = it
-                    }
-                } finally {
-                    tempApk.delete()
-                }
-            }
-            throw IOException(lastError?.message ?: "Uptodown split package mismatch")
         }
     }
 
@@ -697,9 +704,9 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
         when (prefs.installMode.get()) {
             1 -> {
                 val success = if (extension.isSplitPackage()) {
-                    installer.rootInstallXapk(file)
+                    installer.rootInstallXapk(file, request.packageName)
                 } else {
-                    installer.rootInstall(file)
+                    installer.rootInstall(file, request.packageName)
                 }
                 installLog.emitStatus(AppInstallStatus(success, request.installId, true))
                 withContext(Dispatchers.Main) { finish() }
@@ -708,10 +715,10 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
                 if (!installer.isShizukuAvailable()) {
                     throw IOException(getString(R.string.shizuku_not_running))
                 }
-                file.inputStream().use { input ->
-                    if (extension.isSplitPackage()) {
-                        installer.shizukuInstallXapk(request.installId, request.packageName, input, file.length())
-                    } else {
+                if (extension.isSplitPackage()) {
+                    installer.shizukuInstallXapk(request.installId, request.packageName, file, file.length())
+                } else {
+                    file.inputStream().use { input ->
                         installer.shizukuInstall(request.installId, request.packageName, input, file.length())
                     }
                 }
@@ -725,10 +732,10 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
                     withContext(Dispatchers.Main) { finish() }
                     return
                 }
-                file.inputStream().use { input ->
-                    if (extension.isSplitPackage()) {
-                        installer.installXapk(request.installId, request.packageName, input, file.length())
-                    } else {
+                if (extension.isSplitPackage()) {
+                    installer.installXapk(request.installId, request.packageName, file, file.length())
+                } else {
+                    file.inputStream().use { input ->
                         installer.install(request.installId, request.packageName, input, file.length())
                     }
                 }
@@ -759,11 +766,18 @@ class UptodownDownloadActivity : ComponentActivity(), KoinComponent {
     private fun String.isUptodownDownloadUrl(): Boolean {
         val parsed = runCatching { Uri.parse(this) }.getOrNull() ?: return false
         val scheme = parsed.scheme?.lowercase(Locale.ROOT)
-        if (scheme != "https" && scheme != "http") return false
+        if (scheme != "https") return false
         val host = parsed.host?.lowercase(Locale.ROOT) ?: return false
         val path = parsed.encodedPath?.lowercase(Locale.ROOT).orEmpty()
         val trustedHost = host == "dw.uptodown.com" || host == "dw.uptodown.net"
         return trustedHost && (path.startsWith("/dwn/") || path.endsWith(".apk") || path.endsWith(".xapk") || path.endsWith(".apks"))
+    }
+
+    private fun String.isUptodownPageUrl(): Boolean {
+        val parsed = runCatching { Uri.parse(this) }.getOrNull() ?: return false
+        if (!parsed.scheme.equals("https", ignoreCase = true)) return false
+        val host = parsed.host?.lowercase(Locale.ROOT) ?: return false
+        return host == "uptodown.com" || host.endsWith(".uptodown.com")
     }
 
     private fun String.isUptodownStoreInstaller(): Boolean =

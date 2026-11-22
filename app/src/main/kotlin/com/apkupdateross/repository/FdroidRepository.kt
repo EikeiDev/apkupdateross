@@ -24,10 +24,11 @@ import java.util.jar.JarInputStream
 
 class FdroidRepository(
     private val service: FdroidService,
-    private val url: String,
+    url: String,
     private val source: Source,
     private val prefs: Prefs
 ) {
+    private val url = url.trim().trimEnd('/') + "/"
     private val api = Build.VERSION.SDK_INT
 
     private val cacheMutex = Mutex()
@@ -57,9 +58,10 @@ class FdroidRepository(
             .asSequence()
             .filter { appNames.contains(it.packageName) }
             .filter { apps.getApp(it.packageName)?.let { app -> filterSignature(app, it) } ?: false }
-            .mapNotNull { app -> data.packages[app.packageName]?.firstOrNull()?.let { FdroidUpdate(it, app) } }
+            .mapNotNull { app -> data.latestCompatibleUpdate(app) }
             .filter { it.apk.versionCode > apps.getVersionCode(it.app.packageName) }
-            .parseUpdates(apps)
+            .map { it.toAppUpdate(apps.getApp(it.app.packageName), source, url) }
+            .toList()
         emit(updates)
     }
 
@@ -67,22 +69,26 @@ class FdroidRepository(
         val data = getOrFetchData()
         val updates = data.apps
             .asSequence()
-            .mapNotNull { app -> data.packages[app.packageName]?.firstOrNull()?.let { FdroidUpdate(it, app) } }
+            .mapNotNull { app -> data.latestCompatibleUpdate(app) }
             .filter { it.app.name.contains(text, true) || it.app.packageName.contains(text, true) || it.apk.apkName.contains(text, true) }
-            .parseUpdates(null)
+            .map { it.toAppUpdate(null, source, url) }
+            .toList()
         emit(Result.success(updates))
     }.catch {
         emit(Result.failure(it))
         Log.e("FdroidRepository", "Error searching.", it)
     }
 
-    private fun Sequence<FdroidUpdate>.parseUpdates(apps: List<AppInstalled>?) = this
-        .filter { it.apk.minSdkVersion <= api }
-        .filter { filterArch(it) }
-        .filter { filterAlpha(it) }
-        .filter { filterBeta(it) }
-        .map { it.toAppUpdate(apps?.getApp(it.app.packageName), source, url) }
-        .toList()
+    private fun FdroidData.latestCompatibleUpdate(app: FdroidApp): FdroidUpdate? =
+        packages[app.packageName]
+            .orEmpty()
+            .asSequence()
+            .map { FdroidUpdate(it, app) }
+            .filter { it.apk.minSdkVersion <= api }
+            .filter(::filterArch)
+            .filter(::filterAlpha)
+            .filter(::filterBeta)
+            .maxByOrNull { it.apk.versionCode }
 
     private fun filterSignature(installed: AppInstalled, update: FdroidApp) = when {
         update.allowedAPKSigningKeys.isEmpty() -> true
@@ -107,14 +113,17 @@ class FdroidRepository(
     }
 
     private fun jarToJson(stream: InputStream): FdroidData {
-        val jar = JarInputStream(stream)
-        var entry = jar.nextJarEntry
-        while (entry != null) {
-            if (entry.name == "index-v1.json") {
-                val reader = com.google.gson.stream.JsonReader(jar.reader())
-                return Gson().fromJson(reader, FdroidData::class.java)
+        stream.use { input ->
+            JarInputStream(input).use { jar ->
+                var entry = jar.nextJarEntry
+                while (entry != null) {
+                    if (entry.name == "index-v1.json") {
+                        val reader = com.google.gson.stream.JsonReader(jar.reader())
+                        return Gson().fromJson(reader, FdroidData::class.java)
+                    }
+                    entry = jar.nextJarEntry
+                }
             }
-            entry = jar.nextJarEntry
         }
         return FdroidData()
     }

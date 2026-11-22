@@ -88,7 +88,7 @@ class AptoideRepository(
 
     private fun computeFilters(context: Context): String {
         val filters = "maxSdk=${getSdkVer()}&maxScreen=${getScreenSize()}&maxGles=" +
-                "${getGlEs(context)}&myCPU=${getAbis()}&leanback=0" +
+                "${getGlEs(context)}&myCPU=${getAbis()}&leanback=${if (isTelevision()) 1 else 0}" +
                 "&myDensity=${getDensityDpi()}"
 
         return Base64.encodeToString(
@@ -122,7 +122,11 @@ class AptoideRepository(
             dpi <= 320 -> 320
             dpi <= 480 -> 480
             else -> 640
-        }
+		}
     }
+
+    private fun isTelevision(): Boolean =
+        context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
 }

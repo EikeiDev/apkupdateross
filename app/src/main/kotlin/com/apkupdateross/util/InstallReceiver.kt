@@ -13,6 +13,7 @@ import org.koin.core.component.inject
 class InstallReceiver : BroadcastReceiver(), KoinComponent {
 
     private val installLog: InstallLog by inject()
+    private val installer: SessionInstaller by inject()
 
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
@@ -29,11 +30,13 @@ class InstallReceiver : BroadcastReceiver(), KoinComponent {
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> {
+                installer.finish(id)
                 installLog.emitStatus(AppInstallStatus(true, id, true))
             }
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.e("InstallReceiver", "Installation failed: $message ($status)")
+                installer.finish(id)
                 installLog.emitStatus(AppInstallStatus(false, id, true))
             }
         }

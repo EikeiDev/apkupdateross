@@ -64,7 +64,10 @@ class MainViewModel(
 		prefs.lastTab.put(route)
 	}
 
-	fun getLastRoute() = prefs.lastTab.get()
+	fun getLastRoute(): String {
+		val saved = prefs.lastTab.get()
+		return saved.takeIf { route -> screens.any { it.route == route } } ?: Screen.Updates.route
+	}
 
 	fun shouldShowDebugReleaseWarning(): Boolean =
 		BuildConfig.DEBUG && prefs.lastDebugReleaseWarningVersionCode.get() < BuildConfig.VERSION_CODE

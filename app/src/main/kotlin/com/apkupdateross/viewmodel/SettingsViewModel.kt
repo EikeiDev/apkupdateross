@@ -9,6 +9,7 @@ import androidx.activity.result.ActivityResultLauncher
 import com.apkupdateross.R
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
+import com.apkupdateross.data.fdroid.normalizeFdroidRepoUrl
 import com.apkupdateross.data.snack.TextSnack
 import com.apkupdateross.data.ui.SwipeIgnoreDirection
 import androidx.lifecycle.ViewModel
@@ -56,6 +57,25 @@ class SettingsViewModel(
 	private val snackBar: SnackBar,
 	private val stringer: Stringer
 ) : ViewModel() {
+
+	private companion object {
+		private const val SHIZUKU_PERMISSION_REQUEST_CODE = 100
+		private val HUAWEI_REGIONS = listOf("AUTO", "RU", "UA", "DE", "GB")
+		val NON_PORTABLE_PREF_KEYS = setOf(
+			"githubToken",
+			"gitlabToken",
+			"playAuthData",
+			"downloadFolderUri",
+			"huaweiCachedRegion",
+			"ruStore404Packages",
+			"lastPlayCheck",
+			"lastUpdateCheckDurationMs",
+			"lastUpdateCheckTimestamp",
+			"lastUpdateSourcesCount",
+			"lastSelfUpdateVersionCode",
+			"lastDebugReleaseWarningVersionCode"
+		)
+	}
 
 	val state = MutableStateFlow<SettingsUiState>(SettingsUiState.Settings)
 	private val _ruStore404Count = MutableStateFlow(prefs.ruStore404Packages.get().size)
@@ -120,9 +140,9 @@ class SettingsViewModel(
 	}
 
 	fun setPortraitColumns(n: Int) = prefs.setPortraitColumns(n)
-	fun getPortraitColumns() = prefs.portraitColumns.get()
+	fun getPortraitColumns() = prefs.portraitColumns.get().coerceIn(1, 6)
 	fun setLandscapeColumns(n: Int) = prefs.setLandscapeColumns(n)
-	fun getLandscapeColumns() = prefs.landscapeColumns.get()
+	fun getLandscapeColumns() = prefs.landscapeColumns.get().coerceIn(2, 8)
 	fun setGlobalTimeoutSec(n: Int) = prefs.globalTimeoutSec.put(n.coerceIn(10, 120))
 	fun getGlobalTimeoutSec() = prefs.globalTimeoutSec.get()
 	fun setPlayTimeoutSec(n: Int) = prefs.playTimeoutSec.put(n.coerceIn(10, 120))
@@ -149,8 +169,8 @@ class SettingsViewModel(
 	fun setUseAptoide(b: Boolean) = prefs.useAptoide.put(b)
 	fun getUseApkPure() = prefs.useApkPure.get()
 	fun setUseApkPure(b: Boolean) = prefs.useApkPure.put(b)
-	fun getUseApkCombo() = prefs.useApkCombo.get()
-	fun setUseApkCombo(b: Boolean) = prefs.useApkCombo.put(b)
+	fun getUseApk20() = prefs.useApk20.get()
+	fun setUseApk20(b: Boolean) = prefs.useApk20.put(b)
 	fun getUseUptodown() = prefs.useUptodown.get()
 	fun setUseUptodown(b: Boolean) = prefs.useUptodown.put(b)
 	fun getUsePlay() = prefs.usePlay.get()
@@ -210,6 +230,7 @@ class SettingsViewModel(
 
 	fun setDownloadFolderUri(context: Context, uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
 		runCatching {
+			val previous = prefs.downloadFolderUri.get()
 			val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 			runCatching {
 				context.contentResolver.takePersistableUriPermission(uri, flags)
@@ -217,6 +238,9 @@ class SettingsViewModel(
 				context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
 			}.getOrThrow()
 			prefs.setDownloadFolderUri(uri.toString())
+			if (previous.isNotBlank() && previous != uri.toString()) {
+				releaseDownloadFolderPermission(context, previous)
+			}
 		}.onSuccess {
 			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_folder_selected)))
 		}.onFailure {
@@ -226,16 +250,21 @@ class SettingsViewModel(
 
 	fun resetDownloadFolder(context: Context) {
 		val current = prefs.downloadFolderUri.get()
-		if (current.isNotBlank()) {
-			val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-			runCatching {
-				context.contentResolver.releasePersistableUriPermission(Uri.parse(current), flags)
-			}.recoverCatching {
-				context.contentResolver.releasePersistableUriPermission(Uri.parse(current), Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-			}
-		}
+		if (current.isNotBlank()) releaseDownloadFolderPermission(context, current)
 		prefs.setDownloadFolderUri("")
 		snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.download_folder_reset_done)))
+	}
+
+	private fun releaseDownloadFolderPermission(context: Context, uriString: String) {
+		val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+		runCatching {
+			context.contentResolver.releasePersistableUriPermission(Uri.parse(uriString), flags)
+		}.recoverCatching {
+			context.contentResolver.releasePersistableUriPermission(
+				Uri.parse(uriString),
+				Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+			)
+		}
 	}
 
 	fun getCustomThemeAccent() = prefs.customThemeAccent.get()
@@ -303,12 +332,18 @@ class SettingsViewModel(
     }
 
     fun addOrUpdateFdroidRepo(repo: com.apkupdateross.data.fdroid.FdroidRepo) {
+        val normalizedUrl = normalizeFdroidRepoUrl(repo.url)
+        if (normalizedUrl == null) {
+            snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.settings_fdroid_repo_error_invalid_url)))
+            return
+        }
+        val normalizedRepo = repo.copy(name = repo.name.trim(), url = normalizedUrl)
         val current = prefs.fdroidRepos.get().toMutableList()
-        val index = current.indexOfFirst { it.id == repo.id }
+        val index = current.indexOfFirst { it.id == normalizedRepo.id }
         if (index >= 0) {
-            current[index] = repo
+            current[index] = normalizedRepo
         } else {
-            current.add(repo)
+            current.add(normalizedRepo)
         }
         prefs.fdroidRepos.put(current)
         _fdroidRepos.value = current
@@ -380,11 +415,6 @@ class SettingsViewModel(
 				_installModeFlow.value = 0
 			}
 		}
-	}
-
-	companion object {
-		private const val SHIZUKU_PERMISSION_REQUEST_CODE = 100
-		private val HUAWEI_REGIONS = listOf("AUTO", "RU", "UA", "DE", "GB")
 	}
 
 	fun setAlarmFrequency(frequency: Int) {
@@ -467,10 +497,13 @@ class SettingsViewModel(
 			val prefs = context.getSharedPreferences(context.getString(R.string.app_name), android.content.Context.MODE_PRIVATE)
 			val jsonObject = org.json.JSONObject()
 			for ((key, value) in prefs.all) {
+				if (key in NON_PORTABLE_PREF_KEYS) continue
 				jsonObject.put(key, value)
 			}
 			val jsonBytes = jsonObject.toString(4).toByteArray()
-			context.contentResolver.openOutputStream(uri)?.use { 
+			val output = context.contentResolver.openOutputStream(uri)
+				?: throw java.io.IOException("Could not open settings export destination")
+			output.use {
 				it.write(jsonBytes)
 			}
 			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.export_success)))
@@ -481,7 +514,9 @@ class SettingsViewModel(
 
 	fun importSettings(uri: android.net.Uri, context: android.content.Context) = viewModelScope.launch(Dispatchers.IO) {
 		runCatching {
-			context.contentResolver.openInputStream(uri)?.use { stream ->
+			val input = context.contentResolver.openInputStream(uri)
+				?: throw java.io.IOException("Could not open settings import file")
+			input.use { stream ->
 				val json = stream.bufferedReader().readText()
 				val jsonObject = org.json.JSONObject(json)
 				val prefs = context.getSharedPreferences(context.getString(R.string.app_name), android.content.Context.MODE_PRIVATE)
@@ -489,6 +524,7 @@ class SettingsViewModel(
 				val keys = jsonObject.keys()
 				while (keys.hasNext()) {
 					val key = keys.next()
+					if (key in NON_PORTABLE_PREF_KEYS) continue
 					val value = jsonObject.get(key)
 					when (value) {
 						is Boolean -> editor.putBoolean(key, value)
@@ -498,7 +534,7 @@ class SettingsViewModel(
 						is String -> editor.putString(key, value)
 					}
 				}
-				editor.apply()
+				if (!editor.commit()) throw java.io.IOException("Could not persist imported settings")
 				
 				kotlinx.coroutines.withContext(Dispatchers.Main) {
 					snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.import_success)))

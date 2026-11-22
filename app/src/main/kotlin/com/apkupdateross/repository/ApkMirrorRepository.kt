@@ -1,5 +1,7 @@
 package com.apkupdateross.repository
 
+import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -41,7 +43,8 @@ class ApkMirrorRepository(
     private val prefs: Prefs,
     private val client: OkHttpClient,
     private val session: ApkMirrorSession,
-    private val challengeCoordinator: ApkMirrorChallengeCoordinator
+    private val challengeCoordinator: ApkMirrorChallengeCoordinator,
+    private val context: Context
 ) {
 
     private val api = Build.VERSION.SDK_INT
@@ -129,9 +132,12 @@ class ApkMirrorRepository(
                 .filter { filterArch(it) }
                 .filter { it.versionCode > apps.getVersionCode(data.pname) }
                 .filter { filterMinApi(it) }
-                .filter { filterPhoneApk(it) }
+                .filter { filterDeviceType(it) }
                 .filter { filterWearOS(it) }
-                .maxByOrNull { it.versionCode }
+                .maxWithOrNull(
+                    compareBy<AppExistsResponseApk> { it.versionCode }
+                        .thenBy { if (isTelevision && it.isTelevisionVariant()) 1 else 0 }
+                )
                 ?.let { apk ->
                     val installed = apps.getApp(data.pname) ?: return@mapNotNull null
                     apk.toAppUpdate(installed, data.release, data.app.link)
@@ -150,9 +156,16 @@ class ApkMirrorRepository(
         else -> false
     }
 
-    private fun filterPhoneApk(apk: AppExistsResponseApk): Boolean =
-        !apk.capabilities?.contains("leanback_standalone").orFalse()
-                && !apk.capabilities?.contains("leanback").orFalse()
+    private val isTelevision: Boolean
+        get() = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+
+    private fun AppExistsResponseApk.isTelevisionVariant(): Boolean =
+        capabilities?.contains("leanback_standalone").orFalse() ||
+            capabilities?.contains("leanback").orFalse()
+
+    private fun filterDeviceType(apk: AppExistsResponseApk): Boolean =
+        isTelevision || !apk.isTelevisionVariant()
 
     private fun filterWearOS(apk: AppExistsResponseApk): Boolean {
         // For the moment filter out all standalone Wear OS apps

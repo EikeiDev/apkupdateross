@@ -1,3 +1,0 @@
-package com.apkupdateross.data.ui
-
-data class AppInstallStatus(val success: Boolean, val id: Int, val snack: Boolean = true)

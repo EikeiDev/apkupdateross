@@ -1,0 +1,233 @@
+package com.apkupdateross.repository
+
+import android.content.Context
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Build
+import android.util.Log
+import com.apkupdateross.data.apkmirror.AppExistsRequest
+import com.apkupdateross.data.apkmirror.AppExistsResponseApk
+import com.apkupdateross.data.apkmirror.AppExistsResponseData
+import com.apkupdateross.data.apkmirror.toAppUpdate
+import com.apkupdateross.data.ui.ApkMirrorSource
+import com.apkupdateross.data.ui.AppInstalled
+import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.Link
+import com.apkupdateross.data.ui.getApp
+import com.apkupdateross.data.ui.getPackageNames
+import com.apkupdateross.data.ui.getSignature
+import com.apkupdateross.data.ui.getVersionCode
+import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.service.ApkMirrorService
+import com.apkupdateross.util.AbiMatcher
+import com.apkupdateross.util.ApkMirrorChallengeCoordinator
+import com.apkupdateross.util.ApkMirrorSession
+import com.apkupdateross.util.AppUserAgent
+import com.apkupdateross.util.combine
+import com.apkupdateross.util.orFalse
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import retrofit2.HttpException
+import java.io.IOException
+
+class ApkMirrorRepository(
+    private val service: ApkMirrorService,
+    private val prefs: Prefs,
+    private val client: OkHttpClient,
+    private val session: ApkMirrorSession,
+    private val challengeCoordinator: ApkMirrorChallengeCoordinator,
+    private val context: Context
+) {
+
+    private val api = Build.VERSION.SDK_INT
+
+    suspend fun updates(apps: List<AppInstalled>) = flow {
+        apps.chunked(100)
+            .map { appExists(it.getPackageNames()) }
+            .combine { all -> emit(parseUpdates(all.flatMap { it }, apps)) }
+            .collect()
+    }
+
+    suspend fun search(text: String) = flow {
+        val searchUrl = "$APKMIRROR_BASE_URL/".toHttpUrl().newBuilder()
+            .addQueryParameter("post_type", "app_release")
+            .addQueryParameter("searchtype", "app")
+            .addQueryParameter("s", text)
+            .build()
+            .toString()
+        val doc = requestHtml(searchUrl, APKMIRROR_BASE_URL)
+        val row = doc.select("div.appRow")
+        val aLinks = row.select("a.byDeveloper")
+        val titles = row.select("h5.appRowTitle")
+        val images = row.select("img")
+        
+        val count = minOf(aLinks.size, titles.size, images.size)
+        if (count <= 1 || aLinks.isEmpty() || titles.isEmpty() || images.isEmpty()) {
+             emit(Result.success(emptyList()))
+             return@flow
+        }
+
+        val result = (1 until count).map { i ->
+            val detailsLink = titles[i].selectFirst("a")?.attr("href") ?: ""
+            val pseudoPackage = if (detailsLink.isNotBlank()) {
+                detailsLink.trim('/').replace('/', '.')
+            } else {
+                aLinks[i].text() + "_" + i
+            }
+            AppUpdate(
+                name = titles[i].attr("title").ifBlank { titles[i].text() },
+                link = Link.Empty,
+                iconUri = Uri.parse("$APKMIRROR_BASE_URL${images[i].attr("src")}".replace("=32", "=128")),
+                version = "",
+                oldVersion = "",
+                versionCode = 0L,
+                oldVersionCode = 0L,
+                source = ApkMirrorSource,
+                packageName = pseudoPackage,
+                sourceUrl = if (detailsLink.startsWith("http")) detailsLink else "$APKMIRROR_BASE_URL$detailsLink"
+            )
+        }
+        emit(Result.success(result))
+    }.catch {
+        emit(Result.failure(it))
+        Log.e("ApkMirrorRepository", "Error searching.", it)
+    }
+
+    private fun appExists(apps: List<String>) = flow {
+        val request = AppExistsRequest(apps, buildIgnoreList())
+        var lastError: Throwable? = null
+        repeat(MAX_APKMIRROR_VERIFICATION_ATTEMPTS + 1) { attempt ->
+            try {
+                emit(service.appExists(request).data)
+                return@flow
+            } catch (error: HttpException) {
+                lastError = error
+                if (error.code() != 403 || attempt >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                    throw error
+                }
+                verifyInForeground(APKMIRROR_BASE_URL, APKMIRROR_BASE_URL)
+            }
+        }
+        throw lastError ?: IOException("APKMirror update check failed")
+    }.catch {
+        emit(emptyList())
+        Log.e("ApkMirrorRepository", "Error getting updates.", it)
+    }
+
+    private fun parseUpdates(updates: List<AppExistsResponseData>, apps: List<AppInstalled>)
+    = updates
+        .filter { it.exists == true }
+        .mapNotNull { data ->
+            data.apks
+                .asSequence()
+                .filter { filterSignature(it, apps.getSignature(data.pname))}
+                .filter { filterArch(it) }
+                .filter { it.versionCode > apps.getVersionCode(data.pname) }
+                .filter { filterMinApi(it) }
+                .filter { filterDeviceType(it) }
+                .filter { filterWearOS(it) }
+                .maxWithOrNull(
+                    compareBy<AppExistsResponseApk> { it.versionCode }
+                        .thenBy { if (isTelevision && it.isTelevisionVariant()) 1 else 0 }
+                )
+                ?.let { apk ->
+                    val installed = apps.getApp(data.pname) ?: return@mapNotNull null
+                    apk.toAppUpdate(installed, data.release, data.app.link)
+                }
+        }
+
+    private fun filterSignature(apk: AppExistsResponseApk, signature: String?) = when {
+        apk.signaturesSha1.isNullOrEmpty() -> true
+        apk.signaturesSha1.contains(signature) -> true
+        else -> false
+    }
+
+    private fun filterArch(app: AppExistsResponseApk) = when {
+        app.arches.isEmpty() -> true
+        AbiMatcher.isCompatible(app.arches, Build.SUPPORTED_ABIS.toList()) -> true
+        else -> false
+    }
+
+    private val isTelevision: Boolean
+        get() = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+
+    private fun AppExistsResponseApk.isTelevisionVariant(): Boolean =
+        capabilities?.contains("leanback_standalone").orFalse() ||
+            capabilities?.contains("leanback").orFalse()
+
+    private fun filterDeviceType(apk: AppExistsResponseApk): Boolean =
+        isTelevision || !apk.isTelevisionVariant()
+
+    private fun filterWearOS(apk: AppExistsResponseApk): Boolean {
+        // For the moment filter out all standalone Wear OS apps
+        if (apk.capabilities?.contains("wear_standalone").orFalse()) {
+            return false
+        }
+        return true
+    }
+
+    private fun filterMinApi(apk: AppExistsResponseApk) = runCatching {
+        when {
+            apk.minapi.toInt() > api -> false
+            else -> true
+        }
+    }.getOrDefault(true)
+
+    private fun buildIgnoreList() = mutableListOf<String>().apply {
+        if (prefs.ignoreAlpha.get()) add("alpha")
+        if (prefs.ignoreBeta.get()) add("beta")
+    }
+
+    private suspend fun requestHtml(url: String, referer: String): Document =
+        withContext(Dispatchers.IO) {
+            repeat(MAX_APKMIRROR_VERIFICATION_ATTEMPTS + 1) { attempt ->
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Referer", referer)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.code == 403) {
+                        if (attempt >= MAX_APKMIRROR_VERIFICATION_ATTEMPTS) {
+                            throw IOException("APKMirror Cloudflare verification did not clear HTTP 403")
+                        }
+                        verifyInForeground(response.request.url.toString(), referer)
+                    } else {
+                        if (!response.isSuccessful) {
+                            throw IOException("APKMirror HTTP ${response.code}: $url")
+                        }
+                        return@withContext Jsoup.parse(
+                            response.body?.string().orEmpty(),
+                            response.request.url.toString()
+                        )
+                    }
+                }
+            }
+            throw IOException("APKMirror search failed")
+        }
+
+    private suspend fun verifyInForeground(challengeUrl: String, referer: String) =
+        withContext(Dispatchers.IO) {
+            challengeCoordinator.requestVerification(
+                challengeUrl = challengeUrl,
+                referer = referer,
+                userAgent = session.userAgentOr(AppUserAgent.value)
+            ) ?: throw IOException(
+                "APKMirror requires Cloudflare verification; keep APKUpdater OSS open to continue"
+            )
+        }
+
+}
+
+private const val APKMIRROR_BASE_URL = "https://www.apkmirror.com"
+private const val MAX_APKMIRROR_VERIFICATION_ATTEMPTS = 2

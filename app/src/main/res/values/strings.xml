@@ -1,0 +1,395 @@
+<resources>
+
+    <string name="app_name" translatable="false">APKUpdater OSS</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_updates">Updates</string>
+    <string name="tab_settings">Settings</string>
+    <string name="something_went_wrong">Something went wrong</string>
+    <string name="ignore_cd">Ignore app</string>
+    <string name="unignore_cd">Stop ignoring app</string>
+    <string name="refresh_updates">Check for updates</string>
+    <string name="exclude_system_apps">Exclude system apps</string>
+    <string name="include_system_apps">Include system apps</string>
+    <string name="exclude_app_store">Exclude app store</string>
+    <string name="include_app_store">Include app store</string>
+    <string name="exclude_disabled_apps">Exclude disabled apps</string>
+    <string name="include_disabled_apps">Include disabled apps</string>
+    <string name="install_cd">Install app</string>
+    <string name="update_all">Update all</string>
+    <string name="app_cd">App icon</string>
+    <string name="install_success">%1$s installed.</string>
+    <string name="install_failure">%1$s failed to install.</string>
+    <string name="root_install_not_supported">Installing this app with Root is not supported.</string>
+
+    // Settings
+    <string name="play_text_animations">Animate text changes</string>
+    <string name="settings_sources">Sources</string>
+    <string name="settings_category_sources_subtitle">Stores, repositories, and source accounts</string>
+    <string name="settings_category_updates_subtitle">Release filters, hidden updates, and check metrics</string>
+    <string name="settings_category_notifications_subtitle">Background checks, alerts, and automatic installation</string>
+    <string name="settings_category_install">Install</string>
+    <string name="settings_category_install_subtitle">System installer, Root, or Shizuku</string>
+    <string name="settings_category_interface_subtitle">Theme, gestures, animations, compact mode, and columns</string>
+    <string name="settings_category_network_subtitle">Connection timeouts for update sources</string>
+    <string name="settings_category_data_logs">Data &amp; diagnostics</string>
+    <string name="settings_category_data_logs_subtitle">Downloads, backup, hidden items, and diagnostics</string>
+    <string name="settings_category_about_subtitle">Version, project links, and credits</string>
+    <string name="settings_sources_code_hosting">Code repositories</string>
+    <string name="settings_sources_app_stores">App stores</string>
+    <string name="settings_updates_release_filters">Release filters</string>
+    <string name="settings_updates_ignored">Ignored updates</string>
+    <string name="settings_install_mode_section">Installation method</string>
+    <string name="settings_install_access">Installer access</string>
+    <string name="settings_install_root_status">Root access</string>
+    <string name="settings_install_shizuku_status">Shizuku access</string>
+    <string name="settings_install_refresh_status">Check access again</string>
+    <string name="settings_status_available">Available</string>
+    <string name="settings_status_unavailable">Unavailable</string>
+    <string name="settings_status_permission_required">Permission required</string>
+    <string name="settings_interface_behavior">Behavior</string>
+    <string name="settings_interface_layout">Layout</string>
+    <string name="settings_portrait_columns">Portrait columns</string>
+    <string name="settings_landscape_columns">Landscape columns</string>
+    <string name="settings_network_timeouts">Timeouts</string>
+    <string name="settings_data_logs_actions">Diagnostics</string>
+    <string name="settings_data_backup">Backup and restore</string>
+    <string name="settings_downloads">Downloads</string>
+    <string name="download_folder">Save folder</string>
+    <string name="download_folder_default" translatable="false">Downloads/APKUpdaterOSS</string>
+    <string name="download_folder_storage_root">Storage root</string>
+    <string name="download_folder_custom">Custom folder</string>
+    <string name="download_folder_choose">Choose save folder</string>
+    <string name="download_folder_reset">Use default folder</string>
+    <string name="download_folder_selected">Save folder selected.</string>
+    <string name="download_folder_select_failed">Could not use the selected folder.</string>
+    <string name="download_folder_reset_done">Save folder reset.</string>
+    <string name="settings_ui">Interface</string>
+    <string name="settings_compact_view">Compact mode</string>
+    <string name="settings_auto_update">Auto-download and install</string>
+    <string name="settings_auto_update_desc">Requires Root or Shizuku installation mode</string>
+    <string name="settings_system_notifications">Notification access</string>
+    <string name="settings_background_checks">Background checks</string>
+    <string name="settings_background_check">Check for updates automatically</string>
+    <string name="settings_background_check_desc">Run the check near the selected time</string>
+    <string name="settings_notification_events">Notify me about</string>
+    <string name="settings_notify_available_updates">Available updates</string>
+    <string name="settings_notify_auto_install_success">Successful automatic installations</string>
+    <string name="settings_notify_background_errors">Check and installation errors</string>
+    <string name="settings_notify_no_updates">Checks with no updates</string>
+    <string name="settings_automatic_installation">Automatic installation</string>
+    <string name="settings_auto_install_wifi_only">Install over Wi-Fi only</string>
+    <string name="settings_auto_install_wifi_only_desc">Mobile data can still be used to check for updates</string>
+    <string name="settings_hour">Check time</string>
+    <string name="settings_alarm_daily">1 day</string>
+    <string name="settings_alarm_3day">3 days</string>
+    <string name="settings_alarm_weekly">7 days</string>
+    <string name="ignore_alpha">Ignore alpha releases</string>
+    <string name="ignore_beta">Ignore beta releases</string>
+    <string name="ignore_preRelease">Ignore pre-releases</string>
+    <string name="install_mode">Installation method</string>
+    <string name="install_mode_normal">System installer</string>
+    <string name="install_mode_root">Root</string>
+    <string name="install_mode_shizuku">Shizuku</string>
+    <string name="shizuku_not_running">Shizuku is not running.</string>
+    <string name="source_apkmirror" translatable="false">ApkMirror</string>
+    <string name="source_fdroid" translatable="false">F-Droid</string>
+    <string name="source_aptoide" translatable="false">Aptoide</string>
+    <string name="source_github" translatable="false">GitHub</string>
+    <string name="source_codeberg" translatable="false">Codeberg</string>
+    <string name="codeberg_token_label">Codeberg API token (optional)</string>
+    <string name="github_token_label">GitHub API token (personal access token)</string>
+    <string name="source_gitlab" translatable="false">GitLab</string>
+    <string name="gitlab_token_label">GitLab API token (optional)</string>
+    <string name="source_apkpure" translatable="false">APKPure</string>
+    <string name="source_apk20" translatable="false">APK20</string>
+    <string name="source_uptodown" translatable="false">Uptodown</string>
+    <string name="source_play" translatable="false">Google Play</string>
+    <string name="source_rustore" translatable="false">RuStore</string>
+    <string name="source_huawei" translatable="false">AppGallery</string>
+    <string name="source_samsung_galaxy_store" translatable="false">Galaxy Store</string>
+    <string name="settings_huawei_region">AppGallery region</string>
+    <string name="huawei_region_auto">Auto</string>
+    <string name="huawei_region_search">Search by country or code</string>
+    <string name="huawei_region_no_results">No matching regions</string>
+    <string name="settings_samsung_region">Galaxy Store region</string>
+    <string name="samsung_region_global">International</string>
+    <string name="samsung_region_china">China (CN)</string>
+
+    <string name="about">About app</string>
+    <string name="about_version">Version</string>
+    <string name="about_project">Project</string>
+    <string name="about_github_description">Source code, releases, and issues</string>
+    <string name="about_donate_description">Support continued development</string>
+    <string name="about_license">License</string>
+    <string name="about_license_name" translatable="false">GNU GPL v3.0</string>
+    <string name="license_url" translatable="false">https://www.gnu.org/licenses/gpl-3.0.html</string>
+    <string name="about_credits">Credits</string>
+    <string name="about_maintained_by">Maintained by</string>
+    <string name="about_maintainer_name" translatable="false">NotDev</string>
+    <string name="about_based_on">Based on</string>
+    <string name="about_original_project">APKUpdater by rumboalla</string>
+    <string name="frequency">Check interval</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_accent">Accent</string>
+    <string name="theme_custom_background">Background</string>
+    <string name="theme_custom_surface">Cards</string>
+    <string name="theme_custom_navigation">Bottom bar</string>
+    <string name="theme_custom_reset">Reset custom theme</string>
+    <string name="theme_custom_preview">Preview</string>
+    <string name="theme_custom_preview_version">Current → latest</string>
+    <string name="theme_custom_invalid">Use #RRGGBB</string>
+    <string name="settings_swipe_controls">Enable swipe controls</string>
+    <string name="settings_swipe_hide_direction">Swipe hide direction</string>
+    <string name="swipe_direction_right">Right</string>
+    <string name="swipe_direction_left">Left</string>
+    <string name="swipe_direction_both">Both</string>
+
+    <string name="copy_app_list">Copy app list</string>
+    <string name="copy_app_list_success">App list copied to clipboard</string>
+    <string name="copy_app_logs">Copy app logs</string>
+    <string name="copy_logs_success">App logs copied to clipboard</string>
+    <string name="copy_logs_empty">No logs available yet</string>
+    <string name="copy_logs_failed">Failed to read app logs</string>
+    <string name="clear_rustore_cache">Reset RuStore cache</string>
+    <string name="clear_rustore_cache_success">RuStore cache cleared</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_metrics">Update metrics</string>
+    <string name="settings_custom_repos">Custom repositories</string>
+    <string name="settings_custom_repos_add">Add repository</string>
+    <string name="settings_custom_repos_edit">Edit repository</string>
+    <string name="settings_repository_delete">Delete repository</string>
+    <string name="settings_custom_repo_package">Package name</string>
+    <string name="settings_custom_repo_regex">APK filter regex (optional)</string>
+    <string name="settings_custom_repo_cancel">Cancel</string>
+    <string name="settings_custom_repo_save">Save</string>
+    <string name="settings_custom_repo_empty">No custom repositories yet.</string>
+    <string name="settings_custom_repo_error_required">Fill user, repository, and package name.</string>
+    <string name="settings_custom_repo_url">Repository link</string>
+    <string name="settings_custom_repo_detecting">Finding the app and a compatible APK…</string>
+    <string name="settings_custom_repo_advanced">Advanced</string>
+    <string name="settings_custom_repo_retry">Try again</string>
+    <string name="settings_custom_repo_error_url">Enter a GitHub, GitLab, or Codeberg repository link.</string>
+    <string name="settings_custom_repo_error_unavailable">Could not open this repository. Check the link, connection, and access token.</string>
+    <string name="settings_custom_repo_error_no_releases">This repository has no published releases yet.</string>
+    <string name="settings_custom_repo_error_no_apk">No APK compatible with this device was found in the releases.</string>
+    <string name="settings_custom_repo_error_download">The APK could not be downloaded for verification.</string>
+    <string name="settings_custom_repo_error_invalid_apk">The release file is not a valid Android APK.</string>
+    <string name="settings_fdroid_repos">F-Droid repositories</string>
+    <string name="settings_fdroid_repo_default">Default</string>
+    <string name="settings_fdroid_repo_name">Name</string>
+    <string name="settings_fdroid_repo_url">URL</string>
+    <string name="settings_fdroid_repo_error_required">Name and URL are required.</string>
+    <string name="settings_fdroid_repo_error_invalid_url">Enter a valid HTTPS repository URL.</string>
+    <string name="settings_fdroid_repo_default_remove_error">Default repositories cannot be removed.</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
+    <string name="back">Back</string>
+    <string name="clear">Clear</string>
+    <string name="close_search">Close search</string>
+    <string name="ok">OK</string>
+    <string name="github_rate_limit_exceeded">GitHub: API rate limit exceeded. Try again later.</string>
+    <string name="download_not_supported_for_source">Saving is not supported for this source.</string>
+    <string name="search_no_results">No results found for your query.</string>
+    <string name="search_filter_dialog_title">Filter sources</string>
+    <string name="search_filter_button">Filter sources</string>
+    <string name="search_filter_apply">Apply</string>
+    <string name="search_filter_cancel">Cancel</string>
+    <string name="search_filter_hint">Select at least one source or use the All sources button to toggle everything.</string>
+    <string name="search_filter_toggle_all">All sources</string>
+    <string name="search_filter_apkmirror">APKMirror</string>
+    <string name="search_filter_fdroid">F-Droid</string>
+    <string name="search_filter_aptoide">Aptoide</string>
+    <string name="search_filter_apkpure">APKPure</string>
+    <string name="search_filter_apk20">APK20</string>
+    <string name="search_filter_uptodown">Uptodown</string>
+    <string name="search_filter_github">GitHub</string>
+    <string name="search_filter_codeberg" translatable="false">Codeberg</string>
+    <string name="search_filter_gitlab">GitLab</string>
+    <string name="search_filter_play">Google Play</string>
+    <string name="search_filter_rustore">RuStore</string>
+    <string name="search_filter_huawei">AppGallery</string>
+    <string name="metric_last_check_duration">Last check duration</string>
+    <string name="metric_last_check_time">Last check time</string>
+    <string name="metric_last_check_sources">Sources checked</string>
+    <string name="metric_no_data">Not available yet</string>
+    
+    <string name="settings_export">Export settings</string>
+    <string name="settings_import">Import settings</string>
+    <string name="export_success">Settings exported successfully</string>
+    <string name="export_failed">Failed to export settings</string>
+    <string name="import_success">Import successful. Restarting app&#8230;</string>
+    <string name="import_failed">Failed to import settings</string>
+    <string name="notifications_status_on">Notifications enabled</string>
+    <string name="notifications_status_off">Notifications disabled</string>
+    <string name="notifications_enable_action">Enable notifications</string>
+    <string name="notifications_open_settings">Open notification settings</string>
+    <string name="notification_no_updates_title">All caught up</string>
+    <string name="notification_no_updates_message">No updates were found this time.</string>
+    <string name="self_update_title">APKUpdater OSS update available</string>
+    <string name="self_update_message">Version %1$s (%2$d) is available. Install now?</string>
+    <string name="self_update_whats_new">What\'s new</string>
+    <string name="self_update_button_later">Later</string>
+    <string name="self_update_button_update">Update now</string>
+    <string name="debug_release_warning_title">Debug build installed</string>
+    <string name="debug_release_warning_message">You are using APKUpdater OSS debug build %1$s (%2$d).\n\nRelease builds are signed with a different key, so Android cannot install the release APK over this debug build.\n\nTo switch to release: export your settings, uninstall the debug build, install the release APK from GitHub Releases, then import your settings back.</string>
+    <string name="debug_release_warning_open_release">Open Releases</string>
+    <string name="debug_release_warning_understood">I understand</string>
+    <string name="updates_empty">All apps are up to date</string>
+    <string name="filter_updates">Search updates&#8230;</string>
+    <string name="download">Download</string>
+    <string name="open">Open</string>
+    <string name="download_success">Saved to: %1$s</string>
+    <string name="download_failure">Failed to save %1$s</string>
+    <string name="download_failure_cant_download">Could not download file.</string>
+    <string name="download_unavailable_for_source">Direct APK download is not available for this source.</string>
+    <string name="browser_download_required">This source requires an interactive browser download.</string>
+    <string name="uptodown_download_title">Uptodown download</string>
+    <string name="uptodown_download_hint">APKUpdater OSS will start the Uptodown download. Complete the check if it appears.</string>
+    <string name="uptodown_download_preparing">Preparing download&#8230;</string>
+    <string name="uptodown_download_downloading">Downloading&#8230;</string>
+    <string name="uptodown_download_installing">Installing&#8230;</string>
+    <string name="uptodown_download_saving">Saving&#8230;</string>
+    <string name="uptodown_download_invalid_url">Uptodown returned an untrusted download link.</string>
+    <string name="uptodown_download_failed">Uptodown download failed.</string>
+    <string name="uptodown_download_saved">Saved to download folder.</string>
+    <string name="link_not_available">Link not available.</string>
+    <string name="release_type_stable" translatable="false">Stable</string>
+    <string name="release_type_beta" translatable="false">Beta</string>
+    <string name="release_type_alpha" translatable="false">Alpha</string>
+    <string name="release_type_pre_release" translatable="false">Pre-release</string>
+
+    // Notifications
+    <string name="notification_channel_name">Updates</string>
+    <string name="notification_channel_description">Notifications about available app updates.</string>
+    <string name="notification_channel_id" translatable="false">updateChannel</string>
+    <string name="notification_background_channel_id" translatable="false">backgroundActivityChannel</string>
+    <string name="notification_background_channel_name">Background activity</string>
+    <string name="notification_background_channel_description">Automatic update checks and installation results.</string>
+    <string name="notification_update_title">Updates</string>
+    <plurals name="notification_update_description">
+        <item quantity="zero">No updates found.</item>
+        <item quantity="one">Found %1$d update.</item>
+        <item quantity="other">Found %1$d updates.</item>
+    </plurals>
+
+    <string name="notification_auto_install_title">Automatic installation</string>
+    <plurals name="notification_auto_install_success">
+        <item quantity="one">Installed %1$d update automatically.</item>
+        <item quantity="other">Installed %1$d updates automatically.</item>
+    </plurals>
+    <plurals name="notification_auto_install_failed">
+        <item quantity="one">Could not install %1$d update automatically.</item>
+        <item quantity="other">Could not install %1$d updates automatically.</item>
+    </plurals>
+    <string name="notification_check_failed_title">Update check failed</string>
+    <string name="notification_check_failed_message">APKUpdater OSS could not complete the background check.</string>
+    <string name="notification_auto_install_unavailable">Automatic installation is unavailable. Check the Root or Shizuku installation mode.</string>
+    <string name="ignored_updates">Ignored updates</string>
+    <string name="manage_ignored_updates">Manage ignored updates</string>
+    <string name="ignored_updates_empty">No ignored updates</string>
+    <string name="restore_update">Restore update</string>
+    <string name="clear_all">Clear all</string>
+
+    <string name="ignored_toast">%1$s ignored</string>
+    <string name="ignore_update_title">Hide this update?</string>
+    <string name="ignore_update_message">This update will be hidden from the Updates list. You can restore hidden updates from Settings.</string>
+    <string name="hide_update">Hide update</string>
+    <string name="ignore_app_title">Hide updates for this app?</string>
+    <string name="ignore_app_message">This app will be ignored when checking for updates. You can restore it from the Apps tab or Settings.</string>
+    <string name="hide_app_updates">Hide updates</string>
+    <string name="undo">Undo</string>
+    <string name="github">GitHub</string>
+    <string name="github_url" translatable="false">https://github.com/EikeiDev/apkupdateross</string>
+    <string name="donate">Donate</string>
+    <string name="donate_url" translatable="false">https://www.donationalerts.com/r/eikeidev</string>
+    <string name="checking_updates">Checking for updates&#8230;</string>
+    <string name="apkmirror_verification_title">APKMirror verification</string>
+    <string name="apkmirror_verification_message">Complete the Cloudflare check. The download will resume automatically.</string>
+    <string name="apkmirror_verification_complete">Verification complete. Resuming download&#8230;</string>
+    <string name="apkmirror_verification_close">Cancel verification</string>
+    <string name="settings_network">Network</string>
+    <string name="settings_global_timeout">Default source timeout (sec)</string>
+    <string name="settings_play_timeout">Google Play timeout (sec)</string>
+    <string name="install_history_title">Update &amp; install history</string>
+    <string name="install_history_empty">No recorded activity yet.</string>
+    <string name="install_history_background_check">Background check</string>
+    <string name="install_history_auto_tag">Auto</string>
+    <string name="install_history_found_updates">Found updates: %1$d</string>
+    <string name="install_history_status_ok">OK</string>
+    <string name="install_history_status_failed">Failed</string>
+    <string name="settings_source_priority">Source priority</string>
+    <string name="settings_source_priority_desc">Higher sources are selected first when versions match.</string>
+    <string name="settings_pinned_app_sources">Pinned app sources</string>
+    <string name="pin_source_cd">Pin this source for app</string>
+    <string name="unpin_source_cd">Unpin source</string>
+    <string name="source_pinned_toast">%1$s pinned for %2$s</string>
+    <string name="source_unpinned_toast">Source unpinned for %1$s</string>
+    <string name="move_up_cd">Move up</string>
+    <string name="move_down_cd">Move down</string>
+    <string name="reset_default">Reset</string>
+    <string name="shared_repo_invalid_url">No supported GitHub, GitLab, or Codeberg repository link found.</string>
+    <string name="clear_download_cache">Clear download cache (%1$s)</string>
+    <string name="clear_download_cache_success">Download cache cleared</string>
+    <string name="clear_store_cache">Clear store cache (%1$d)</string>
+    <string name="clear_store_cache_success">Store cache cleared</string>
+    <string name="app_info_cd">App info</string>
+    <string name="retry_source_cd">Retry %1$s</string>
+    <string name="sort_by_name">Name</string>
+    <string name="sort_by_source">Source</string>
+    <string name="sort_by_updated">Recently updated</string>
+    <string name="sort_by_ignored">Ignored first</string>
+    <string name="filter_all">All</string>
+    <string name="settings_dynamic_color">Material You dynamic colors</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Русский</string>
+    <string name="settings_auto_check_on_start">Check updates on startup</string>
+    <string name="check_app_updates_cd">Check updates for this app</string>
+    <string name="backup_apk_cd">Save APK backup</string>
+    <string name="backup_apk_success">Saved APK backup for %1$s</string>
+    <string name="install_local_package">Install local APK / XAPK / APKS / APKM</string>
+    <string name="install_local_package_short">Install APK/XAPK</string>
+    <string name="local_install_confirm_title">Install local package</string>
+    <string name="local_install_confirm_message">Install %1$s using the current installation mode?</string>
+    <string name="local_install_failed">Failed to install package: %1$s</string>
+    <string name="settings_background_wifi_only">Background checks on Wi-Fi only</string>
+    <string name="settings_proxy">Proxy</string>
+    <string name="settings_proxy_enable">Use proxy</string>
+    <string name="settings_proxy_type">Proxy protocol</string>
+    <string name="settings_proxy_host">Host (IP or domain)</string>
+    <string name="settings_proxy_port">Port</string>
+    <string name="settings_proxy_username">Username (optional)</string>
+    <string name="settings_proxy_password">Password (optional)</string>
+    <string name="settings_proxy_test">Test connection</string>
+    <string name="proxy_testing">Testing connection&#8230;</string>
+    <string name="proxy_test_success">Connection OK (%1$d ms)</string>
+    <string name="proxy_test_failed">Connection failed: %1$s</string>
+    <string name="card_label_version">Version</string>
+    <string name="card_label_code">Code</string>
+    <string name="card_version_code_single">Version code: %1$d</string>
+    <string name="card_action_pin">Pin</string>
+    <string name="card_action_pinned">Pinned</string>
+    <string name="card_action_source">Page</string>
+    <string name="card_action_hide">Hide</string>
+    <string name="card_action_show">Show</string>
+    <string name="card_action_check">Check</string>
+    <string name="card_action_backup">Backup</string>
+    <string name="card_action_info">Info</string>
+    <string name="card_ignored_badge">Ignored</string>
+    <string name="card_sources_label">Sources</string>
+    <string name="install_error_signature_conflict">Signature mismatch (different signing key)</string>
+    <string name="install_error_storage_full">Not enough storage space</string>
+    <string name="install_error_incompatible">Incompatible with this device or Android version</string>
+    <string name="install_error_downgrade">Cannot downgrade over a newer version</string>
+    <string name="install_error_parse">Corrupted or invalid APK file</string>
+    <string name="cancel_refresh_updates">Stop checking updates</string>
+    <string name="notification_more_updates">+%1$d more</string>
+</resources>

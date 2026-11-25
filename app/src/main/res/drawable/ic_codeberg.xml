@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="4.233333"
+    android:viewportHeight="4.233333">
+    <!-- Official Codeberg mark, converted from the CC0 Design repository SVG. -->
+    <group
+        android:scaleX="0.06551432"
+        android:scaleY="0.06551432"
+        android:translateX="-2.232417"
+        android:translateY="-1.431776">
+        <group
+            android:scaleX="1.4006354"
+            android:scaleY="1.4006354"
+            android:translateX="-15690.065"
+            android:translateY="2662.0533">
+            <path
+                android:fillColor="#2185D0"
+                android:pathData="m11249.461,-1883.6961c-12.74,0 -23.067,10.3275 -23.067,23.0671 0,4.3335 1.22,8.5795 3.522,12.2514l19.232,-24.8636c0.138,-0.1796 0.486,-0.1796 0.624,0l19.233,24.8646c2.302,-3.6721 3.523,-7.9185 3.523,-12.2524 0,-12.7396 -10.327,-23.0671 -23.067,-23.0671z" />
+        </group>
+    </group>
+</vector>

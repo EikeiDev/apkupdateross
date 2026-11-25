@@ -1,0 +1,158 @@
+package com.apkupdateross.repository
+
+import android.app.ActivityManager
+import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.os.Build
+import android.util.Base64
+import android.util.Log
+import com.apkupdateross.data.aptoide.ListAppsUpdatesRequest
+import com.apkupdateross.data.aptoide.ListSearchAppsRequest
+import com.apkupdateross.data.aptoide.toAppUpdate
+import com.apkupdateross.data.ui.AppInstalled
+import com.apkupdateross.data.ui.getApp
+import com.apkupdateross.data.ui.getVersionCode
+import com.apkupdateross.data.ui.toApksData
+import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.service.AptoideService
+import com.apkupdateross.util.randomUUID
+import io.github.g00fy2.versioncompare.Version
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
+
+
+class AptoideRepository(
+    private val context: Context,
+    private val service: AptoideService,
+    private val prefs: Prefs
+) {
+    companion object {
+        private const val APTOIDE_BATCH_SIZE = 80
+        val UserAgent = "aptoide-9.20.6.1;" + getTerminal() + ";0x0;id:" + randomUUID() + ";;"
+        private fun getTerminal() = "${getModel()}(${getProduct()});v${getRelease()};${getArch()}"
+        private fun getProduct() = Build.PRODUCT.replace(";", " ")
+        private fun getModel() = Build.MODEL.replace(";", " ")
+        private fun getRelease() = Build.VERSION.RELEASE.replace(";", " ")
+        private fun getArch() = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+    }
+
+    private val query: String by lazy {
+        computeFilters(context)
+    }
+
+    suspend fun updates(apps: List<AppInstalled>) = flow {
+        val allowDowngrade = prefs.installMode.get() > 0
+        val eligible = apps.filter { isAptoideEligibleVersionCode(it.versionCode) || (allowDowngrade && it.versionCode > Int.MAX_VALUE.toLong()) }
+        if (eligible.isEmpty()) {
+            emit(emptyList())
+            return@flow
+        }
+        val appsByPkg = eligible.associateBy { it.packageName }
+        val filterList = buildFilterList()
+        val storeList = buildStoreList()
+        val allUpdates = eligible.chunked(APTOIDE_BATCH_SIZE).flatMap { batch ->
+            val data = batch.map { app ->
+                val base = app.toApksData()
+                if (isAptoideEligibleVersionCode(app.versionCode)) base else base.copy(vercode = "1")
+            }
+            service
+                .findUpdates(ListAppsUpdatesRequest(data, query, filterList, storeList))
+                .list
+                .filter { it.store.id == 15L }
+                .filter { isSaneVersion(it.file.vername, it.file.vercode) }
+                .filter {
+                    val installed = appsByPkg[it.packageName] ?: return@filter false
+                    val remoteCode = it.file.vercode.toLongOrNull() ?: 0L
+                    when {
+                        remoteCode > installed.versionCode -> true
+                        allowDowngrade && installed.versionCode > Int.MAX_VALUE.toLong() ->
+                            runCatching { Version(it.file.vername) > Version(installed.version) }.getOrDefault(false)
+                        else -> false
+                    }
+                }
+                .map { it.toAppUpdate(appsByPkg[it.packageName]) }
+        }
+        emit(allUpdates)
+    }
+
+    suspend fun search(text: String) = flow {
+        val request = ListSearchAppsRequest(text, "10", query, buildFilterList(), buildStoreList())
+        val response = service.searchApps(request)
+        val updates = response.datalist.list
+            .filter { it.store.id == 15L }
+            .filter { isSaneVersion(it.file.vername, it.file.vercode) }
+            .map{ it.toAppUpdate(null) }
+        emit(Result.success(updates))
+    }.catch {
+        emit(Result.failure(it))
+        Log.e("AptoideRepository", "Error searching.", it)
+    }
+
+    private fun buildStoreList() = mutableListOf<Long>().apply {
+        // Always use safe store
+        add(15L)
+    }
+
+    private fun isSaneVersion(verName: String, verCode: String): Boolean {
+        val codeNum = verCode.toLongOrNull() ?: return false
+        if (verCode.length >= 7 && verCode.all { it == '9' }) return false
+        if (verName.contains("9999")) return false
+        if (codeNum <= 0) return false
+        return true
+    }
+
+    private fun buildFilterList(): String {
+        val list = mutableListOf<String>()
+        if (prefs.ignoreAlpha.get()) list.add("alpha")
+        if (prefs.ignoreBeta.get()) list.add("beta")
+        return list.joinToString(separator = ",")
+    }
+
+    private fun computeFilters(context: Context): String {
+        val filters = "maxSdk=${getSdkVer()}&maxScreen=${getScreenSize()}&maxGles=" +
+                "${getGlEs(context)}&myCPU=${getAbis()}&leanback=${if (isTelevision()) 1 else 0}" +
+                "&myDensity=${getDensityDpi()}"
+
+        return Base64.encodeToString(
+            filters.toByteArray(),
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
+    }
+
+    private fun getSdkVer() = Build.VERSION.SDK_INT
+
+    private fun getScreenSize(): String {
+        val size = Resources.getSystem().configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
+        val sizes = listOf("notfound", "small", "normal", "large", "xlarge")
+        return sizes[size]
+    }
+
+    private fun getGlEs(context: Context): String {
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return manager.deviceConfigurationInfo.glEsVersion
+    }
+
+    private fun getAbis() = Build.SUPPORTED_ABIS.joinToString(separator = ",")
+
+    private fun getDensityDpi(): Int {
+        val dpi = Resources.getSystem().displayMetrics.densityDpi
+        return when {
+            dpi <= 120 -> 120
+            dpi <= 160 -> 160
+            dpi <= 213 -> 213
+            dpi <= 240 -> 240
+            dpi <= 320 -> 320
+            dpi <= 480 -> 480
+            else -> 640
+		}
+    }
+
+    private fun isTelevision(): Boolean =
+        context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+
+}
+
+internal fun isAptoideEligibleVersionCode(versionCode: Long): Boolean =
+    versionCode in 1L until Long.MAX_VALUE && versionCode <= Int.MAX_VALUE.toLong()

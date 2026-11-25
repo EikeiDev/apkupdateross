@@ -1,0 +1,310 @@
+package com.apkupdateross.di
+
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
+import com.apkupdateross.R
+import com.apkupdateross.data.ui.FdroidSource
+import com.apkupdateross.data.ui.IzzySource
+import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.repository.ApkMirrorRepository
+import com.apkupdateross.repository.Apk20Repository
+import com.apkupdateross.repository.ApkPureRepository
+import com.apkupdateross.repository.AppsRepository
+import com.apkupdateross.repository.AptoideRepository
+import com.apkupdateross.repository.FdroidRepoRegistry
+import com.apkupdateross.repository.FdroidRepository
+import com.apkupdateross.repository.GitHubRepository
+import com.apkupdateross.repository.GitRepoDetector
+import com.apkupdateross.repository.CodebergRepository
+import com.apkupdateross.repository.GitLabRepository
+import com.apkupdateross.repository.HuaweiRepository
+import com.apkupdateross.repository.PlayRepository
+import com.apkupdateross.repository.RuStoreRepository
+import com.apkupdateross.repository.SearchRepository
+import com.apkupdateross.repository.SamsungGalaxyStoreRepository
+import com.apkupdateross.repository.UptodownRepository
+import com.apkupdateross.repository.UpdatesRepository
+import com.apkupdateross.service.ApkMirrorService
+import com.apkupdateross.service.ApkPureService
+import com.apkupdateross.service.AptoideService
+import com.apkupdateross.service.FdroidService
+import com.apkupdateross.service.GitHubService
+import com.apkupdateross.service.CodebergService
+import com.apkupdateross.service.GitLabService
+import com.apkupdateross.service.RuStoreService
+import com.apkupdateross.util.AppUserAgent
+import com.apkupdateross.util.AppInstallExecutor
+import com.apkupdateross.util.ApkArchiveInspector
+import com.apkupdateross.util.ApkMirrorChallengeCoordinator
+import com.apkupdateross.util.ApkMirrorSession
+import com.apkupdateross.util.Badger
+import com.apkupdateross.util.Clipboard
+import com.apkupdateross.util.DownloadStorage
+import com.apkupdateross.util.Downloader
+import com.apkupdateross.util.InstallLog
+import com.apkupdateross.util.LocalPackageInstaller
+import com.apkupdateross.util.SessionInstaller
+import com.apkupdateross.util.SnackBar
+import com.apkupdateross.util.StoreNotFoundCache
+import com.apkupdateross.util.Stringer
+import com.apkupdateross.util.Themer
+import com.apkupdateross.util.UpdatesNotification
+import com.apkupdateross.util.addUserAgentInterceptor
+import com.apkupdateross.util.applyDynamicProxy
+import com.apkupdateross.util.dynamicTimeoutInterceptor
+import com.apkupdateross.util.isApkMirrorUrl
+import com.apkupdateross.util.mergeCookieHeaders
+import com.apkupdateross.util.play.PlayHttpClient
+import com.apkupdateross.viewmodel.AppsViewModel
+import com.apkupdateross.viewmodel.MainViewModel
+import com.apkupdateross.viewmodel.SearchViewModel
+import com.apkupdateross.viewmodel.SettingsViewModel
+import com.apkupdateross.viewmodel.UpdatesViewModel
+import com.google.gson.GsonBuilder
+import com.kryptoprefs.preferences.KryptoBuilder
+import okhttp3.Cache
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import org.koin.android.ext.koin.androidContext
+import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.qualifier.named
+import org.koin.dsl.module
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
+
+
+val mainModule = module {
+
+	single { GsonBuilder().create() }
+
+	single { Cache(androidContext().cacheDir, 50L * 1024 * 1024) }
+
+	single { ApkMirrorSession() }
+	single { ApkMirrorChallengeCoordinator(get()) }
+
+	single {
+		HttpLoggingInterceptor().apply {
+			level = HttpLoggingInterceptor.Level.BODY
+		}
+	}
+
+	single {
+		val apkMirrorSession = get<ApkMirrorSession>()
+		val prefs = get<Prefs>()
+		OkHttpClient.Builder()
+			.cache(get())
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(20, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() })
+			.applyDynamicProxy(prefs)
+			.addUserAgentInterceptor(AppUserAgent.value)
+			.addNetworkInterceptor { chain ->
+				val original = chain.request()
+				val url = original.url.toString()
+				if (!isApkMirrorUrl(url)) return@addNetworkInterceptor chain.proceed(original)
+
+				val cookies = mergeCookieHeaders(
+					original.header("Cookie"),
+					apkMirrorSession.cookieHeaderFor(url)
+				)
+				val request = original.newBuilder()
+					.header("User-Agent", apkMirrorSession.userAgentOr(AppUserAgent.value))
+					.apply { if (cookies.isNotBlank()) header("Cookie", cookies) }
+					.build()
+				chain.proceed(request)
+			}
+			//.addInterceptor(get<HttpLoggingInterceptor>())
+			.build()
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://www.apkmirror.com")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(ApkMirrorService::class.java)
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://api.github.com")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(GitHubService::class.java)
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://codeberg.org/")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(CodebergService::class.java)
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://gitlab.com")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(GitLabService::class.java)
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://f-droid.org/repo/")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(FdroidService::class.java)
+	}
+
+	single {
+		val prefs = get<Prefs>()
+		val client = OkHttpClient.Builder()
+			.cache(get())
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(20, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() })
+			.applyDynamicProxy(prefs)
+			.addUserAgentInterceptor(AptoideRepository.UserAgent)
+			.build()
+
+		Retrofit.Builder()
+			.client(client)
+			.baseUrl("https://ws75.aptoide.com/api/7/")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(AptoideService::class.java)
+	}
+
+	single {
+		Retrofit.Builder()
+			.client(get())
+			.baseUrl("https://tapi.pureapk.com/")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(ApkPureService::class.java)
+	}
+
+	single {
+		val prefs = get<Prefs>()
+		val client = OkHttpClient.Builder()
+			.followRedirects(true)
+			.cache(get())
+			.connectTimeout(10, TimeUnit.SECONDS)
+			.readTimeout(30, TimeUnit.SECONDS)
+			.writeTimeout(10, TimeUnit.SECONDS)
+			.addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() })
+			.applyDynamicProxy(prefs)
+			.addUserAgentInterceptor(AppUserAgent.value)
+			.build()
+		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() }).applyDynamicProxy(prefs).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
+		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() }).applyDynamicProxy(prefs).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
+		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
+		Downloader(client, apkPureClient, auroraClient, dir, get(), get())
+	}
+
+	single { ApkArchiveInspector(androidContext()) }
+
+	single { GitRepoDetector(get(), get(), get(), get(), get(), get()) }
+
+	single { ApkMirrorRepository(get(), get(), get(), get(), get(), androidContext()) }
+
+	single { Apk20Repository(get(), get(), get()) }
+
+	single { StoreNotFoundCache(get()) }
+
+	single { UptodownRepository(get(), get(), androidContext(), get()) }
+
+	single { AppsRepository(get(), get()) }
+
+	single { GitHubRepository(get(), get(), get(), get()) }
+
+	single { CodebergRepository(get(), get()) }
+
+	single { GitLabRepository(get(), get()) }
+
+	single { ApkPureRepository(get(), get(), get()) }
+
+	single { AptoideRepository(get(), get(), get()) }
+
+	single {
+		// RuStore's backapi rejects requests without this header (HTTP 400 since mid-2026).
+		// The value must stay in the short app-code range accepted by backapi; long APK
+		// manifest versionCodes are rejected by some endpoints with HTTP 419.
+		val ruStoreClient = get<OkHttpClient>().newBuilder()
+			.addInterceptor { chain ->
+				val request = chain.request().newBuilder()
+					.header("ruStoreVerCode", "12000")
+					.build()
+				chain.proceed(request)
+			}
+			.build()
+		Retrofit.Builder()
+			.client(ruStoreClient)
+			.baseUrl("https://backapi.rustore.ru/")
+			.addConverterFactory(GsonConverterFactory.create(get()))
+			.build()
+			.create(RuStoreService::class.java)
+	}
+
+	single { RuStoreRepository(get(), get()) }
+
+	single { HuaweiRepository(get(), get(), get(), get()) }
+
+	single { SamsungGalaxyStoreRepository(get(), get(), get()) }
+
+	single { PlayRepository(get(), get(), get(), get()) }
+
+	single { FdroidRepoRegistry(get(), get(), get()) }
+
+	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+
+	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+
+	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
+
+	single { Prefs(get()) }
+
+	single { UpdatesNotification(get()) }
+
+	single { Clipboard(androidContext()) }
+
+	single { SessionInstaller(get(), get()) }
+
+	single { AppInstallExecutor(get(), get(), get(), get()) }
+
+	single { LocalPackageInstaller(androidContext(), get(), get(), get(), get(), get()) }
+
+	single { DownloadStorage(androidContext(), get()) }
+
+	single { SnackBar() }
+
+	single { Badger() }
+
+	single { Themer(get()) }
+
+	single { Stringer(androidContext()) }
+
+	single { InstallLog() }
+
+	single { PlayHttpClient(androidContext(), get(), get()) }
+
+	viewModel { MainViewModel(get(), get(), get(), get(), get()) }
+
+	viewModel { AppsViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }
+
+	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+
+	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(get()), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+
+	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+
+}

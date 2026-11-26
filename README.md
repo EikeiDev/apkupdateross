@@ -193,14 +193,14 @@ keystore.keypassword=your_key_password
 | **DonationAlerts** | [donationalerts.com/r/eikeidev](https://www.donationalerts.com/r/eikeidev) |
 | **BTC** | `12E586ZRxrYDTPy6A1LDHQ1AvZku6Ggx9x` |
 | **GRAM / TON** | `UQDgDs-0LDZFFq54ZR3UtJAIK_oSfT4cmkY-tyjeMSxcSX1i` |
-| **USDT (EVM)** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
+| **USDT (BEP-20 / ERC-20)** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
 
 <details open>
 <summary><strong>QR-коды для быстрого перевода</strong></summary>
 
 <br />
 
-| DonationAlerts | BTC | GRAM / TON | USDT |
+| DonationAlerts | BTC | GRAM / TON | USDT (BEP-20 / ERC-20) |
 | :---: | :---: | :---: | :---: |
 | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=https%3A%2F%2Fwww.donationalerts.com%2Fr%2Feikeidev" width="140" alt="DonationAlerts QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=12E586ZRxrYDTPy6A1LDHQ1AvZku6Ggx9x" width="140" alt="BTC QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=UQDgDs-0LDZFFq54ZR3UtJAIK_oSfT4cmkY-tyjeMSxcSX1i" width="140" alt="GRAM / TON QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=0xc75986e1460cc232f74b9a600b9c0e41dfa644f7" width="140" alt="USDT QR" /> |
 

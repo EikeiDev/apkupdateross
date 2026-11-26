@@ -193,7 +193,18 @@ keystore.keypassword=your_key_password
 | **DonationAlerts** | [donationalerts.com/r/eikeidev](https://www.donationalerts.com/r/eikeidev) |
 | **BTC** | `12E586ZRxrYDTPy6A1LDHQ1AvZku6Ggx9x` |
 | **GRAM / TON** | `UQDgDs-0LDZFFq54ZR3UtJAIK_oSfT4cmkY-tyjeMSxcSX1i` |
-| **USDT** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
+| **USDT (EVM)** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
+
+<details open>
+<summary><strong>QR-коды для быстрого перевода</strong></summary>
+
+<br />
+
+| DonationAlerts | BTC | GRAM / TON | USDT |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/qr/donationalerts.png" width="140" alt="DonationAlerts QR" /> | <img src="docs/qr/btc.png" width="140" alt="BTC QR" /> | <img src="docs/qr/ton.png" width="140" alt="GRAM / TON QR" /> | <img src="docs/qr/usdt.png" width="140" alt="USDT QR" /> |
+
+</details>
 
 > [!CAUTION]
 > Перед отправкой криптовалюты обязательно перепроверьте сеть перевода в вашем кошельке.

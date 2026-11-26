@@ -193,7 +193,18 @@ If **APKUpdater OSS** is useful to you, consider supporting continued developmen
 | **DonationAlerts** | [donationalerts.com/r/eikeidev](https://www.donationalerts.com/r/eikeidev) |
 | **BTC** | `12E586ZRxrYDTPy6A1LDHQ1AvZku6Ggx9x` |
 | **GRAM / TON** | `UQDgDs-0LDZFFq54ZR3UtJAIK_oSfT4cmkY-tyjeMSxcSX1i` |
-| **USDT** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
+| **USDT (EVM)** | `0xc75986e1460cc232f74b9a600b9c0e41dfa644f7` |
+
+<details open>
+<summary><strong>QR codes for quick transfers</strong></summary>
+
+<br />
+
+| DonationAlerts | BTC | GRAM / TON | USDT |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/qr/donationalerts.png" width="140" alt="DonationAlerts QR" /> | <img src="docs/qr/btc.png" width="140" alt="BTC QR" /> | <img src="docs/qr/ton.png" width="140" alt="GRAM / TON QR" /> | <img src="docs/qr/usdt.png" width="140" alt="USDT QR" /> |
+
+</details>
 
 > [!CAUTION]
 > Always double-check the transfer network in your wallet before sending cryptocurrency.

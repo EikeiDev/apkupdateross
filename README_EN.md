@@ -202,7 +202,7 @@ If **APKUpdater OSS** is useful to you, consider supporting continued developmen
 
 | DonationAlerts | BTC | GRAM / TON | USDT |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/qr/donationalerts.png" width="140" alt="DonationAlerts QR" /> | <img src="docs/qr/btc.png" width="140" alt="BTC QR" /> | <img src="docs/qr/ton.png" width="140" alt="GRAM / TON QR" /> | <img src="docs/qr/usdt.png" width="140" alt="USDT QR" /> |
+| <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=https%3A%2F%2Fwww.donationalerts.com%2Fr%2Feikeidev" width="140" alt="DonationAlerts QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=12E586ZRxrYDTPy6A1LDHQ1AvZku6Ggx9x" width="140" alt="BTC QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=UQDgDs-0LDZFFq54ZR3UtJAIK_oSfT4cmkY-tyjeMSxcSX1i" width="140" alt="GRAM / TON QR" /> | <img src="https://quickchart.io/qr?size=200&margin=2&ecLevel=M&dark=111315&light=ffffff&text=0xc75986e1460cc232f74b9a600b9c0e41dfa644f7" width="140" alt="USDT QR" /> |
 
 </details>
 

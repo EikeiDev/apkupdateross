@@ -116,8 +116,10 @@ class SessionInstaller(
         }
         val res = Shell.cmd("pm install $PRIVILEGED_INSTALL_FLAGS ${file.absolutePath}").exec()
         file.delete()
+        val out = res.out.joinToString("\n").trim()
+        val err = res.err.joinToString("\n").trim()
         val output = (res.err + res.out).joinToString(" ").trim()
-        return res.isSuccess to output
+        return isPrivilegedInstallSuccess(res.code, out, err) to output
     }
 
     fun validateApkFile(
@@ -298,7 +300,12 @@ class SessionInstaller(
                 0 -> false to "Empty APK list"
                 1 -> {
                     val res = Shell.cmd("pm install $PRIVILEGED_INSTALL_FLAGS ${files[0].absolutePath}").exec()
-                    res.isSuccess to (res.err + res.out).joinToString(" ").trim()
+                    val ok = isPrivilegedInstallSuccess(
+                        res.code,
+                        res.out.joinToString("\n"),
+                        res.err.joinToString("\n")
+                    )
+                    ok to (res.err + res.out).joinToString(" ").trim()
                 }
                 else -> {
                     val createResult = Shell.cmd("pm install-create $PRIVILEGED_INSTALL_FLAGS").exec()
@@ -318,7 +325,11 @@ class SessionInstaller(
                             }
                         }
                         val commitResult = Shell.cmd("pm install-commit $sessionId").exec()
-                        committed = commitResult.isSuccess
+                        committed = isPrivilegedInstallSuccess(
+                            commitResult.code,
+                            commitResult.out.joinToString("\n"),
+                            commitResult.err.joinToString("\n")
+                        )
                         committed to (commitResult.err + commitResult.out).joinToString(" ").trim()
                     } finally {
                         if (!committed) Shell.cmd("pm install-abandon $sessionId").exec()
@@ -413,10 +424,13 @@ class SessionInstaller(
             try {
                 validateApkFile(tempFile, packageName, null, 0L)
                 val result = shizukuExec("pm install $PRIVILEGED_INSTALL_FLAGS -S $bytes", tempFile)
-                if (!result.isSuccess) {
+                if (!result.isInstallSuccess) {
                     val message = result.message()
                     Log.e("SessionInstaller", "Shizuku install failed: $message")
                     throw Exception("Shizuku install failed: $message")
+                }
+                if (result.exitCode != 0) {
+                    Log.w("SessionInstaller", "Shizuku install completed with warnings: ${result.message()}")
                 }
                 Log.i("SessionInstaller", "Shizuku install successful")
             } finally {
@@ -458,9 +472,12 @@ class SessionInstaller(
                 }
 
                 val commitResult = shizukuExec("pm install-commit $sessionId")
-                if (!commitResult.isSuccess) {
+                if (!commitResult.isInstallSuccess) {
                     val message = commitResult.message()
                     throw Exception("Shizuku install-commit failed: $message")
+                }
+                if (commitResult.exitCode != 0) {
+                    Log.w("SessionInstaller", "Shizuku install-commit completed with warnings: ${commitResult.message()}")
                 }
                 committed = true
             } finally {
@@ -471,6 +488,9 @@ class SessionInstaller(
     }
 
     private data class ShizukuResult(val isSuccess: Boolean, val out: String, val err: String, val exitCode: Int) {
+        val isInstallSuccess: Boolean
+            get() = isPrivilegedInstallSuccess(exitCode, out, err)
+
         fun message(): String {
             val text = when {
                 err.isNotBlank() -> err
@@ -533,6 +553,19 @@ class SessionInstaller(
 }
 
 internal const val PRIVILEGED_INSTALL_FLAGS = "-r -d"
+
+/**
+ * Android 15+ `pm install` / `pm install-commit` installs modded APKs with mismatched
+ * `assets/art-profile/baseline.prof` checksums successfully, but logs a dexopt warning,
+ * prints `Completed with warning(s)`, and exits with a non-zero status code.
+ */
+internal fun isPrivilegedInstallSuccess(exitCode: Int, stdout: String, stderr: String): Boolean {
+    if (exitCode == 0) return true
+    val combined = "$stdout\n$stderr"
+    if (combined.contains("Failure [", ignoreCase = true)) return false
+    return combined.contains("Completed with warning(s)", ignoreCase = true) ||
+        combined.lines().any { it.trim().equals("Success", ignoreCase = true) }
+}
 
 internal fun File.containsNestedApkFiles(): Boolean = runCatching {
     ZipFile(this).use { zip ->

@@ -9,6 +9,10 @@ import android.os.Build
 import android.provider.DocumentsContract
 import androidx.activity.result.ActivityResultLauncher
 import com.apkupdateross.R
+import com.apkupdateross.data.fourpda.FourPdaAuthChallenge
+import com.apkupdateross.data.fourpda.FourPdaCrawlerTopic
+import com.apkupdateross.data.fourpda.FourPdaLoginResult
+import com.apkupdateross.data.fourpda.FourPdaTopicBinding
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.fdroid.normalizeFdroidRepoUrl
@@ -20,8 +24,11 @@ import androidx.work.WorkManager
 import com.apkupdateross.data.ui.SettingsUiState
 import com.apkupdateross.prefs.Prefs
 import com.apkupdateross.repository.AppsRepository
+import com.apkupdateross.repository.FourPdaAuthClient
+import com.apkupdateross.repository.FourPdaRepository
 import com.apkupdateross.repository.GitRepoDetectionResult
 import com.apkupdateross.repository.GitRepoDetector
+import com.apkupdateross.repository.PlayRepository
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_ACCENT
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_BACKGROUND
 import com.apkupdateross.ui.theme.DEFAULT_CUSTOM_NAVIGATION
@@ -30,6 +37,7 @@ import com.apkupdateross.ui.theme.THEME_MODE_CUSTOM
 import com.apkupdateross.ui.theme.normalizeHexColor
 import com.apkupdateross.util.Clipboard
 import com.apkupdateross.util.Downloader
+import com.apkupdateross.util.FourPdaSession
 import com.apkupdateross.util.LocaleHelper
 import com.apkupdateross.util.LocalPackageInstaller
 import com.apkupdateross.util.SnackBar
@@ -80,7 +88,11 @@ class SettingsViewModel(
 	private val downloader: Downloader,
 	private val localPackageInstaller: LocalPackageInstaller,
 	private val okHttpClient: OkHttpClient,
-	private val storeNotFoundCache: StoreNotFoundCache
+	private val storeNotFoundCache: StoreNotFoundCache,
+	private val fourPdaSession: FourPdaSession,
+	private val fourPdaAuthClient: FourPdaAuthClient,
+	private val fourPdaRepository: FourPdaRepository,
+	private val playRepository: PlayRepository
 ) : ViewModel() {
 
 	private companion object {
@@ -107,7 +119,9 @@ class SettingsViewModel(
 			"installHistory",
 			"cachedUpdates",
 			"proxyUsername",
-			"proxyPassword"
+			"proxyPassword",
+			"fourPdaCookies",
+			"fourPdaUserId"
 		)
 	}
 
@@ -129,6 +143,10 @@ class SettingsViewModel(
 	val useCompactView = prefs.useCompactViewFlow
 	val swipeIgnoreEnabled = prefs.swipeIgnoreEnabledFlow
 	val downloadFolderUri = prefs.downloadFolderUriFlow
+	val fourPdaUserId = fourPdaSession.loggedInUserId
+	val fourPdaTopicBindings = prefs.fourPdaTopicBindingsFlow
+	private val _isTestingFourPdaServer = MutableStateFlow(false)
+	val isTestingFourPdaServer = _isTestingFourPdaServer.asStateFlow()
 	private val _downloadCacheSizeBytes = MutableStateFlow(downloader.cacheSizeBytes())
 	val downloadCacheSizeBytes = _downloadCacheSizeBytes.asStateFlow()
 	private val _isTestingProxy = MutableStateFlow(false)
@@ -304,12 +322,92 @@ class SettingsViewModel(
 	fun setUseUptodown(b: Boolean) = prefs.useUptodown.put(b)
 	fun getUsePlay() = prefs.usePlay.get()
 	fun setUsePlay(b: Boolean) = prefs.usePlay.put(b)
+	fun resetPlaySession() {
+		playRepository.resetSession()
+		snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.play_reset_session_success)))
+	}
 	fun getUseRuStore() = prefs.useRuStore.get()
 	fun setUseRuStore(b: Boolean) = prefs.useRuStore.put(b)
 	fun getUseHuawei() = prefs.useHuawei.get()
 	fun setUseHuawei(b: Boolean) = prefs.useHuawei.put(b)
 	fun getUseSamsungGalaxyStore() = prefs.useSamsungGalaxyStore.get()
 	fun setUseSamsungGalaxyStore(b: Boolean) = prefs.useSamsungGalaxyStore.put(b)
+	fun getUse4pda() = prefs.use4pda.get()
+	fun setUse4pda(b: Boolean) = prefs.use4pda.put(b)
+	fun getFourPdaBuildPreference() = prefs.fourPdaBuildPreference.get().coerceIn(0, 2)
+	fun setFourPdaBuildPreference(index: Int) = prefs.fourPdaBuildPreference.put(index.coerceIn(0, 2))
+
+	suspend fun loadFourPdaAuthChallenge(): Result<FourPdaAuthChallenge> =
+		fourPdaAuthClient.loadChallenge()
+
+	suspend fun loginFourPda(
+		challenge: FourPdaAuthChallenge,
+		login: String,
+		password: String,
+		captcha: String
+	): FourPdaLoginResult {
+		val result = fourPdaAuthClient.submitLogin(challenge, login, password, captcha)
+		if (result is FourPdaLoginResult.Success) {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.fourpda_login_success)))
+		}
+		return result
+	}
+
+	fun logoutFourPda() {
+		fourPdaSession.clear()
+		snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.fourpda_logout_success)))
+	}
+
+	fun testFourPdaServer() {
+		if (_isTestingFourPdaServer.value) return
+		viewModelScope.launch(Dispatchers.IO) {
+			_isTestingFourPdaServer.value = true
+			try {
+				fourPdaRepository.checkServerHealth()
+					.onSuccess { health ->
+						snackBar.snackBar(
+							viewModelScope,
+							TextSnack(
+								stringer.get(
+									R.string.fourpda_server_ok,
+									health.index.activeTopics,
+									health.index.indexedPackages
+								)
+							)
+						)
+					}
+					.onFailure { error ->
+						snackBar.snackBar(
+							viewModelScope,
+							TextSnack(stringer.get(R.string.fourpda_server_failed, error.message ?: error.javaClass.simpleName))
+						)
+					}
+			} finally {
+				_isTestingFourPdaServer.value = false
+			}
+		}
+	}
+
+	suspend fun detectFourPdaTopic(input: String): FourPdaCrawlerTopic? =
+		fourPdaRepository.detectTopic(input)
+
+	fun saveFourPdaTopicBinding(binding: FourPdaTopicBinding) {
+		val clean = binding.normalized()
+		if (clean.packageName.isBlank() || clean.topicId <= 0L) {
+			snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.fourpda_topic_invalid)))
+			return
+		}
+		val current = prefs.fourPdaTopicBindings.get().toMutableMap()
+		current[clean.packageName] = clean.copy(updatedAt = System.currentTimeMillis())
+		prefs.setFourPdaTopicBindings(current)
+	}
+
+	fun removeFourPdaTopicBinding(packageName: String) {
+		val current = prefs.fourPdaTopicBindings.get().toMutableMap()
+		if (current.remove(packageName) != null) {
+			prefs.setFourPdaTopicBindings(current)
+		}
+	}
 	fun getSamsungGalaxyStoreRegion(): Int = when (prefs.samsungGalaxyStoreRegion.get().trim().uppercase(Locale.ROOT)) {
 		SAMSUNG_REGION_CHINA -> 1
 		else -> 0

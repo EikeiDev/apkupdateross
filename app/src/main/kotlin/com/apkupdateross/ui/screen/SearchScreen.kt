@@ -64,6 +64,7 @@ import com.apkupdateross.ui.component.AppScreen
 import com.apkupdateross.ui.component.AppStateMessage
 import com.apkupdateross.ui.component.AppTone
 import com.apkupdateross.ui.component.DefaultErrorScreen
+import com.apkupdateross.ui.component.DownloadChoiceDialog
 import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
 import com.apkupdateross.ui.component.LoadingGrid
@@ -165,13 +166,41 @@ fun SearchScreenSuccess(
     val uriHandler = LocalUriHandler.current
     val updates = state.updates
     var pendingDownload by remember { mutableStateOf<AppUpdate?>(null) }
+    var choiceDialogState by remember { mutableStateOf<Pair<AppUpdate, Boolean>?>(null) }
     val requestStoragePermission = rememberStoragePermissionAction {
         pendingDownload?.let { downloadSearchUpdate(context, viewModel, it) }
         pendingDownload = null
     }
-    val downloadAction: (AppUpdate) -> Unit = { update ->
+    val runDownload: (AppUpdate) -> Unit = { update ->
         pendingDownload = update
         requestStoragePermission()
+    }
+    val installAction: (AppUpdate) -> Unit = { update ->
+        if (update.downloadChoices.size > 1) {
+            choiceDialogState = update to false
+        } else {
+            installSearchUpdate(context, viewModel, update, uriHandler)
+        }
+    }
+    val downloadAction: (AppUpdate) -> Unit = { update ->
+        if (update.downloadChoices.size > 1) {
+            choiceDialogState = update to true
+        } else {
+            runDownload(update)
+        }
+    }
+
+    choiceDialogState?.let { (targetUpdate, isSaveMode) ->
+        DownloadChoiceDialog(
+            update = targetUpdate,
+            onDismiss = { choiceDialogState = null },
+            onLoadPostNotes = viewModel::loadFourPdaPostNotes,
+            onOpenPost = { url -> runCatching { uriHandler.openUri(url) } },
+            onSelect = { resolved ->
+                choiceDialogState = null
+                if (isSaveMode) runDownload(resolved) else installSearchUpdate(context, viewModel, resolved, uriHandler)
+            }
+        )
     }
 
     if (updates.isEmpty()) {
@@ -197,15 +226,13 @@ fun SearchScreenSuccess(
                     version = update.version,
                     uri = update.iconUri,
                     source = update.source,
-                    onClick = { installSearchUpdate(context, viewModel, update, uriHandler) },
+                    onClick = { installAction(update) },
                     updates = grouped.updates,
                     onUpdateOpenPage = { viewModel.openSourcePage(it, uriHandler) },
-                    onUpdateClick = { installSearchUpdate(context, viewModel, it, uriHandler) }
+                    onUpdateClick = { installAction(it) }
                 )
             } else {
-                SearchItem(grouped, compactMode, {
-                    installSearchUpdate(context, viewModel, it, uriHandler)
-                }, { viewModel.cancel(it) },
+                SearchItem(grouped, compactMode, installAction, { viewModel.cancel(it) },
                     onDownload = downloadAction,
                     onOpenPage = { viewModel.openSourcePage(it, uriHandler) }
                 )

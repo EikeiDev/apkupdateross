@@ -8,6 +8,9 @@ object PlayLocales {
     fun preferredLocale(context: Context): Locale =
         deviceLocales(context).firstOrNull() ?: Locale.US
 
+    fun additionalLocales(context: Context): List<Locale> =
+        deviceLocales(context).drop(1)
+
     fun acceptLanguageHeader(context: Context): String =
         deviceLocales(context)
             .map { it.toLanguageTag() }

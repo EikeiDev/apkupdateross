@@ -13,6 +13,8 @@ import com.apkupdateross.repository.AppsRepository
 import com.apkupdateross.repository.AptoideRepository
 import com.apkupdateross.repository.FdroidRepoRegistry
 import com.apkupdateross.repository.FdroidRepository
+import com.apkupdateross.repository.FourPdaAuthClient
+import com.apkupdateross.repository.FourPdaRepository
 import com.apkupdateross.repository.GitHubRepository
 import com.apkupdateross.repository.GitRepoDetector
 import com.apkupdateross.repository.CodebergRepository
@@ -41,6 +43,7 @@ import com.apkupdateross.util.Badger
 import com.apkupdateross.util.Clipboard
 import com.apkupdateross.util.DownloadStorage
 import com.apkupdateross.util.Downloader
+import com.apkupdateross.util.FourPdaSession
 import com.apkupdateross.util.InstallLog
 import com.apkupdateross.util.LocalPackageInstaller
 import com.apkupdateross.util.SessionInstaller
@@ -54,7 +57,7 @@ import com.apkupdateross.util.applyDynamicProxy
 import com.apkupdateross.util.dynamicTimeoutInterceptor
 import com.apkupdateross.util.isApkMirrorUrl
 import com.apkupdateross.util.mergeCookieHeaders
-import com.apkupdateross.util.play.PlayHttpClient
+import com.apkupdateross.util.play.PlayClientProvider
 import com.apkupdateross.viewmodel.AppsViewModel
 import com.apkupdateross.viewmodel.MainViewModel
 import com.apkupdateross.viewmodel.SearchViewModel
@@ -82,6 +85,7 @@ val mainModule = module {
 
 	single { ApkMirrorSession() }
 	single { ApkMirrorChallengeCoordinator(get()) }
+	single { FourPdaSession(get()) }
 
 	single {
 		HttpLoggingInterceptor().apply {
@@ -208,7 +212,7 @@ val mainModule = module {
 		val auroraClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() }).applyDynamicProxy(prefs).addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36").build()
 		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(10, TimeUnit.SECONDS).addInterceptor(dynamicTimeoutInterceptor { prefs.globalTimeoutSec.get() }).applyDynamicProxy(prefs).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
 		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
-		Downloader(client, apkPureClient, auroraClient, dir, get(), get())
+		Downloader(client, apkPureClient, auroraClient, dir, get(), get(), get())
 	}
 
 	single { ApkArchiveInspector(androidContext()) }
@@ -261,13 +265,17 @@ val mainModule = module {
 
 	single { SamsungGalaxyStoreRepository(get(), get(), get()) }
 
-	single { PlayRepository(get(), get(), get(), get()) }
+	single { FourPdaAuthClient(get(), get()) }
+
+	single { FourPdaRepository(get(), get(), get(), get()) }
+
+	single { PlayRepository(get(), get(), get()) }
 
 	single { FdroidRepoRegistry(get(), get(), get()) }
 
-	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { UpdatesRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	single { SearchRepository(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 
@@ -295,16 +303,16 @@ val mainModule = module {
 
 	single { InstallLog() }
 
-	single { PlayHttpClient(androidContext(), get(), get()) }
+	single { PlayClientProvider(androidContext(), get()) }
 
 	viewModel { MainViewModel(get(), get(), get(), get(), get()) }
 
 	viewModel { AppsViewModel(get(), get(), get(), get(), get(), get(), androidContext()) }
 
-	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(get()), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(get()), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
 }

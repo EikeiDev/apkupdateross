@@ -16,7 +16,8 @@ enum class SearchSourceFilter(@StringRes val labelRes: Int) {
     GITLAB(R.string.search_filter_gitlab),
     PLAY(R.string.search_filter_play),
     RUSTORE(R.string.search_filter_rustore),
-    UPTODOWN(R.string.search_filter_uptodown)
+    UPTODOWN(R.string.search_filter_uptodown),
+    FOURPDA(R.string.search_filter_4pda)
     ;
 
     companion object {

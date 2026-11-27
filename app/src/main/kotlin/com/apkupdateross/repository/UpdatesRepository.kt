@@ -35,6 +35,7 @@ import com.apkupdateross.data.ui.RuStoreSource
 import com.apkupdateross.data.ui.HuaweiSource
 import com.apkupdateross.data.ui.UptodownSource
 import com.apkupdateross.data.ui.SamsungGalaxyStoreSource
+import com.apkupdateross.data.ui.FourPdaSource
 
 
 class UpdatesRepository(
@@ -52,6 +53,7 @@ class UpdatesRepository(
     private val ruStoreRepository: RuStoreRepository,
     private val huaweiRepository: HuaweiRepository,
     private val samsungGalaxyStoreRepository: SamsungGalaxyStoreRepository,
+    private val fourPdaRepository: FourPdaRepository,
     private val prefs: Prefs,
     private val storeNotFoundCache: StoreNotFoundCache
 ) {
@@ -201,6 +203,9 @@ class UpdatesRepository(
         if (prefs.useSamsungGalaxyStore.get()) {
             sources.add(samsungGalaxyStoreRepository.updates(filtered).trackLoading(SamsungGalaxyStoreSource))
         }
+        if (prefs.use4pda.get()) {
+            sources.add(fourPdaRepository.updates(filtered).trackLoading(FourPdaSource))
+        }
         return sources
     }
 
@@ -232,6 +237,7 @@ class UpdatesRepository(
             storeNotFoundCache.clearStore(StoreNotFoundCache.STORE_SAMSUNG)
             samsungGalaxyStoreRepository.updates(filtered).trackLoading(SamsungGalaxyStoreSource)
         }
+        FourPdaSource.name -> fourPdaRepository.updates(filtered).trackLoading(FourPdaSource)
         else -> prefs.fdroidRepos.get()
             .firstOrNull { it.isEnabled && it.name == source.name }
             ?.let { repo ->

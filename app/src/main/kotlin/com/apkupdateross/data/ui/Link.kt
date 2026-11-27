@@ -1,6 +1,6 @@
 package com.apkupdateross.data.ui
 
-import com.aurora.gplayapi.data.models.File
+import com.aurora.gplayapi.model.AppFile
 import java.net.URI
 import java.util.Locale
 
@@ -23,7 +23,7 @@ sealed class Link {
         val isXapk: Boolean = false
     ): Link()
     data class Xapk(val link: String): Link()
-    data class Play(val getInstallFiles: () -> List<File>): Link()
+    data class Play(val getInstallFiles: suspend () -> List<AppFile>): Link()
 }
 
 fun Link.Url.hasValidationMetadata(): Boolean =

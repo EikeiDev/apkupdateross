@@ -32,7 +32,7 @@ android {
         minSdk = 24
         targetSdk = 35
         
-        val currentVersion = "1.3.5"
+        val currentVersion = "1.3.6"
         val versionParts = (if (buildNumber.isEmpty()) currentVersion else "0.0.$buildNumber").split('.')
         val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
         val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -122,9 +122,9 @@ dependencies {
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs-gson:0.4.3")
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs:0.4.3")
     implementation("com.github.topjohnwu.libsu:core:5.2.1")
-    implementation("com.aurora:gplayapi:3.2.11")
+    implementation("com.auroraoss:gplayapi:4.0.0")
     implementation("com.google.code.gson:gson:2.11.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("io.coil-kt:coil-compose:2.7.0")

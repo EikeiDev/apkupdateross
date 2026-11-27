@@ -17,6 +17,7 @@ import com.apkupdateross.data.ui.setIsDownloading
 import com.apkupdateross.data.ui.setIsInstalling
 import com.apkupdateross.data.ui.setProgress
 import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.repository.FourPdaRepository
 import com.apkupdateross.repository.SearchRepository
 import com.apkupdateross.util.AppInstallExecutor
 import com.apkupdateross.util.Badger
@@ -49,7 +50,8 @@ class SearchViewModel(
     private val prefs: Prefs,
     snackBar: SnackBar,
     stringer: Stringer,
-    installLog: InstallLog
+    installLog: InstallLog,
+    private val fourPdaRepository: FourPdaRepository? = null
 ) : InstallViewModel(downloader, installer, installExecutor, prefs, snackBar, stringer, installLog, downloadStorage) {
 
     private val mutex = Mutex()
@@ -111,6 +113,12 @@ class SearchViewModel(
         if (!prefs.searchFiltersCodebergMigrated.get()) {
             filters = filters + SearchSourceFilter.CODEBERG
             prefs.searchFiltersCodebergMigrated.put(true)
+            changed = true
+        }
+
+        if (!prefs.searchFiltersFourPdaMigrated.get()) {
+            filters = filters + SearchSourceFilter.FOURPDA
+            prefs.searchFiltersFourPdaMigrated.put(true)
             changed = true
         }
 
@@ -284,6 +292,9 @@ class SearchViewModel(
             }
             downloadAndShizukuInstall(update.id, update.packageName, update.link)
         })
+
+    suspend fun loadFourPdaPostNotes(postId: Long): String? =
+        fourPdaRepository?.loadPostNotes(postId)
 
     fun downloadToStorage(update: AppUpdate) {
         trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {

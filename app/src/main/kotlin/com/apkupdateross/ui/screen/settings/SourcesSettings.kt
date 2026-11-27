@@ -1,11 +1,14 @@
 package com.apkupdateross.ui.screen.settings
 
+import android.graphics.BitmapFactory
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,11 +49,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,15 +65,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdateross.R
 import com.apkupdateross.data.fdroid.FdroidRepo
 import com.apkupdateross.data.fdroid.normalizeFdroidRepoUrl
+import com.apkupdateross.data.fourpda.FourPdaAuthChallenge
+import com.apkupdateross.data.fourpda.FourPdaLoginResult
+import com.apkupdateross.data.fourpda.FourPdaTopicBinding
 import com.apkupdateross.data.git.CustomGitRepo
 import com.apkupdateross.data.git.GitProvider
 import com.apkupdateross.data.git.parseRepoUrl
 import com.apkupdateross.repository.DetectedGitRepo
 import com.apkupdateross.repository.GitRepoDetectionFailure
 import com.apkupdateross.repository.GitRepoDetectionResult
+import com.apkupdateross.repository.parseFourPdaTopicId
 import com.apkupdateross.ui.component.AppListSurface
 import com.apkupdateross.ui.component.ButtonSetting
 import com.apkupdateross.ui.component.SegmentedButtonSetting
@@ -77,6 +90,7 @@ import com.apkupdateross.ui.component.tvFocusOutline
 import com.apkupdateross.ui.theme.ApkTheme
 import com.apkupdateross.viewmodel.SettingsViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -211,7 +225,28 @@ internal fun SourcesSettings(
 					icon = R.drawable.ic_samsung_galaxy_store
 				)
 			}
-			SwitchSetting({ viewModel.getUsePlay() }, { viewModel.setUsePlay(it) }, stringResource(R.string.source_play), R.drawable.ic_play)
+			var playExpanded by remember { mutableStateOf(false) }
+			SwitchSetting(
+				{ viewModel.getUsePlay() },
+				{ viewModel.setUsePlay(it) },
+				stringResource(R.string.source_play),
+				R.drawable.ic_play,
+				onClick = { playExpanded = !playExpanded },
+				isExpanded = playExpanded
+			)
+			AnimatedVisibility(
+				visible = playExpanded,
+				enter = expandVertically(),
+				exit = shrinkVertically()
+			) {
+				Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+					ButtonSetting(
+						stringResource(R.string.play_reset_session),
+						{ viewModel.resetPlaySession() },
+						R.drawable.ic_refresh
+					)
+				}
+			}
 
 			var rustoreExpanded by remember { mutableStateOf(false) }
 			SwitchSetting(
@@ -239,9 +274,488 @@ internal fun SourcesSettings(
 			}
 
 			SwitchSetting({ viewModel.getUseUptodown() }, { viewModel.setUseUptodown(it) }, stringResource(R.string.source_uptodown), R.drawable.ic_uptodown)
+
+			var fourPdaExpanded by remember { mutableStateOf(false) }
+			SwitchSetting(
+				{ viewModel.getUse4pda() },
+				{ viewModel.setUse4pda(it) },
+				stringResource(R.string.source_4pda),
+				R.drawable.ic_4pda,
+				onClick = { fourPdaExpanded = !fourPdaExpanded },
+				isExpanded = fourPdaExpanded
+			)
+			AnimatedVisibility(
+				visible = fourPdaExpanded,
+				enter = expandVertically(),
+				exit = shrinkVertically()
+			) {
+				FourPdaSourceSettings(viewModel)
+			}
 		}
 	}
 	item { Spacer(Modifier.height(24.dp)) }
+}
+
+@Composable
+private fun FourPdaSourceSettings(viewModel: SettingsViewModel) {
+	val userId by viewModel.fourPdaUserId.collectAsStateWithLifecycle()
+	val bindings by viewModel.fourPdaTopicBindings.collectAsStateWithLifecycle()
+	val testingServer by viewModel.isTestingFourPdaServer.collectAsStateWithLifecycle()
+	var showLoginDialog by remember { mutableStateOf(false) }
+	var showBindingsDialog by remember { mutableStateOf(false) }
+	val isLoggedIn = userId.isNotBlank()
+
+	Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+		Text(
+			text = if (isLoggedIn) {
+				stringResource(R.string.fourpda_status_signed_in, userId)
+			} else {
+				stringResource(R.string.fourpda_status_signed_out)
+			},
+			style = MaterialTheme.typography.bodySmall,
+			color = if (isLoggedIn) ApkTheme.colors.accent else ApkTheme.colors.textSecondary,
+			modifier = Modifier.padding(bottom = 6.dp)
+		)
+		if (isLoggedIn) {
+			ButtonSetting(
+				stringResource(R.string.fourpda_logout_action),
+				{ viewModel.logoutFourPda() },
+				R.drawable.ic_4pda
+			)
+		} else {
+			ButtonSetting(
+				stringResource(R.string.fourpda_login_action),
+				{ showLoginDialog = true },
+				R.drawable.ic_4pda
+			)
+		}
+
+		ButtonSetting(
+			text = stringResource(if (testingServer) R.string.proxy_testing else R.string.fourpda_server_test),
+			onClick = { viewModel.testFourPdaServer() },
+			icon = R.drawable.ic_refresh
+		)
+
+		SegmentedButtonSetting(
+			text = stringResource(R.string.fourpda_build_preference),
+			options = listOf(
+				stringResource(R.string.fourpda_pref_both_ask),
+				stringResource(R.string.fourpda_pref_originals),
+				stringResource(R.string.fourpda_pref_mods)
+			),
+			getValue = viewModel::getFourPdaBuildPreference,
+			setValue = viewModel::setFourPdaBuildPreference,
+			icon = R.drawable.ic_4pda
+		)
+
+		ButtonSetting(
+			stringResource(R.string.fourpda_manage_topics, bindings.size),
+			{ showBindingsDialog = true },
+			R.drawable.ic_4pda
+		)
+	}
+
+	if (showLoginDialog) {
+		FourPdaNativeLoginDialog(
+			viewModel = viewModel,
+			onDismiss = { showLoginDialog = false }
+		)
+	}
+
+	if (showBindingsDialog) {
+		FourPdaBindingsDialog(
+			viewModel = viewModel,
+			bindings = bindings,
+			onDismiss = { showBindingsDialog = false }
+		)
+	}
+}
+
+@Composable
+private fun FourPdaNativeLoginDialog(
+	viewModel: SettingsViewModel,
+	onDismiss: () -> Unit
+) {
+	val scope = rememberCoroutineScope()
+	var login by rememberSaveable { mutableStateOf("") }
+	var password by rememberSaveable { mutableStateOf("") }
+	var passwordVisible by rememberSaveable { mutableStateOf(false) }
+	var captchaInput by remember { mutableStateOf("") }
+	var challenge by remember { mutableStateOf<FourPdaAuthChallenge?>(null) }
+	var loadingCaptcha by remember { mutableStateOf(true) }
+	var submitting by remember { mutableStateOf(false) }
+	var errorText by remember { mutableStateOf<String?>(null) }
+
+	fun reloadCaptcha() {
+		scope.launch {
+			loadingCaptcha = true
+			errorText = null
+			captchaInput = ""
+			viewModel.loadFourPdaAuthChallenge()
+				.onSuccess { challenge = it }
+				.onFailure { errorText = it.message }
+			loadingCaptcha = false
+		}
+	}
+
+	LaunchedEffect(Unit) {
+		reloadCaptcha()
+	}
+
+	val captchaBitmap = remember(challenge?.captchaImageBytes) {
+		challenge?.captchaImageBytes
+			?.takeIf { it.isNotEmpty() }
+			?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+	}
+
+	val canSubmit = !loadingCaptcha && !submitting && challenge != null &&
+		login.trim().isNotEmpty() && password.isNotEmpty() && captchaInput.trim().isNotEmpty()
+
+	AlertDialog(
+		onDismissRequest = { if (!submitting) onDismiss() },
+		title = { Text(stringResource(R.string.fourpda_login_title)) },
+		text = {
+			Column(
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+				verticalArrangement = Arrangement.spacedBy(10.dp)
+			) {
+				Text(
+					text = stringResource(R.string.fourpda_login_hint),
+					style = MaterialTheme.typography.bodySmall,
+					color = ApkTheme.colors.textSecondary
+				)
+				OutlinedTextField(
+					value = login,
+					onValueChange = { login = it },
+					label = { Text(stringResource(R.string.fourpda_login_field)) },
+					singleLine = true,
+					enabled = !submitting,
+					modifier = Modifier.fillMaxWidth()
+				)
+				OutlinedTextField(
+					value = password,
+					onValueChange = { password = it },
+					label = { Text(stringResource(R.string.fourpda_password_field)) },
+					singleLine = true,
+					enabled = !submitting,
+					visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+					trailingIcon = {
+						IconButton(onClick = { passwordVisible = !passwordVisible }) {
+							Icon(
+								painter = painterResource(if (passwordVisible) R.drawable.ic_visible else R.drawable.ic_visible_off),
+								contentDescription = stringResource(if (passwordVisible) R.string.hide_password else R.string.show_password),
+								modifier = Modifier.size(22.dp)
+							)
+						}
+					},
+					modifier = Modifier.fillMaxWidth()
+				)
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					verticalAlignment = Alignment.CenterVertically,
+					horizontalArrangement = Arrangement.spacedBy(8.dp)
+				) {
+					Surface(
+						shape = ApkTheme.shapes.sm,
+						color = Color.White,
+						modifier = Modifier
+							.weight(1f)
+							.height(76.dp)
+					) {
+						when {
+							loadingCaptcha -> Row(
+								modifier = Modifier.fillMaxWidth().background(Color.White),
+								horizontalArrangement = Arrangement.Center,
+								verticalAlignment = Alignment.CenterVertically
+							) {
+								CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+							}
+							captchaBitmap != null -> Image(
+								bitmap = captchaBitmap,
+								contentDescription = stringResource(R.string.fourpda_captcha_field),
+								contentScale = ContentScale.Fit,
+								modifier = Modifier.fillMaxWidth().height(76.dp)
+							)
+							else -> Row(
+								modifier = Modifier.fillMaxWidth().background(ApkTheme.colors.surfaceSecondary),
+								horizontalArrangement = Arrangement.Center,
+								verticalAlignment = Alignment.CenterVertically
+							) {
+								Text(
+									text = "—",
+									color = ApkTheme.colors.textSecondary
+								)
+							}
+						}
+					}
+					IconButton(
+						onClick = { if (!loadingCaptcha && !submitting) reloadCaptcha() }
+					) {
+						Icon(
+							imageVector = Icons.Filled.Refresh,
+							contentDescription = stringResource(R.string.fourpda_captcha_refresh),
+							tint = ApkTheme.colors.accent
+						)
+					}
+				}
+				OutlinedTextField(
+					value = captchaInput,
+					onValueChange = { captchaInput = it.filter(Char::isDigit).take(6) },
+					label = { Text(stringResource(R.string.fourpda_captcha_field)) },
+					singleLine = true,
+					enabled = !submitting && !loadingCaptcha,
+					modifier = Modifier.fillMaxWidth()
+				)
+				errorText?.takeIf { it.isNotBlank() }?.let { err ->
+					Text(
+						text = err,
+						style = MaterialTheme.typography.bodySmall,
+						color = ApkTheme.colors.error
+					)
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(
+				enabled = canSubmit,
+				onClick = {
+					val current = challenge ?: return@TextButton
+					scope.launch {
+						submitting = true
+						errorText = null
+						when (val res = viewModel.loginFourPda(current, login, password, captchaInput)) {
+							is FourPdaLoginResult.Success -> onDismiss()
+							is FourPdaLoginResult.Failure -> {
+								errorText = res.message
+								captchaInput = ""
+								if (res.refreshedChallenge != null) {
+									challenge = res.refreshedChallenge
+								}
+							}
+						}
+						submitting = false
+					}
+				}
+			) {
+				Text(stringResource(R.string.fourpda_login_submit))
+			}
+		},
+		dismissButton = {
+			TextButton(
+				enabled = !submitting,
+				onClick = onDismiss
+			) {
+				Text(stringResource(R.string.settings_custom_repo_cancel))
+			}
+		}
+	)
+}
+
+@Composable
+private fun FourPdaBindingsDialog(
+	viewModel: SettingsViewModel,
+	bindings: Map<String, FourPdaTopicBinding>,
+	onDismiss: () -> Unit
+) {
+	var editingBinding by remember { mutableStateOf<FourPdaTopicBinding?>(null) }
+	val sorted = remember(bindings) {
+		bindings.values.sortedBy { it.topicTitle.ifBlank { it.packageName }.lowercase(Locale.ROOT) }
+	}
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = {
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				Text(
+					text = stringResource(R.string.fourpda_topics_title),
+					modifier = Modifier.weight(1f)
+				)
+				IconButton(onClick = { editingBinding = FourPdaTopicBinding() }) {
+					Icon(
+						imageVector = Icons.Filled.Add,
+						contentDescription = stringResource(R.string.fourpda_topic_add),
+						tint = ApkTheme.colors.accent
+					)
+				}
+			}
+		},
+		text = {
+			if (sorted.isEmpty()) {
+				Text(
+					text = stringResource(R.string.fourpda_topics_empty),
+					style = MaterialTheme.typography.bodyMedium,
+					color = ApkTheme.colors.textSecondary,
+					modifier = Modifier.padding(vertical = 8.dp)
+				)
+			} else {
+				LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+					items(sorted, key = { it.packageName }) { item ->
+						Row(
+							modifier = Modifier
+								.fillMaxWidth()
+								.clickable { editingBinding = item }
+								.padding(vertical = 8.dp),
+							verticalAlignment = Alignment.CenterVertically
+						) {
+							Column(modifier = Modifier.weight(1f)) {
+								Text(
+									text = item.topicTitle.ifBlank { "4PDA #${item.topicId}" },
+									style = MaterialTheme.typography.bodyMedium,
+									fontWeight = FontWeight.SemiBold,
+									color = ApkTheme.colors.textPrimary,
+									maxLines = 1,
+									overflow = TextOverflow.Ellipsis
+								)
+								val filterPart = item.fileFilter.takeIf { it.isNotBlank() }?.let { " • $it" }.orEmpty()
+								Text(
+									text = "${item.packageName} • #${item.topicId}$filterPart",
+									style = MaterialTheme.typography.bodySmall,
+									color = ApkTheme.colors.textSecondary,
+									maxLines = 2,
+									overflow = TextOverflow.Ellipsis
+								)
+							}
+							IconButton(onClick = { viewModel.removeFourPdaTopicBinding(item.packageName) }) {
+								Icon(
+									imageVector = Icons.Filled.Delete,
+									contentDescription = stringResource(R.string.settings_repository_delete),
+									tint = ApkTheme.colors.error
+								)
+							}
+						}
+						Divider(color = ApkTheme.colors.divider)
+					}
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.ok))
+			}
+		}
+	)
+
+	editingBinding?.let { initial ->
+		FourPdaTopicEditDialog(
+			initial = initial,
+			viewModel = viewModel,
+			onDismiss = { editingBinding = null },
+			onSave = {
+				viewModel.saveFourPdaTopicBinding(it)
+				editingBinding = null
+			}
+		)
+	}
+}
+
+@Composable
+private fun FourPdaTopicEditDialog(
+	initial: FourPdaTopicBinding,
+	viewModel: SettingsViewModel,
+	onDismiss: () -> Unit,
+	onSave: (FourPdaTopicBinding) -> Unit
+) {
+	var topicInput by remember(initial) {
+		mutableStateOf(if (initial.topicId > 0L) "https://4pda.to/forum/index.php?showtopic=${initial.topicId}" else "")
+	}
+	var packageName by remember(initial) { mutableStateOf(initial.packageName) }
+	var topicTitle by remember(initial) { mutableStateOf(initial.topicTitle) }
+	var fileFilter by remember(initial) { mutableStateOf(initial.fileFilter) }
+	var detecting by remember { mutableStateOf(false) }
+
+	LaunchedEffect(topicInput) {
+		val parsedId = parseFourPdaTopicId(topicInput) ?: return@LaunchedEffect
+		if (parsedId == initial.topicId && packageName.isNotBlank()) return@LaunchedEffect
+		delay(400)
+		detecting = true
+		val detected = viewModel.detectFourPdaTopic(topicInput)
+		detecting = false
+		if (detected != null) {
+			topicTitle = detected.title
+			if (packageName.isBlank()) {
+				detected.packageNames.firstOrNull()?.let { packageName = it }
+			}
+		}
+	}
+
+	val topicId = parseFourPdaTopicId(topicInput) ?: 0L
+	val canSave = topicId > 0L && packageName.trim().isNotEmpty() && !detecting
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.fourpda_topic_add)) },
+		text = {
+			Column(
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+				verticalArrangement = Arrangement.spacedBy(10.dp)
+			) {
+				OutlinedTextField(
+					value = topicInput,
+					onValueChange = { topicInput = it },
+					label = { Text(stringResource(R.string.fourpda_topic_url_label)) },
+					placeholder = { Text("https://4pda.to/forum/index.php?showtopic=...") },
+					singleLine = true,
+					modifier = Modifier.fillMaxWidth()
+				)
+				if (detecting) {
+					Row(verticalAlignment = Alignment.CenterVertically) {
+						CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+						Spacer(Modifier.width(10.dp))
+						Text(
+							text = stringResource(R.string.fourpda_topic_detecting),
+							style = MaterialTheme.typography.bodySmall,
+							color = ApkTheme.colors.textSecondary
+						)
+					}
+				} else if (topicTitle.isNotBlank()) {
+					Text(
+						text = topicTitle,
+						style = MaterialTheme.typography.bodySmall,
+						color = ApkTheme.colors.accent
+					)
+				}
+				OutlinedTextField(
+					value = packageName,
+					onValueChange = { packageName = it },
+					label = { Text(stringResource(R.string.settings_custom_repo_package)) },
+					singleLine = true,
+					modifier = Modifier.fillMaxWidth()
+				)
+				OutlinedTextField(
+					value = fileFilter,
+					onValueChange = { fileFilter = it },
+					label = { Text(stringResource(R.string.fourpda_topic_filter_label)) },
+					singleLine = true,
+					modifier = Modifier.fillMaxWidth()
+				)
+			}
+		},
+		confirmButton = {
+			TextButton(
+				enabled = canSave,
+				onClick = {
+					onSave(
+						FourPdaTopicBinding(
+							packageName = packageName.trim(),
+							topicId = topicId,
+							topicTitle = topicTitle.trim(),
+							fileFilter = fileFilter.trim()
+						)
+					)
+				}
+			) {
+				Text(stringResource(R.string.settings_custom_repo_save))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.settings_custom_repo_cancel))
+			}
+		}
+	)
 }
 
 @Composable

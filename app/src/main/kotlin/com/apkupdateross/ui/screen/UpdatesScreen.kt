@@ -63,6 +63,7 @@ import com.apkupdateross.ui.component.AppStatusBadge
 import com.apkupdateross.ui.component.AppTone
 import com.apkupdateross.ui.component.AppTopBar
 import com.apkupdateross.ui.component.DefaultErrorScreen
+import com.apkupdateross.ui.component.DownloadChoiceDialog
 import com.apkupdateross.ui.component.EmptyGrid
 import com.apkupdateross.ui.component.GridItem
 import com.apkupdateross.ui.component.InstalledGrid
@@ -340,13 +341,41 @@ fun Grid(
 	val swipeIgnoreDirection by viewModel.swipeIgnoreDirection.collectAsStateWithLifecycle()
 	val pinnedAppSources by viewModel.pinnedAppSources.collectAsStateWithLifecycle()
 	var pendingDownload by remember { mutableStateOf<AppUpdate?>(null) }
+	var choiceDialogState by remember { mutableStateOf<Pair<AppUpdate, Boolean>?>(null) }
 	val requestStoragePermission = rememberStoragePermissionAction {
 		pendingDownload?.let { downloadUpdate(context, viewModel, it) }
 		pendingDownload = null
 	}
-	val downloadAction: (AppUpdate) -> Unit = { update ->
+	val runDownload: (AppUpdate) -> Unit = { update ->
 		pendingDownload = update
 		requestStoragePermission()
+	}
+	val installAction: (AppUpdate) -> Unit = { update ->
+		if (update.downloadChoices.size > 1) {
+			choiceDialogState = update to false
+		} else {
+			installUpdate(context, viewModel, update, handler)
+		}
+	}
+	val downloadAction: (AppUpdate) -> Unit = { update ->
+		if (update.downloadChoices.size > 1) {
+			choiceDialogState = update to true
+		} else {
+			runDownload(update)
+		}
+	}
+
+	choiceDialogState?.let { (targetUpdate, isSaveMode) ->
+		DownloadChoiceDialog(
+			update = targetUpdate,
+			onDismiss = { choiceDialogState = null },
+			onLoadPostNotes = viewModel::loadFourPdaPostNotes,
+			onOpenPost = { url -> runCatching { handler.openUri(url) } },
+			onSelect = { resolved ->
+				choiceDialogState = null
+				if (isSaveMode) runDownload(resolved) else installUpdate(context, viewModel, resolved, handler)
+			}
+		)
 	}
 
 	InstalledGrid(
@@ -383,17 +412,17 @@ fun Grid(
 						source = update.source,
 						onIgnore = { viewModel.ignoreVersion(update.id) },
 						onOpenPage = { viewModel.openSourcePage(update, handler) },
-						onClick = { installUpdate(context, viewModel, update, handler) },
+						onClick = { installAction(update) },
 						updates = grouped.updates,
 						onUpdateIgnore = { viewModel.ignoreVersion(it) },
 						onUpdateOpenPage = { viewModel.openSourcePage(it, handler) },
-						onUpdateClick = { installUpdate(context, viewModel, it, handler) }
+						onUpdateClick = { installAction(it) }
 					)
 				} else {
 					UpdateItem(
 						grouped,
 						compactMode,
-						{ installUpdate(context, viewModel, it, handler) },
+						installAction,
 						{ viewModel.ignoreVersion(it)},
 						{ viewModel.cancel(it) },
 						onDownload = downloadAction,

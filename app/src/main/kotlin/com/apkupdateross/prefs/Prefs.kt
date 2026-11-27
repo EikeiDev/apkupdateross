@@ -1,13 +1,14 @@
 package com.apkupdateross.prefs
 
+import com.apkupdateross.data.fourpda.FourPdaTopicBinding
 import com.apkupdateross.data.git.CustomGitRepo
+import com.apkupdateross.repository.FourPdaRepository
 import com.apkupdateross.data.ui.CachedUpdateEntry
 import com.apkupdateross.data.ui.InstallHistoryEntry
 import com.apkupdateross.data.ui.Screen
 import com.apkupdateross.data.ui.defaultSourcePriorityOrder
 import com.apkupdateross.data.ui.SearchSourceFilter
 import com.apkupdateross.data.ui.SwipeIgnoreDirection
-import com.aurora.gplayapi.data.models.AuthData
 import com.kryptoprefs.context.KryptoContext
 import kotlinx.coroutines.flow.asStateFlow
 import com.kryptoprefs.gson.json
@@ -49,6 +50,12 @@ class Prefs(
 	val useRuStore = boolean("useRuStore", defValue = true, backed = true)
 	val useHuawei = boolean("useHuawei", defValue = false, backed = true)
 	val useSamsungGalaxyStore = boolean("useSamsungGalaxyStore", defValue = false, backed = true)
+	val use4pda = boolean("use4pda", defValue = false, backed = true)
+	val fourPdaServerUrl = string("fourPdaServerUrl", defValue = FourPdaRepository.DEFAULT_SERVER_URL, backed = true)
+	val fourPdaBuildPreference = int("fourPdaBuildPreference", defValue = 0, backed = true)
+	val fourPdaCookies = string("fourPdaCookies", defValue = "", backed = true)
+	val fourPdaUserId = string("fourPdaUserId", defValue = "", backed = true)
+	val fourPdaTopicBindings = json("fourPdaTopicBindings", emptyMap<String, FourPdaTopicBinding>(), true)
 	val samsungGalaxyStoreRegion = string("samsungGalaxyStoreRegion", defValue = "GLOBAL", backed = true)
 	val huaweiRegion = string("huaweiRegion", defValue = "AUTO", backed = true)
 	val huaweiCachedRegion = string("huaweiCachedRegion", defValue = "", backed = true)
@@ -62,13 +69,13 @@ class Prefs(
 
 	val ruStore404Packages = json("ruStore404Packages", emptyList<RuStore404Entry>(), true)
 	val storeNotFoundCache = json("storeNotFoundCache", emptyMap<String, Map<String, Long>>(), true)
-	val playProfileVersion = int("playProfileVersion", 0, true)
 	val searchFilters = json("searchFilters", SearchSourceFilter.defaultSelection.map { it.name }, true)
 	val searchFiltersHuaweiMigrated = boolean("searchFiltersHuaweiMigrated", defValue = false, backed = true)
 	val searchFiltersUptodownMigrated = boolean("searchFiltersUptodownMigrated", defValue = false, backed = true)
 	val searchFiltersApk20Migrated = boolean("searchFiltersApk20Migrated", defValue = false, backed = true)
 	val searchFiltersSamsungMigrated = boolean("searchFiltersSamsungMigrated", defValue = false, backed = true)
 	val searchFiltersCodebergMigrated = boolean("searchFiltersCodebergMigrated", defValue = false, backed = true)
+	val searchFiltersFourPdaMigrated = boolean("searchFiltersFourPdaMigrated", defValue = false, backed = true)
 	val enableAlarm = boolean("enableAlarm", defValue = false, backed = true)
 	val alarmHour = int("alarmHour", defValue = 12, backed = true)
 	val alarmFrequency = int("alarmFrequency", 0, backed = true)
@@ -85,8 +92,6 @@ class Prefs(
 	val customThemeNavigation = string("customThemeNavigation", defValue = "#15231D", backed = true)
 	val downloadFolderUri = string("downloadFolderUri", defValue = "", backed = true)
 	val lastTab = string("lastTab", defValue = Screen.Updates.route, backed = true)
-	val playAuthData = json("playAuthData", AuthData("", ""), true)
-	val lastPlayCheck = long("lastPlayCheck", 0L, true)
 	val lastUpdateCheckDurationMs = long("lastUpdateCheckDurationMs", 0L, true)
 	val lastUpdateCheckTimestamp = long("lastUpdateCheckTimestamp", 0L, true)
 	val lastUpdateSourcesCount = int("lastUpdateSourcesCount", 0, true)
@@ -142,6 +147,9 @@ class Prefs(
 
 	private val _pinnedAppSourcesFlow = kotlinx.coroutines.flow.MutableStateFlow(pinnedAppSources.get())
 	val pinnedAppSourcesFlow = _pinnedAppSourcesFlow.asStateFlow()
+
+	private val _fourPdaTopicBindingsFlow = kotlinx.coroutines.flow.MutableStateFlow(fourPdaTopicBindings.get())
+	val fourPdaTopicBindingsFlow = _fourPdaTopicBindingsFlow.asStateFlow()
 
 	private val historyLock = Any()
 
@@ -218,6 +226,11 @@ class Prefs(
 		}
 		pinnedAppSources.put(current)
 		_pinnedAppSourcesFlow.value = current
+	}
+
+	fun setFourPdaTopicBindings(bindings: Map<String, FourPdaTopicBinding>) {
+		fourPdaTopicBindings.put(bindings)
+		_fourPdaTopicBindingsFlow.value = bindings
 	}
 
 	private fun normalizeSourcePriorityOrder(order: List<String>): List<String> {

@@ -6,6 +6,7 @@ import com.apkupdateross.BuildConfig
 import com.apkupdateross.R
 import com.apkupdateross.data.ui.AppInstallProgress
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.FourPdaSource
 import com.apkupdateross.data.ui.GroupedAppUpdate
 import com.apkupdateross.data.ui.InstallFailureReason
 import com.apkupdateross.data.ui.Link
@@ -22,6 +23,7 @@ import com.apkupdateross.data.ui.setIsDownloading
 import com.apkupdateross.data.ui.setIsInstalling
 import com.apkupdateross.data.ui.setProgress
 import com.apkupdateross.prefs.Prefs
+import com.apkupdateross.repository.FourPdaRepository
 import com.apkupdateross.repository.UpdatesRepository
 import com.apkupdateross.util.AppInstallExecutor
 import com.apkupdateross.util.Badger
@@ -67,7 +69,8 @@ class UpdatesViewModel(
 	downloadStorage: DownloadStorage,
 	snackBar: SnackBar,
 	stringer: Stringer,
-	installLog: InstallLog
+	installLog: InstallLog,
+	private val fourPdaRepository: FourPdaRepository? = null
 ) : InstallViewModel(downloader, installer, installExecutor, prefs, snackBar, stringer, installLog, downloadStorage) {
 
 	private val mutex = Mutex()
@@ -282,7 +285,7 @@ class UpdatesViewModel(
 			} else if (installedVersionCode != null) {
 				current.filterNot { entry ->
 					if (entry.packageName != packageName) return@filterNot false
-					if (installedVersionCode <= Int.MAX_VALUE.toLong()) {
+					if (entry.versionCode > 0L && installedVersionCode <= Int.MAX_VALUE.toLong()) {
 						entry.versionCode in 1..installedVersionCode
 					} else {
 						!installedVersionName.isNullOrBlank() && entry.version == installedVersionName
@@ -479,6 +482,8 @@ class UpdatesViewModel(
 
 	private fun AppUpdate.canBulkInstall(installMode: Int): Boolean = when {
 		isPaid || isInstalling || isDownloading -> false
+		source == FourPdaSource -> false
+		downloadChoices.size > 1 -> false
 		link is Link.Empty -> false
 		link is Link.BrowserDownload -> false
 		else -> true
@@ -566,6 +571,9 @@ class UpdatesViewModel(
 		val shouldShow = candidate.versionCode > lastInstalled && candidate.versionCode != snoozedSelfUpdateVersionCode
 		_selfUpdate.value = if (shouldShow) candidate else null
 	}
+
+	suspend fun loadFourPdaPostNotes(postId: Long): String? =
+		fourPdaRepository?.loadPostNotes(postId)
 
 	fun downloadToStorage(update: AppUpdate) {
 		trackJob(update.id, viewModelScope.launch(Dispatchers.IO) {

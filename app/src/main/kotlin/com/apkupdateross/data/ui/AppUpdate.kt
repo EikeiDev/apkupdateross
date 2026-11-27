@@ -3,6 +3,18 @@ package com.apkupdateross.data.ui
 import android.net.Uri
 import io.github.g00fy2.versioncompare.Version
 
+data class DownloadChoice(
+	val label: String,
+	val link: Link.Url,
+	val version: String = "",
+	val sizeBytes: Long = 0L,
+	val uploadedAt: String = "",
+	val abi: String = "",
+	val isMod: Boolean = false,
+	val postId: Long = 0L,
+	val postUrl: String = ""
+)
+
 data class AppUpdate(
 	val name: String,
 	val packageName: String,
@@ -22,6 +34,7 @@ data class AppUpdate(
 	val isDownloading: Boolean = false,
 	val total: Long = 0L,
 	val progress: Long = 0L,
+	val downloadChoices: List<DownloadChoice> = emptyList(),
 	val id: Int = "${source.name}.$packageName.$versionCode.$version".hashCode()
 )
 

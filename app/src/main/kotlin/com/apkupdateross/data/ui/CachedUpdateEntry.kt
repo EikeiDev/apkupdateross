@@ -2,6 +2,18 @@ package com.apkupdateross.data.ui
 
 import com.apkupdateross.R
 
+data class CachedDownloadChoice(
+	val label: String = "",
+	val url: String = "",
+	val version: String = "",
+	val sizeBytes: Long = 0L,
+	val uploadedAt: String = "",
+	val abi: String = "",
+	val isMod: Boolean = false,
+	val postId: Long = 0L,
+	val postUrl: String = ""
+)
+
 data class CachedUpdateEntry(
 	val name: String = "",
 	val packageName: String = "",
@@ -20,7 +32,8 @@ data class CachedUpdateEntry(
 	val linkSize: Long = 0L,
 	val expectedPackageName: String? = null,
 	val sha256: String? = null,
-	val isXapk: Boolean = false
+	val isXapk: Boolean = false,
+	val downloadChoices: List<CachedDownloadChoice> = emptyList()
 )
 
 fun AppUpdate.toCachedEntry(): CachedUpdateEntry {
@@ -52,7 +65,20 @@ fun AppUpdate.toCachedEntry(): CachedUpdateEntry {
 		linkSize = linkSize,
 		expectedPackageName = expectedPkg,
 		sha256 = sha,
-		isXapk = isXapk
+		isXapk = isXapk,
+		downloadChoices = downloadChoices.map { choice ->
+			CachedDownloadChoice(
+				label = choice.label,
+				url = choice.link.link,
+				version = choice.version,
+				sizeBytes = choice.sizeBytes,
+				uploadedAt = choice.uploadedAt,
+				abi = choice.abi,
+				isMod = choice.isMod,
+				postId = choice.postId,
+				postUrl = choice.postUrl
+			)
+		}
 	)
 }
 
@@ -60,20 +86,40 @@ fun CachedUpdateEntry.toAppUpdate(): AppUpdate {
 	val source = restoreSource()
 	val releaseType = runCatching { ReleaseType.valueOf(releaseTypeName) }.getOrDefault(ReleaseType.Stable)
 	val restoredLink: Link = restoreLink()
+	val restoredWhatsNew = if (source == FourPdaSource) "" else whatsNew
+	val restoredChoices = downloadChoices.orEmpty().mapNotNull { c ->
+		if (c.url.isBlank()) return@mapNotNull null
+		DownloadChoice(
+			label = c.label,
+			link = Link.Url(
+				link = c.url,
+				size = c.sizeBytes,
+				expectedPackageName = expectedPackageName
+			),
+			version = c.version,
+			sizeBytes = c.sizeBytes,
+			uploadedAt = c.uploadedAt,
+			abi = c.abi,
+			isMod = c.isMod,
+			postId = c.postId,
+			postUrl = c.postUrl
+		)
+	}
 	return AppUpdate(
 		name = name,
 		packageName = packageName,
 		version = version,
 		oldVersion = oldVersion,
-		versionCode = versionCode,
+		versionCode = if (source == FourPdaSource) 0L else versionCode,
 		oldVersionCode = oldVersionCode,
 		source = source,
 		link = restoredLink,
 		sourceUrl = sourceUrl,
 		releaseUrl = releaseUrl,
-		whatsNew = whatsNew,
+		whatsNew = restoredWhatsNew,
 		releaseType = releaseType,
-		isPaid = isPaid
+		isPaid = isPaid,
+		downloadChoices = restoredChoices
 	)
 }
 
@@ -101,6 +147,7 @@ private fun sourceForName(name: String): Source = when (name) {
 	RuStoreSource.name -> RuStoreSource
 	HuaweiSource.name -> HuaweiSource
 	SamsungGalaxyStoreSource.name -> SamsungGalaxyStoreSource
+	FourPdaSource.name -> FourPdaSource
 	else -> Source(name, R.drawable.ic_fdroid)
 }
 

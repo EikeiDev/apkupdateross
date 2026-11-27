@@ -22,6 +22,7 @@ val PlaySource = Source("Play", R.drawable.ic_play)
 val RuStoreSource = Source("RuStore", R.drawable.ic_rustore)
 val HuaweiSource = Source("AppGallery", R.drawable.ic_huawei)
 val SamsungGalaxyStoreSource = Source("Galaxy Store", R.drawable.ic_samsung_galaxy_store)
+val FourPdaSource = Source("4PDA", R.drawable.ic_4pda)
 
 val defaultSourcePriorityOrder: List<String> = listOf(
     PlaySource.name,
@@ -33,6 +34,7 @@ val defaultSourcePriorityOrder: List<String> = listOf(
     FdroidSource.name,
     IzzySource.name,
     RuStoreSource.name,
+    FourPdaSource.name,
     ApkPureSource.name,
     Apk20Source.name,
     UptodownSource.name,
@@ -60,6 +62,7 @@ fun Source.priority(filterRuStore: Boolean = false, customOrder: List<String> = 
         "Aptoide" -> 50
         "AppGallery" -> 45
         "Galaxy Store" -> 95
+        "4PDA" -> 62
         else -> 0
     }
 }

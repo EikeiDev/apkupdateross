@@ -10,7 +10,7 @@ import com.apkupdateross.data.ui.resolvedUrl
 import com.apkupdateross.data.ui.totalSize
 import com.apkupdateross.data.ui.validationPackageName
 import com.apkupdateross.data.ui.validationSize
-import com.aurora.gplayapi.data.models.File
+import com.aurora.gplayapi.model.AppFile
 import kotlinx.coroutines.CancellationException
 
 enum class InstallMethod {
@@ -89,10 +89,10 @@ class AppInstallExecutor(
 	fun downloadPlayFiles(
 		id: Int,
 		packageName: String,
-		files: List<File>,
+		files: List<AppFile>,
 		emitProgress: Boolean = true
 	): List<Downloader.FileDownloadResult> {
-		val baseCount = files.count { it.type == File.FileType.BASE }
+		val baseCount = files.count { it.type == AppFile.Type.BASE }
 		if (baseCount != 1) throw Exception("Google Play APK set must contain exactly one base APK")
 		val total = files.sumOf { it.size.coerceAtLeast(0L) }
 		var offset = 0L
@@ -108,8 +108,9 @@ class AppInstallExecutor(
 			) ?: throw Exception("Failed to download ${file.name}")
 
 			val expectedSize = file.size.coerceAtLeast(0L)
-			val expectedPackage = packageName.takeIf { it.isNotBlank() && file.type == File.FileType.BASE }
-			installer.validateApkFile(result.file, expectedPackage, null, expectedSize)
+			val expectedPackage = packageName.takeIf { it.isNotBlank() && file.type == AppFile.Type.BASE }
+			val expectedSha256 = file.sha256.takeIf { it.isNotBlank() }
+			installer.validateApkFile(result.file, expectedPackage, expectedSha256, expectedSize)
 			offset += result.file.length()
 			result
 		}

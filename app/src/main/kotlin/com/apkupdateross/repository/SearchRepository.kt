@@ -9,6 +9,7 @@ import com.apkupdateross.data.ui.ApkPureSource
 import com.apkupdateross.data.ui.AppUpdate
 import com.apkupdateross.data.ui.AptoideSource
 import com.apkupdateross.data.ui.CodebergSource
+import com.apkupdateross.data.ui.FourPdaSource
 import com.apkupdateross.data.ui.GitHubSource
 import com.apkupdateross.data.ui.GitLabSource
 import com.apkupdateross.data.ui.HuaweiSource
@@ -49,6 +50,7 @@ class SearchRepository(
     private val ruStoreRepository: RuStoreRepository,
     private val huaweiRepository: HuaweiRepository,
     private val samsungGalaxyStoreRepository: SamsungGalaxyStoreRepository,
+    private val fourPdaRepository: FourPdaRepository,
     private val prefs: Prefs
 ) {
 
@@ -173,6 +175,9 @@ class SearchRepository(
         if (filters.shouldInclude(SearchSourceFilter.SAMSUNG)) {
             sources += samsungGalaxyStoreRepository.search(text).trackLoading(SamsungGalaxyStoreSource)
         }
+        if (filters.shouldInclude(SearchSourceFilter.FOURPDA)) {
+            sources += fourPdaRepository.search(text).trackLoading(FourPdaSource)
+        }
 
         return sources
     }
@@ -191,6 +196,7 @@ class SearchRepository(
             RuStoreSource.name -> ruStoreRepository.search(text).trackLoading(RuStoreSource)
             HuaweiSource.name -> huaweiRepository.search(text).trackLoading(HuaweiSource)
             SamsungGalaxyStoreSource.name -> samsungGalaxyStoreRepository.search(text).trackLoading(SamsungGalaxyStoreSource)
+            FourPdaSource.name -> fourPdaRepository.search(text).trackLoading(FourPdaSource)
             else -> prefs.fdroidRepos.get()
                 .firstOrNull { it.isEnabled && it.name == source.name }
                 ?.let { repo ->

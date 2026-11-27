@@ -28,7 +28,8 @@ class Downloader(
     private val auroraClient: OkHttpClient,
     private val dir: File,
     private val apkMirrorSession: ApkMirrorSession,
-    private val apkMirrorChallengeCoordinator: ApkMirrorChallengeCoordinator
+    private val apkMirrorChallengeCoordinator: ApkMirrorChallengeCoordinator,
+    private val fourPdaSession: FourPdaSession
 ) {
 
     init {
@@ -267,6 +268,11 @@ class Downloader(
                     header("Referer", normalized.takeIf(::isApkMirrorUrl) ?: APKMIRROR_BASE_URL)
                     header("User-Agent", apkMirrorSession.userAgentOr(APKMIRROR_USER_AGENT))
                     apkMirrorSession.cookieHeaderFor(resolvedUrl)?.let { header("Cookie", it) }
+                } else if (isFourPdaUrl(resolvedUrl)) {
+                    header("Accept", "*/*")
+                    header("Referer", "https://4pda.to/forum/")
+                    header("User-Agent", AppUserAgent.value)
+                    fourPdaSession.cookieHeaderFor(resolvedUrl)?.let { header("Cookie", it) }
                 }
             }
             .build()

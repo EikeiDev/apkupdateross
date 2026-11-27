@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.apkupdateross.data.ui.AppUpdate
+import com.apkupdateross.data.ui.FourPdaSource
 import com.apkupdateross.data.ui.HistoryEventType
 import com.apkupdateross.data.ui.InstallHistoryEntry
 import com.apkupdateross.data.ui.updateComparator
@@ -126,6 +127,7 @@ class UpdatesWorker(
 
             if (autoInstallRequested && connectionAllowsInstall && shizukuAvailable) {
                 for (update in updates) {
+                    if (update.source == FourPdaSource || update.downloadChoices.size > 1) continue
                     val outcome = withTimeoutOrNull(5 * 60 * 1000L) {
                         downloadAndInstallSilently(update, mode)
                     } ?: Pair(false, "Timed out")

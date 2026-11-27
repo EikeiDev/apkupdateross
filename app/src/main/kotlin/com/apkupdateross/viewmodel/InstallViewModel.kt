@@ -322,7 +322,7 @@ abstract class InstallViewModel(
     protected suspend fun savePlayFiles(update: AppUpdate, link: Link.Play) {
         val files = link.getInstallFiles()
         if (files.isEmpty()) return
-        if (files.count { it.type == com.aurora.gplayapi.data.models.File.FileType.BASE } != 1) {
+        if (files.count { it.type == com.aurora.gplayapi.model.AppFile.Type.BASE } != 1) {
             throw Exception("Google Play APK set must contain exactly one base APK")
         }
 
@@ -334,7 +334,7 @@ abstract class InstallViewModel(
                 installExecutor.progressCallback(update.id, file.size)
             ) ?: return
             val fileName = "${update.name}_${update.version}.apk"
-            installer.validateApkFile(result.file, update.packageName, null, 0L)
+            installer.validateApkFile(result.file, update.packageName, file.sha256.takeIf { it.isNotBlank() }, file.size.coerceAtLeast(0L))
             if (downloadStorage.save(
                     fileName,
                     "application/vnd.android.package-archive",
@@ -379,9 +379,9 @@ abstract class InstallViewModel(
                         installer.validateApkFile(
                             result.file,
                             update.packageName.takeIf {
-                                file.type == com.aurora.gplayapi.data.models.File.FileType.BASE
+                                file.type == com.aurora.gplayapi.model.AppFile.Type.BASE
                             },
-                            null,
+                            file.sha256.takeIf { it.isNotBlank() },
                             file.size.coerceAtLeast(0L)
                         )
                         val copied = result.file.inputStream().use { input ->

@@ -108,6 +108,7 @@
     <string name="source_rustore" translatable="false">RuStore</string>
     <string name="source_huawei" translatable="false">AppGallery</string>
     <string name="source_samsung_galaxy_store" translatable="false">Galaxy Store</string>
+    <string name="source_4pda" translatable="false">4PDA</string>
     <string name="settings_huawei_region">AppGallery region</string>
     <string name="huawei_region_auto">Auto</string>
     <string name="huawei_region_search">Search by country or code</string>
@@ -215,6 +216,7 @@
     <string name="search_filter_play">Google Play</string>
     <string name="search_filter_rustore">RuStore</string>
     <string name="search_filter_huawei">AppGallery</string>
+    <string name="search_filter_4pda" translatable="false">4PDA</string>
     <string name="metric_last_check_duration">Last check duration</string>
     <string name="metric_last_check_time">Last check time</string>
     <string name="metric_last_check_sources">Sources checked</string>
@@ -392,4 +394,46 @@
     <string name="install_error_parse">Corrupted or invalid APK file</string>
     <string name="cancel_refresh_updates">Stop checking updates</string>
     <string name="notification_more_updates">+%1$d more</string>
+    <string name="fourpda_login_title">Sign in to 4PDA</string>
+    <string name="fourpda_login_hint">Enter your 4PDA credentials and captcha digits to download APKs directly.</string>
+    <string name="fourpda_login_field">Login</string>
+    <string name="fourpda_password_field">Password</string>
+    <string name="fourpda_captcha_field">Captcha digits</string>
+    <string name="fourpda_captcha_refresh">Refresh captcha</string>
+    <string name="fourpda_login_submit">Sign in</string>
+    <string name="fourpda_login_action">Sign in to 4PDA</string>
+    <string name="fourpda_login_success">Signed in to 4PDA</string>
+    <string name="fourpda_logout_action">Sign out</string>
+    <string name="fourpda_logout_success">Signed out of 4PDA</string>
+    <string name="fourpda_status_signed_in">Signed in (ID: %1$s)</string>
+    <string name="fourpda_status_signed_out">Sign in required to download APKs from 4PDA</string>
+    <string name="fourpda_server_test">Test 4PDA source</string>
+    <string name="fourpda_server_ok">4PDA source OK (%1$d topics, %2$d packages)</string>
+    <string name="fourpda_server_failed">4PDA source unavailable: %1$s</string>
+    <string name="fourpda_build_preference">Preferred builds</string>
+    <string name="fourpda_pref_both_ask">Both (ask)</string>
+    <string name="fourpda_pref_originals">Originals</string>
+    <string name="fourpda_pref_mods">Mods</string>
+    <string name="fourpda_choose_file_title">Choose APK file</string>
+    <string name="fourpda_choice_info_cd">Build details</string>
+    <string name="fourpda_choice_loading_notes">Loading post details…</string>
+    <string name="fourpda_choice_no_notes">No changelog or mod details in this post.</string>
+    <string name="fourpda_open_post">Open post on 4PDA</string>
+    <string name="fourpda_badge_mod" translatable="false">MOD</string>
+    <string name="fourpda_badge_orig">Original</string>
+    <string name="fourpda_manage_topics">Custom topic bindings (%1$d)</string>
+    <string name="fourpda_topics_title">Custom 4PDA topics</string>
+    <string name="fourpda_topics_empty">Most apps are matched automatically via the index server. Add manual bindings for custom mods or clones.</string>
+    <string name="fourpda_topic_add">Bind topic</string>
+    <string name="fourpda_topic_url_label">4PDA topic URL or ID</string>
+    <string name="fourpda_topic_filter_label">APK filter (optional, e.g. mod or arm64)</string>
+    <string name="fourpda_topic_detecting">Loading topic from server…</string>
+    <string name="fourpda_topic_invalid">Enter a valid 4PDA topic URL or ID and package name.</string>
+    <string name="play_reset_session">Reset Google Play session</string>
+    <string name="play_reset_session_success">Google Play session reset</string>
+    <string name="play_error_rate_limited">Google Play temporarily limited requests. Please try again shortly.</string>
+    <string name="play_error_not_supported">Not available for this device or region on Google Play.</string>
+    <string name="play_error_not_purchased">Paid or restricted app cannot be downloaded anonymously from Google Play.</string>
+    <string name="play_error_removed">This app or version is no longer available on Google Play.</string>
+    <string name="play_error_no_files">Google Play did not return any downloadable APK files.</string>
 </resources>
